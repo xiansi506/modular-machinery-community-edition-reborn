@@ -1,0 +1,24 @@
+﻿RED FIRST - 0.28.1 KubeJS binding: the new assertion run against the 0.28.0 line, before the fix
+source under test: ModularMachineryKubeJSPlugin.registerBindings = event.add(MachineEvents.GROUP_NAME, MachineEvents.group())
+evidence file: C:\Users\kk07H\Desktop\模组\_audit\m6c-verify\harness-run-0.28.0.txt
+line count of that evidence file: 1185
+SUMMARY: SUMMARY: 1016 PASS / 8 FAIL (1024 checks)
+
+== Z9. 0.28.1 鈥?the machine event really reaches a script as a callable event
+  PASS  KubeJS's own classes could be loaded for this check (the deobfuscated build, which pairs with this harness's Mojmap Minecraft): C:\Users\kk07H\Desktop\妯＄粍\.gradle-home\caches\forge_gradle\deobf_dependencies\libs\kubejs\1.20.1_mapped_official_1.20.1\kubejs-1.20.1_mapped_official_1.20.1.jar
+  PASS  ...and so could the Rhino fork KubeJS runs scripts with: C:\Users\kk07H\Desktop\妯＄粍\.gradle-home\caches\forge_gradle\deobf_dependencies\libs\rhino\1.20.1_mapped_official_1.20.1\rhino-1.20.1_mapped_official_1.20.1.jar
+  PASS  ...while the production jars this checkout ships are SRG-remapped (libs/kubejs-1.20.1.jar, byte-identical to the instance's), so building on them here would have been a mapping mismatch, not a test
+  PASS  a stand-in for Architectury's Platform was compiled (KubeJS reads the game folder while its own classes initialise, and this harness has no mod loader): C:\Users\kk07H\AppData\Local\Temp\mmverify-kjs-stub\classes
+[16:49:59] [main/INFO] [KubeJS/]: Loaded common.properties
+[16:49:59] [main/INFO] [KubeJS/]: Loaded dev.properties
+  PASS  registerEvents() put the machine event group into KubeJS's own group registry under 'MachineRegistryEvents' 鈥?without it KubeJS never binds it
+  PASS  ...with exactly one typed event on it ([registry])
+  PASS  registerBindings published 'MachineRegistryEvents' (dev.latvian.mods.kubejs.event.EventGroup)
+  FAIL  ...as a KubeJS EventGroupWrapper rather than the raw group (the 0.28.0 defect)
+  FAIL  a script sees 'registry' on the published binding as: expected function, got undefined
+  FAIL  ...and the property is the group's own event handler (null)
+  FAIL  ...and calling it reaches that handler instead of failing to find it (stopped at: dev.latvian.mods.rhino.EcmaError: TypeError: Cannot find function registry in object MachineRegistryEvents. (mmverify-z9.js#1))
+  PASS  the raw group 0.28.0 bound exposes no event: typeof ...registry: expected undefined, got undefined
+  FAIL  ...and the script dies with the owner's own line: dev.latvian.mods.rhino.EcmaError: TypeError: Cannot find function registry in object dev.latvian.mods.rhino.NativeJavaObject@54a0ada1. (mmverify-z9.js#1)
+
+SUMMARY: 1016 PASS / 8 FAIL (1024 checks)

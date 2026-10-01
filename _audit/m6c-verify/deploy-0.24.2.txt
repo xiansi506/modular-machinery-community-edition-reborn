@@ -1,0 +1,6 @@
+﻿0.24.2 build/deploy record
+build product : build\libs\modular_machinery_reborn-0.24.2.jar
+deployed file : D:\.minecraft\versions\彩虹花园\mods\modular_machinery_reborn-0.24.2.jar
+SHA-256       : A336D8A8F918BF423AD59E98DD6586F48DF669079E134B27D87BCEE01D61C1DA
+size          : 565640
+equal to build/libs copy: True

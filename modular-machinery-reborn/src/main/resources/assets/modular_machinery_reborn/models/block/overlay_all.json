@@ -1,0 +1,4 @@
+{
+  "parent":"modular_machinery_reborn:block/overlay_base",
+  "textures":{"particle":"#bg_all","bg_down":"#bg_all","bg_up":"#bg_all","bg_north":"#bg_all","bg_south":"#bg_all","bg_west":"#bg_all","bg_east":"#bg_all","ov_down":"#ov_all","ov_up":"#ov_all","ov_north":"#ov_all","ov_south":"#ov_all","ov_west":"#ov_all","ov_east":"#ov_all"}
+}

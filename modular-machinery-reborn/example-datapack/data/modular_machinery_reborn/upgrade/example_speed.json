@@ -1,0 +1,21 @@
+{
+  "name": "modular_machinery_reborn:example_speed",
+  "localizedname": "Example Speed Upgrade",
+  "level": 1.5,
+  "max-stack": 4,
+  "dynamic": false,
+  "stackable": true,
+  "modifiers": [
+    {
+      "target": "modular_machinery_reborn:duration",
+      "io": "input",
+      "operation": 1,
+      "multiplier": 0.5
+    }
+  ],
+  "descriptions": [
+    "An example upgrade declared by a data pack.",
+    "It halves the craft's duration, and 'stackable' means each",
+    "copy in the stack applies that again (two copies: a quarter)."
+  ]
+}

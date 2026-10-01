@@ -1,0 +1,12 @@
+=== M4b 逐等级槽位差分测试（修正版） ===
+原版参数逐字读自 ContainerItemBus.addInventorySlots；本实现参数用正则从 MachineHatchMenu.java 抽取。
+
+  TINY        槽数=1  一致=是
+  SMALL       槽数=4  一致=是
+  NORMAL      槽数=6  一致=是
+  REINFORCED  槽数=9  一致=是
+  BIG         槽数=12  一致=是
+  HUGE        槽数=16  一致=是
+  LUDICROUS   槽数=32  一致=是
+
+==== 槽位差分：问题数 = 0 ====

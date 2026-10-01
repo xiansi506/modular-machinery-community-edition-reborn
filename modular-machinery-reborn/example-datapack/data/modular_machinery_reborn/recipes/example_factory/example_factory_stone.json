@@ -1,0 +1,11 @@
+{
+  "type": "modular_machinery_reborn:machine",
+  "machine": "example_factory",
+  "recipeTime": 5,
+  "//": "One of the two recipes the factory demonstrator runs AT THE SAME TIME as the other one.",
+  "//2": "No energy, so the thread's arithmetic is unmistakable: 1 cobblestone in, 1 stone out.",
+  "requirements": [
+    { "type": "modular_machinery_reborn:item", "io-type": "input",  "item": "minecraft:cobblestone", "amount": 1 },
+    { "type": "modular_machinery_reborn:item", "io-type": "output", "item": "minecraft:stone", "amount": 1 }
+  ]
+}

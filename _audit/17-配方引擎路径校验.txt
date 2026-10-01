@@ -1,0 +1,18 @@
+物品 ID = 2538；机器 = alloy_furnace, iron_centrifuge, transformer, immortal_bloom_assembler, example_machine；矿辞映射名 = 11
+
+=== 配方校验（按引擎实际路径）===
+  OK  immortal_bloom_crown.json                machine=immortal_bloom_assembler  需求=11
+  OK  power_transformer_energy_transform.json  machine=transformer  需求=2
+  OK  alloy_smelter_diamond.json               machine=alloy_furnace  需求=4
+  OK  alloy_smelter_modularium.json            machine=alloy_furnace  需求=6
+  OK  centrifuge_centrifuge_blaze_powder.json  machine=iron_centrifuge  需求=4
+  OK  centrifuge_centrifuge_grass.json         machine=iron_centrifuge  需求=11
+  OK  centrifuge_centrifuge_magma_cream.json   machine=iron_centrifuge  需求=4
+  OK  centrifuge_centrifuge_wool.json          machine=iron_centrifuge  需求=6
+  OK  centrifuge_wash_glowstone.json           machine=iron_centrifuge  需求=3
+  OK  centrifuge_wash_redstone.json            machine=iron_centrifuge  需求=3
+  OK  example_machine_demo.json                machine=example_machine  需求=3
+  OK  example_machine_demo.json                machine=example_machine  需求=3
+
+配方数 = 12
+==== 问题数 = 0 ====

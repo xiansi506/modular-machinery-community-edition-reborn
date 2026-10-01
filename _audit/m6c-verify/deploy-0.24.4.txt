@@ -1,0 +1,20 @@
+# 0.24.4 deploy
+
+build product : C:\Users\kk07H\Desktop\模组\modular-machinery-reborn\build\libs\modular_machinery_reborn-0.24.4.jar
+                567143 bytes, SHA-256 98FE64A15394F3B77322395F45809489A8679E02CD1774581B538558B65A714B
+deployed file : D:\.minecraft\versions\彩虹花园\mods\modular_machinery_reborn-0.24.4.jar
+                567143 bytes, SHA-256 98FE64A15394F3B77322395F45809489A8679E02CD1774581B538558B65A714B
+hashes equal  : True
+
+mods/ contents (modular_machinery_reborn-*.jar):
+  modular_machinery_reborn-0.24.4.jar  567143 bytes  09/30/2026 23:33:48
+
+older modular_machinery_reborn jars removed from mods/:
+  modular_machinery_reborn-0.24.3.jar (566698 bytes) -- deleted before the copy
+
+mods.toml inside the deployed jar: version="0.24.4"
+data/* entries inside the deployed jar: 0
+javap on the deployed jar's com.reborn.modularmachinery.block.ModBlocks:
+  official CREATIVE_MODE_TAB refs: 0
+  SRG f_<n>_ refs: 1
+  (full javap: reobf-0.24.4-deployed.txt)

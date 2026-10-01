@@ -1,0 +1,32 @@
+# 0.24.3 — deploy evidence (Modular Machinery: Community Edition Reborn)
+
+Build product : modular-machinery-reborn/build/libs/modular_machinery_reborn-0.24.3.jar
+Deployed to   : D:\.minecraft\versions\彩虹花园\mods\modular_machinery_reborn-0.24.3.jar
+Removed       : D:\.minecraft\versions\彩虹花园\mods\modular_machinery_reborn-0.24.2.jar
+
+SHA-256 build product : C7B52AFC65850ED6EF6B1C9454138C9F4EA84470B421EAC352AE0F5EDCE5CCC2
+SHA-256 deployed file : C7B52AFC65850ED6EF6B1C9454138C9F4EA84470B421EAC352AE0F5EDCE5CCC2
+Hashes match          : True
+Size (both)           : 566698 bytes
+
+## SRG reobfuscation — javap on com.reborn.modularmachinery.block.ModBlocks
+
+build product : SRG f_<n>_ refs = 1, official CREATIVE_MODE_TAB refs = 0  -> reobfuscated: True
+deployed file : SRG f_<n>_ refs = 1, official CREATIVE_MODE_TAB refs = 0  -> reobfuscated: True
+
+Details: _audit/m6c-verify/reobf-0.24.3-ModBlocks.txt (build product)
+         _audit/m6c-verify/reobf-0.24.3-deployed.txt (deployed file)
+
+## Build order (this release)
+
+1. harness run  -> jar rebuilt un-reobfuscated (the documented hazard)
+2. clean build  -> BUILD SUCCESSFUL, `> Task :reobfJar` executed
+3. SRG reobf check on build/libs and on the deployed file (above)
+4. deploy       -> copy + hash verification (above)
+
+Log: _audit/m6c-verify/release-build-0.24.3.txt
+
+## Version
+
+modular-machinery-reborn/gradle.properties: mod_version=0.24.3
+mods.toml version comes from ${version} (no other version literal).

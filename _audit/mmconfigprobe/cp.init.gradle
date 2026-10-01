@@ -1,0 +1,16 @@
+// Writes this project's compile classpath to UTF-8 files so an external javac/java can use it
+// regardless of the console codepage (ASCII temp dirs only).
+gradle.projectsEvaluated {
+    def target = gradle.rootProject
+    target.tasks.register('mmPrintClasspath') {
+        doLast {
+            def cp = target.sourceSets.main.compileClasspath.files
+            def outDir = new File(System.getProperty('java.io.tmpdir'), 'mmconfigprobe')
+            outDir.mkdirs()
+            new File(outDir, 'cp.txt').setText(cp.join(File.pathSeparator), 'UTF-8')
+            new File(outDir, 'javac.args').setText('-cp "' + cp.join(File.pathSeparator) + '"', 'UTF-8')
+            println "MMCLASSPATH_WRITTEN entries=${cp.size()} to ${outDir}"
+            cp.findAll { it.name.contains('forge') || it.name.contains('client') }.each { println "  MATCH ${it}" }
+        }
+    }
+}

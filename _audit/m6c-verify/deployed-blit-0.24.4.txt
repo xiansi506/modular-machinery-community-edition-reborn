@@ -1,0 +1,36 @@
+# 0.24.4: the fix inside the DEPLOYED jar (so the shipped artefact, not just the source, carries it)
+# file: D:\.minecraft\versions\彩虹花园\mods\modular_machinery_reborn-0.24.4.jar
+# SHA-256 98FE64A15394F3B77322395F45809489A8679E02CD1774581B538558B65A714B
+#
+# javap -classpath <deployed jar> -c -p com.reborn.modularmachinery.client.FactoryControllerScreen
+# (reobfuscation rewrites the override of the vanilla method to its SRG name, m_280003_ = renderLabels;
+#  blitPanel's own name is unchanged because it is not a vanilla member)
+#
+
+public static void blitPanel(net.minecraft.client.gui.GuiGraphics, int, int, int, int);
+    Code:
+       0: iload_1
+       1: iload_2
+       2: iload_3
+       3: iload         4
+       5: invokestatic  #213                // Method panelBlitFull:(IIII)[I
+       8: astore        5
+      10: invokestatic  #208                // Method panelTextureSize:()[I
+      13: astore        6
+      15: aload_0
+      16: getstatic     #215                // Field TEXTURE:Lnet/minecraft/resources/ResourceLocation;
+      19: aload         5
+      21: iconst_0
+      22: iaload
+      23: aload         5
+      25: iconst_1
+      26: iaload
+      27: iconst_0
+      28: aload         5
+      30: iconst_2
+      31: iaload
+
+# counts over the whole class in the deployed jar:
+#   GuiGraphics.m_280398_ calls with descriptor ...IIIFFIIII)V (the overload that takes the texture size): 1
+#   calls with the 6-int descriptor ...ResourceLocation;IIIIII)V (the 256x256 default): the four in this class
+#     are the queue-element and scrollbar blits, whose sheets really are 256x256

@@ -1,0 +1,14 @@
+== deploy 0.24.5 ==
+source hash (FactoryControllerScreen.java): F03F0874D846D2263CC5B5999F4DD323D2CEAF6856E456E5B66D21A8121FB5D1
+build product: C:\mmwork\modular-machinery-reborn\build\libs\modular_machinery_reborn-0.24.5.jar
+  bytes: 567162
+  sha256: B1F09CE0222EC7F270A270FBE617E7D157C9608E25651B34DF7A2E1256219CB4
+removing old: modular_machinery_reborn-0.24.5.jar
+deployed: D:\.minecraft\versions\彩虹花园\mods\modular_machinery_reborn-0.24.5.jar
+  bytes: 567162
+  sha256: B1F09CE0222EC7F270A270FBE617E7D157C9608E25651B34DF7A2E1256219CB4
+archived: C:\mmwork\releases\modular-machinery-reborn\v0.24.5\modular_machinery_reborn-0.24.5.jar
+  sha256: B1F09CE0222EC7F270A270FBE617E7D157C9608E25651B34DF7A2E1256219CB4
+hashes equal (build == deployed == archived): True
+remaining modular_machinery_reborn-*.jar in the mods dir:
+  modular_machinery_reborn-0.24.5.jar  567162  B1F09CE0222EC7F270A270FBE617E7D157C9608E25651B34DF7A2E1256219CB4

@@ -1,0 +1,24 @@
+{
+  "name": "modular_machinery_reborn:example_output_doubler",
+  "localizedname": "Example Output Doubler",
+  "level": 2.0,
+  "max-stack": 1,
+  "dynamic": false,
+  "stackable": false,
+  "compatible-machines": [
+    "modular_machinery_reborn:alloy_furnace"
+  ],
+  "modifiers": [
+    {
+      "target": "modular_machinery_reborn:item",
+      "io": "output",
+      "operation": 1,
+      "multiplier": 2.0
+    }
+  ],
+  "descriptions": [
+    "Doubles this machine's item outputs while it sits in a bus.",
+    "The whitelist means only the alloy smelter accepts it - a bus",
+    "in any other machine refuses it and the screen warns."
+  ]
+}

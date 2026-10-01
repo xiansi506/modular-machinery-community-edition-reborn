@@ -1,0 +1,33 @@
+旧版枚举解析数: ItemBusSize=7（期望 7）  FluidHatchSize=8（期望 8）  EnergyHatchData=8（期望 8）
+新版 HatchTier=9（期望 9）
+
+=== 物品槽位 ItemBusSize ===
+  TINY        旧=1    新=1    OK
+  SMALL       旧=4    新=4    OK
+  NORMAL      旧=6    新=6    OK
+  REINFORCED  旧=9    新=9    OK
+  BIG         旧=12   新=12   OK
+  HUGE        旧=16   新=16   OK
+  LUDICROUS   旧=32   新=32   OK
+
+=== 流体容量 FluidHatchSize ===
+  TINY        旧=100    新=100    OK
+  SMALL       旧=400    新=400    OK
+  NORMAL      旧=1000   新=1000   OK
+  REINFORCED  旧=2000   新=2000   OK
+  BIG         旧=4500   新=4500   OK
+  HUGE        旧=8000   新=8000   OK
+  LUDICROUS   旧=16000  新=16000  OK
+  VACUUM      旧=32000  新=32000  OK
+
+=== 能源 EnergyHatchData (容量/传输) ===
+  TINY        旧=2048    /128     新=2048    /128     OK
+  SMALL       旧=4096    /512     新=4096    /512     OK
+  NORMAL      旧=8192    /512     新=8192    /512     OK
+  REINFORCED  旧=16384   /2048    新=16384   /2048    OK
+  BIG         旧=32768   /8192    新=32768   /8192    OK
+  HUGE        旧=131072  /32768   新=131072  /32768   OK
+  LUDICROUS   旧=524288  /131072  新=524288  /131072  OK
+  ULTIMATE    旧=2097152 /131072  新=2097152 /131072  OK
+
+==== 容量数值不符项 = 0 ====

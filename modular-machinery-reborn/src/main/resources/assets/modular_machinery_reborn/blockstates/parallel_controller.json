@@ -1,0 +1,9 @@
+{
+  "variants": {
+    "type=normal": { "model": "modular_machinery_reborn:block/parallel_controller_normal" },
+    "type=reinforced": { "model": "modular_machinery_reborn:block/parallel_controller_reinforced" },
+    "type=elite": { "model": "modular_machinery_reborn:block/parallel_controller_elite" },
+    "type=super": { "model": "modular_machinery_reborn:block/parallel_controller_super" },
+    "type=ultimate": { "model": "modular_machinery_reborn:block/parallel_controller_ultimate" }
+  }
+}

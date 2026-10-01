@@ -1,0 +1,47 @@
+plugins {
+    id 'eclipse'
+    id 'idea'
+    id 'maven-publish'
+    id 'net.minecraftforge.gradle' version '6.0.54'
+}
+
+version = mod_version
+group = mod_group
+base { archivesName = mod_id }
+java.toolchain.languageVersion = JavaLanguageVersion.of(17)
+
+minecraft {
+    mappings channel: mappings_channel, version: mappings_version
+    runs {
+        client { workingDirectory project.file('run'); mods { "${mod_id}" { source sourceSets.main } } }
+        server { workingDirectory project.file('run'); mods { "${mod_id}" { source sourceSets.main } } }
+        data { workingDirectory project.file('run'); args '--mod', mod_id, '--all', '--output', file('src/generated/resources/'); mods { "${mod_id}" { source sourceSets.main } } }
+    }
+}
+
+repositories {
+    maven { name = 'Aliyun'; url = 'https://maven.aliyun.com/repository/public' }
+    maven { name = 'BlameJared'; url = 'https://maven.blamejared.com' }
+    flatDir { dirs 'libs' }
+}
+
+dependencies {
+    minecraft "net.minecraftforge:forge:${minecraft_version}-${forge_version}"
+    if (use_local_deps.toBoolean()) {
+        compileOnly fg.deobf('libs:kubejs:1.20.1')
+        // 0.28.0: KubeJS's own API is not self-contained here — dev.latvian.mods.kubejs.event.EventHandler
+        // extends dev.latvian.mods.rhino.BaseFunction, so every call to EventHandler#post needs Rhino on the
+        // compile classpath. Until 0.28.0 nothing in this mod called one, which is why the gap was invisible;
+        // the maven path below gets Rhino transitively and this one did not.
+        compileOnly fg.deobf('libs:rhino:1.20.1')
+        compileOnly fg.deobf('libs:jei:15.49')
+    } else {
+        compileOnly fg.deobf('dev.latvian.mods:kubejs-forge:2001.6.5-build.16')
+        compileOnly fg.deobf('mezz.jei:jei-1.20.1-forge:15.2.0.27')
+    }
+}
+
+processResources {
+    inputs.properties([version: project.version, mod_id: mod_id, mod_name: mod_name])
+    filesMatching('META-INF/mods.toml') { expand(version: project.version, mod_id: mod_id, mod_name: mod_name) }
+}

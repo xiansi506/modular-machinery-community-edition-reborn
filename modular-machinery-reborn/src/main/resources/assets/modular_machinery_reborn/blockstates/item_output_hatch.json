@@ -1,0 +1,11 @@
+{
+  "variants": {
+    "size=tiny": { "model": "modular_machinery_reborn:block/item_output_hatch_tiny" },
+    "size=small": { "model": "modular_machinery_reborn:block/item_output_hatch_small" },
+    "size=normal": { "model": "modular_machinery_reborn:block/item_output_hatch_normal" },
+    "size=reinforced": { "model": "modular_machinery_reborn:block/item_output_hatch_reinforced" },
+    "size=big": { "model": "modular_machinery_reborn:block/item_output_hatch_big" },
+    "size=huge": { "model": "modular_machinery_reborn:block/item_output_hatch_huge" },
+    "size=ludicrous": { "model": "modular_machinery_reborn:block/item_output_hatch_ludicrous" }
+  }
+}

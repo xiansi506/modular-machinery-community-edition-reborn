@@ -1,0 +1,33 @@
+=== M4a 行序/偏移差分测试 ===
+两个函数分别独立还原自原版 GuiMachineController:48-176 与本实现 MachineControllerScreen.drawInfo。
+测试的是每条文字的落点 y 序列（依赖行数，不依赖换行结果）。
+
+  红石停止 · 1 行: 一致
+    原版  : y=22 redstone
+    本实现: y=22 redstone
+  红石停止 · 3 行: 一致
+    原版  : y=22 redstone  y=42 redstone  y=62 redstone
+    本实现: y=22 redstone  y=42 redstone  y=62 redstone
+  未成型 · 无蓝图: 一致
+    原版  : y=12 bp-none  y=27 st-none  y=42 status-head  y=52 status
+    本实现: y=12 bp-none  y=27 st-none  y=42 status-head  y=52 status
+  未成型 · 有蓝图 2 行: 一致
+    原版  : y=12 bp-head  y=22 bp-name  y=32 bp-name  y=47 st-none  y=62 status-head  y=72 status
+    本实现: y=12 bp-head  y=22 bp-name  y=32 bp-name  y=47 st-none  y=62 status-head  y=72 status
+  已成型 · 1 行机名: 一致
+    原版  : y=12 st-head  y=22 st-name  y=37 status-head  y=47 status
+    本实现: y=12 st-head  y=22 st-name  y=37 status-head  y=47 status
+  已成型 · 2 行机名: 一致
+    原版  : y=12 st-head  y=22 st-name  y=32 st-name  y=47 status-head  y=57 status
+    本实现: y=12 st-head  y=22 st-name  y=32 st-name  y=47 status-head  y=57 status
+  已成型 · 扩展信息 2 行: 一致
+    原版  : y=12 st-head  y=22 st-name  y=37 extra  y=47 extra  y=62 status-head  y=72 status
+    本实现: y=12 st-head  y=22 st-name  y=37 extra  y=47 extra  y=62 status-head  y=72 status
+  已成型 · 状态 3 行 + 进度: 一致
+    原版  : y=12 st-head  y=22 st-name  y=37 status-head  y=47 status  y=57 status  y=67 status  y=82 progress
+    本实现: y=12 st-head  y=22 st-name  y=37 status-head  y=47 status  y=57 status  y=67 status  y=82 progress
+  已成型 · 无结构: 一致
+    原版  : y=12 bp-none  y=27 st-none  y=42 status-head  y=52 status
+    本实现: y=12 bp-none  y=27 st-none  y=42 status-head  y=52 status
+
+==== 不一致 = 0 ====

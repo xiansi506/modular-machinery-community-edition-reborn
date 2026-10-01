@@ -1,0 +1,1 @@
+724D79FB2AD4A024B33C89D109EE5CED06191932ADFCDABEFDB035FEF76830F7  modular_machinery_reborn-0.30.1.jar  (the deployed artifact)

@@ -1,0 +1,102 @@
+{
+    "registryname":  "example_factory",
+    "localizedname":  "Example Factory",
+    "//":  "M6e's demonstrator: a machine that runs SEVERAL DIFFERENT recipes at once.",
+    "//2":  "has-factory is what makes it eligible (the factory controller block is the other half);",
+    "//3":  "max-threads is how many ordinary recipe slots it may hold; core-threads are slots that",
+    "//4":  "always exist. See 'example-datapack/README.md' for how to make it form in game.",
+    "has-factory":  true,
+    "factory-only":  false,
+    "max-threads":  4,
+    "core-threads":  [
+                         {
+                             "name":  "smelter",
+                             "//":  "empty 'recipes' = this core thread may run any recipe this machine has",
+                             "recipes":  []
+                         }
+                     ],
+    "//5":  "No parallelism needed for the factory demonstrator: each thread settles exactly one copy.",
+    "max-parallelism":  2048,
+    "internal-parallelism":  0,
+    "parallelizable":  true,
+    "parts":  [
+                  {
+                      "x":  [ -1, 0, 1 ],
+                      "y":  -1,
+                      "z":  [ 0, 1, 2 ],
+                      "elements":  "minecraft:iron_block"
+                  },
+                  {
+                      "x":  -1,
+                      "y":  0,
+                      "z":  0,
+                      "elements":  "minecraft:iron_block"
+                  },
+                  {
+                      "x":  1,
+                      "y":  0,
+                      "z":  0,
+                      "elements":  "minecraft:iron_block"
+                  },
+                  {
+                      "x":  -1,
+                      "y":  0,
+                      "z":  2,
+                      "elements":  "minecraft:iron_block"
+                  },
+                  {
+                      "x":  1,
+                      "y":  0,
+                      "z":  2,
+                      "elements":  "minecraft:iron_block"
+                  },
+                  {
+                      "x":  1,
+                      "y":  0,
+                      "z":  1,
+                      "elements":  [
+                                       "modular_machinery_reborn:item_input_hatch"
+                                   ]
+                  },
+                  {
+                      "x":  -1,
+                      "y":  0,
+                      "z":  1,
+                      "elements":  [
+                                       "modular_machinery_reborn:item_output_hatch"
+                                   ]
+                  },
+                  {
+                      "x":  0,
+                      "y":  0,
+                      "z":  2,
+                      "elements":  [
+                                       "modular_machinery_reborn:energy_input_hatch"
+                                   ]
+                  },
+                  {
+                      "x":  0,
+                      "y":  0,
+                      "z":  1,
+                      "elements":  "minecraft:lava"
+                  },
+                  {
+                      "x":  [ -1, 0, 1 ],
+                      "y":  1,
+                      "z":  0,
+                      "elements":  "minecraft:gold_block"
+                  },
+                  {
+                      "x":  [ -1, 0, 1 ],
+                      "y":  1,
+                      "z":  1,
+                      "elements":  "minecraft:gold_block"
+                  },
+                  {
+                      "x":  [ -1, 0, 1 ],
+                      "y":  1,
+                      "z":  2,
+                      "elements":  "minecraft:gold_block"
+                  }
+              ]
+}

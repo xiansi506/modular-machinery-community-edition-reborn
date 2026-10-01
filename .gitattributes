@@ -1,0 +1,7 @@
+# 统一换行符：本项目全链路要求 LF（复现器会断言 LF、无 BOM）
+* text=auto eol=lf
+*.bat text eol=crlf
+*.jar binary
+*.png binary
+*.jpg binary
+*.ogg binary

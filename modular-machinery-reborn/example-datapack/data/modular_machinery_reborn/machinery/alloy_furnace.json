@@ -1,0 +1,197 @@
+{
+    "registryname":  "alloy_furnace",
+    "localizedname":  "Alloy Smelter",
+    "//": "max-parallelism raised from 64 to the original's own default (Config.maxMachineParallelism)",
+    "//2": "in M6d, so all five parallel-controller tiers (4/16/64/256/512) are distinguishable on this machine.",
+    "max-parallelism":  2048,
+    "internal-parallelism":  1,
+    "parallelizable":  true,
+    "modifiers":  [
+                      {
+                          "elements":  "modular_machinery_reborn:blockcasing[casing=vent]",
+                          "x":  0,
+                          "y":  1,
+                          "z":  0,
+                          "description":  "Replace block above controller with machine vent\nfor double item output!",
+                          "modifier":  {
+                                           "target":  "modular_machinery_reborn:item",
+                                           "io":  "output",
+                                           "operation":  1,
+                                           "multiplier":  2.0
+                                       }
+                      }
+                  ],
+    "parts":  [
+                  {
+                      "x":  -1,
+                      "y":  -1,
+                      "z":  0,
+                      "elements":  "modular_machinery_reborn:blockcasing[casing=reinforced]"
+                  },
+                  {
+                      "x":  0,
+                      "y":  -1,
+                      "z":  0,
+                      "elements":  "modular_machinery_reborn:blockcasing[casing=firebox]"
+                  },
+                  {
+                      "x":  1,
+                      "y":  -1,
+                      "z":  0,
+                      "elements":  "modular_machinery_reborn:blockcasing[casing=reinforced]"
+                  },
+                  {
+                      "x":  -1,
+                      "y":  -1,
+                      "z":  1,
+                      "elements":  "modular_machinery_reborn:blockcasing[casing=firebox]"
+                  },
+                  {
+                      "x":  1,
+                      "y":  -1,
+                      "z":  1,
+                      "elements":  "modular_machinery_reborn:blockcasing[casing=firebox]"
+                  },
+                  {
+                      "x":  -1,
+                      "y":  -1,
+                      "z":  2,
+                      "elements":  "modular_machinery_reborn:blockcasing[casing=reinforced]"
+                  },
+                  {
+                      "x":  1,
+                      "y":  -1,
+                      "z":  2,
+                      "elements":  "modular_machinery_reborn:blockcasing[casing=reinforced]"
+                  },
+                  {
+                      "x":  0,
+                      "y":  -1,
+                      "z":  2,
+                      "elements":  "modular_machinery_reborn:blockcasing[casing=firebox]"
+                  },
+                  {
+                      "x":  0,
+                      "y":  -1,
+                      "z":  1,
+                      "elements":  "modular_machinery_reborn:blockcasing[casing=plain]"
+                  },
+                  {
+                      "x":  -1,
+                      "y":  0,
+                      "z":  2,
+                      "elements":  "modular_machinery_reborn:blockcasing[casing=reinforced]"
+                  },
+                  {
+                      "x":  1,
+                      "y":  0,
+                      "z":  2,
+                      "elements":  "modular_machinery_reborn:blockcasing[casing=reinforced]"
+                  },
+                  {
+                      "x":  -1,
+                      "y":  0,
+                      "z":  0,
+                      "elements":  "modular_machinery_reborn:blockcasing[casing=reinforced]"
+                  },
+                  {
+                      "x":  1,
+                      "y":  0,
+                      "z":  0,
+                      "elements":  "modular_machinery_reborn:blockcasing[casing=reinforced]"
+                  },
+                  {
+                      "x":  1,
+                      "y":  0,
+                      "z":  1,
+                      "elements":  [
+                                       "modular_machinery_reborn:item_input_hatch"
+                                   ]
+                  },
+                  {
+                      "x":  -1,
+                      "y":  0,
+                      "z":  1,
+                      "elements":  [
+                                       "modular_machinery_reborn:item_output_hatch"
+                                   ]
+                  },
+                  {
+                      "x":  0,
+                      "y":  0,
+                      "z":  2,
+                      "elements":  [
+                                       "modular_machinery_reborn:energy_input_hatch"
+                                   ]
+                  },
+                  {
+                      "x":  0,
+                      "y":  0,
+                      "z":  1,
+                      "elements":  "minecraft:lava"
+                  },
+                  {
+                      "x":  -1,
+                      "y":  1,
+                      "z":  0,
+                      "elements":  "modular_machinery_reborn:blockcasing[casing=reinforced]"
+                  },
+                  {
+                      "x":  0,
+                      "y":  1,
+                      "z":  0,
+                      "//":  "M6b: the roof's front centre accepts the upgrade bus as well as its firebox casing, the",
+                      "//2": "same way the roof's centre (0,1,1) already accepts the parallel controller. The block",
+                      "//3": "substitution does not change the structure's size or shape.",
+                      "elements":  [
+                                       "modular_machinery_reborn:blockcasing[casing=firebox]",
+                                       "modular_machinery_reborn:upgrade_bus"
+                                   ]
+                  },
+                  {
+                      "x":  1,
+                      "y":  1,
+                      "z":  0,
+                      "elements":  "modular_machinery_reborn:blockcasing[casing=reinforced]"
+                  },
+                  {
+                      "x":  -1,
+                      "y":  1,
+                      "z":  1,
+                      "elements":  "modular_machinery_reborn:blockcasing[casing=firebox]"
+                  },
+                  {
+                      "x":  1,
+                      "y":  1,
+                      "z":  1,
+                      "elements":  "modular_machinery_reborn:blockcasing[casing=firebox]"
+                  },
+                  {
+                      "x":  -1,
+                      "y":  1,
+                      "z":  2,
+                      "elements":  "modular_machinery_reborn:blockcasing[casing=reinforced]"
+                  },
+                  {
+                      "x":  1,
+                      "y":  1,
+                      "z":  2,
+                      "elements":  "modular_machinery_reborn:blockcasing[casing=reinforced]"
+                  },
+                  {
+                      "x":  0,
+                      "y":  1,
+                      "z":  2,
+                      "elements":  "modular_machinery_reborn:blockcasing[casing=firebox]"
+                  },
+                  {
+                      "x":  0,
+                      "y":  1,
+                      "z":  1,
+                      "elements":  [
+                                       "modular_machinery_reborn:blockcasing[casing=plain]",
+                                       "modular_machinery_reborn:parallel_controller"
+                                   ]
+                  }
+              ]
+}

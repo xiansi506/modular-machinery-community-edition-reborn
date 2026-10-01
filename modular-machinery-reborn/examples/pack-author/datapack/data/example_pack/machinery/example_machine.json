@@ -1,0 +1,35 @@
+{
+  "registryname": "example_machine",
+  "localizedname": "Example Machine",
+
+  "//parallelism": "M6c (0.19.0). internal-parallelism is how many copies this machine runs on its own; max-parallelism is the hard ceiling; parallelizable: false forbids parallelism entirely. All three are optional: leaving them out means internal 0 / max 2048 / parallelizable true, i.e. exactly one copy until a parallel controller contributes (M6d).",
+  "max-parallelism": 32,
+  "internal-parallelism": 4,
+  "parallelizable": true,
+
+  "//modifiers": "M6c (0.19.0). A modifier names one structure position and the blocks that may sit there. While a matching block is present, its recipe modifiers apply: here a machine vent directly above the controller doubles item output. x/y/z are relative to the controller, whose own position is skipped.",
+  "modifiers": [
+    {
+      "elements": "modular_machinery_reborn:blockcasing[casing=vent]",
+      "x": 0,
+      "y": 1,
+      "z": 0,
+      "description": "Replace the block above the controller with a machine vent\nfor double item output!",
+      "modifier": {
+        "target": "modular_machinery_reborn:item",
+        "io": "output",
+        "operation": 1,
+        "multiplier": 2.0
+      }
+    }
+  ],
+
+  "parts": [
+    {
+      "x": [-1, 0, 1],
+      "y": -1,
+      "z": [-1, 0, 1],
+      "elements": "modular_machinery_reborn:blockcasing"
+    }
+  ]
+}

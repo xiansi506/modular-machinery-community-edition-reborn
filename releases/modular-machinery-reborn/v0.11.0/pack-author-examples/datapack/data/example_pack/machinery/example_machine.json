@@ -1,0 +1,12 @@
+{
+  "registryname": "example_machine",
+  "localizedname": "Example Machine",
+  "parts": [
+    {
+      "x": [-1, 0, 1],
+      "y": -1,
+      "z": [-1, 0, 1],
+      "elements": "modular_machinery_reborn:blockcasing"
+    }
+  ]
+}

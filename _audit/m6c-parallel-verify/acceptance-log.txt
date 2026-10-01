@@ -1,0 +1,219 @@
+﻿To honour the JVM settings for this build a single-use Daemon process will be forked. See https://docs.gradle.org/8.1.1/userguide/gradle_daemon.html#sec:disabling_the_daemon.
+Daemon will be stopped at the end of the build 
+Directory 'C:\Program Files\Zulu\zulu-21' (Windows Registry) used for java installations does not exist
+Directory 'C:\Program Files\Zulu\zulu-21' (Windows Registry) used for java installations does not exist
+Directory 'C:\Program Files\Zulu\zulu-21' (Windows Registry) used for java installations does not exist
+Directory 'C:\Program Files\Zulu\zulu-21' (Windows Registry) used for java installations does not exist
+> Task :compileJava UP-TO-DATE
+> Task :processResources UP-TO-DATE
+> Task :classes UP-TO-DATE
+> Task :jar
+
+> Task :m6cVerify
+2026-09-30 19:48:28,639 main WARN Advanced terminal features are not available in this environment
+
+== A. no modifiers, machine ceiling 8
+  PASS  parallelism limit from 128 coal / 8 per copy: expected 8, got 8
+  PASS  coal consumed: expected 64, got 64
+  PASS  diamonds produced: expected 8, got 8
+  PASS  FE drawn over the whole craft: expected 8000, got 8000
+
+== B. the alloy furnace's own modifier: item output x2 at the vent position
+  PASS  parallelism limit is unaffected by an output modifier: expected 8, got 8
+  PASS  diamonds produced (doubled): expected 16, got 16
+
+== C. a modifier that doubles the input cost divides the limit
+  PASS  limit from 128 coal at 16 per copy: expected 8, got 8
+  PASS  coal consumed: expected 128, got 128
+  PASS  diamonds produced: expected 8, got 8
+  PASS  limit from 64 coal at 16 per copy against a ceiling of 64: expected 4, got 4
+  PASS  coal consumed: expected 64, got 64
+  PASS  diamonds produced: expected 4, got 4
+  PASS  the same 64 coal without the modifier: expected 8, got 8
+
+== D. an output hatch with only 4 free slots caps the limit
+  PASS  limit from an output hatch that holds 4: expected 4, got 4
+
+== E. a recipe-level max-parallelism overrides a large machine ceiling
+  PASS  limit with max-parallelism 2 on a machine that allows 64: expected 2, got 2
+
+== F. an energy-starved machine is throttled by the energy requirement
+  PASS  limit from 250 FE at 100 FE/copy/tick: expected 2, got 2
+
+== G. duration modifiers
+  PASS  10 ticks x 0.5: expected 5, got 5
+  PASS  duration multiplier: expected 2.0, got 2.0
+  PASS  FE drawn is unchanged in total for a halved duration: expected 2000, got 2000
+
+== H. the limit is 0 when even one copy cannot be paid
+  PASS  limit with 3 of 8 coal: expected 0, got 0
+
+== I. a 50% output at parallelism 4
+  PASS  guaranteed diamonds over 400 crafts at parallelism 4: expected 1600, got 1600
+  PASS  chance emeralds over 400 crafts: got 800, expected about 800.0
+
+== J. default machine values preserve today's behaviour
+  PASS  default max-parallelism: expected 2048, got 2048
+  PASS  default internal-parallelism: expected 0, got 0
+  PASS  limit on a machine whose ceiling is 1 (the pre-M6c behaviour): expected 1, got 1
+  PASS  coal consumed: expected 8, got 8
+  PASS  diamonds produced: expected 1, got 1
+
+== K. the machine loader's field rules and validation messages
+  PASS  loaded {"registryname":"t","localizedname":"T","parts":[{"x":1,"y":-1,"z":0,"elements":"minecraft:stone"}]} -> max=2048 internal=0 parallelizable=true modifiers=0
+[19:48:31] [main/WARN] [co.re.mo.ma.MachineLoader/]: [modular_machinery_reborn] mmverify:test sets parallelizable=false while internal-parallelism is 4; the machine will still not run in parallel. Set "parallelizable": true, or remove 'internal-parallelism'.
+  PASS  loaded {"registryname":"t","max-parallelism":64,"internal-parallelism":4,"parallelizable":false,"parts":[{"x":1,"y":-1,"z":0,"elements":"minecraft:stone"}]} -> max=64 internal=4 parallelizable=false modifiers=0
+  PASS  loaded {"registryname":"t","modifiers":[{"elements":"minecraft:stone","x":0,"y":1,"z":0,"modifier":{"target":"item","io":"output","operation":1,"multiplier":2.0}}],"parts":[{"x":1,"y":-1,"z":0,"elements":"minecraft:stone"}]} -> max=2048 internal=0 parallelizable=true modifiers=1
+  PASS  rejected: 'max-parallelism' of mmverify:test is -1, but a parallelism cannot be negative. The original floored it at 0 (a machine with no parallel controller still runs exactly one copy), so write 0 for "no built-in parallelism".
+  PASS  rejected: 'max-parallelism' of mmverify:test must be a whole number. Write a non-negative integer such as "max-parallelism": 64, or remove the field.
+  PASS  rejected: 'internal-parallelism' of mmverify:test is 64, which is above its 'max-parallelism' (8). The ceiling must be at least the built-in amount. Raise "max-parallelism" to 64 or more, or lower "internal-parallelism".
+  PASS  rejected: 'parallelizable' of mmverify:test must be true or false. Write "parallelizable": true to let a parallel controller raise this machine's parallelism, or false to forbid it.
+  PASS  rejected: 'modifiers' of mmverify:test must be an array of modifier objects. Write "modifiers": [ { "elements": ..., "x": 0, "y": 1, "z": 0, "modifier": { ... } } ], or remove the field.
+  PASS  rejected: 'target' in mmverify:test is 'mana', which is not a requirement kind this mod has. Write one of "item", "fluid", "energy", "duration" or "*" (optionally namespaced, e.g. "modular_machinery_reborn:item").
+  PASS  rejected: 'operation' in mmverify:test is 7; the original only defines 0 (add) and 1 (multiply). Write "operation": 0 or "operation": 1.
+  PASS  rejected: 'io' in mmverify:test is 'sideways'; write "input" or "output".
+
+== L. a parallel controller raises the limit, and the raised limit settles that many copies
+  PASS  NORMAL ceiling: expected 4, got 4
+  PASS  REINFORCED ceiling: expected 16, got 16
+  PASS  ELITE ceiling: expected 64, got 64
+  PASS  SUPER ceiling: expected 256, got 256
+  PASS  ULTIMATE ceiling: expected 512, got 512
+  PASS  tier count: expected 5, got 5
+  PASS  ELITE resolved with no config file: expected 64, got 64
+  PASS  alloy furnace with no controller: expected 1, got 1
+  PASS  internal-parallelism 0 with no controller: expected 1, got 1
+  PASS  effectiveParallelCeiling() is the zero-controller case: expected 1, got 1
+  PASS  no controllers: count: expected 0, got 0
+  PASS  no controllers: sum: expected 0, got 0
+  PASS  one elite: count: expected 1, got 1
+  PASS  one elite: sum: expected 64, got 64
+  PASS  two elites: sum: expected 128, got 128
+  PASS  a controller dialled down to 8 contributes 8: expected 8, got 8
+  PASS  bare machine without a controller: expected 1, got 1
+  PASS  the same machine with one elite controller: expected 64, got 64
+  PASS  one elite controller raises the limit from 1 to 64
+  PASS  bare machine + super controller: expected 256, got 256
+  PASS  bare machine + ultimate controller: expected 512, got 512
+  PASS  alloy furnace (internal-parallelism 1) + elite: expected 65, got 65
+  PASS  a machine whose max-parallelism is 64 clamps an ultimate controller: expected 64, got 64
+  PASS  parallelizable:false ignores even an ultimate controller: expected 1, got 1
+  PASS  copies with no controller, from 512 cobblestone: expected 1, got 1
+  PASS  cobblestone consumed with no controller: expected 1, got 1
+  PASS  stone produced with no controller: expected 1, got 1
+  PASS  normal controller on the alloy furnace: ceiling: expected 5, got 5
+  PASS  normal: copies within 5 cobblestone: expected 5, got 5
+  PASS  normal: cobblestone consumed in one craft: expected 5, got 5
+  PASS  normal: stone produced in one craft: expected 5, got 5
+  PASS  reinforced controller on the alloy furnace: ceiling: expected 17, got 17
+  PASS  reinforced: copies within 17 cobblestone: expected 17, got 17
+  PASS  reinforced: cobblestone consumed in one craft: expected 17, got 17
+  PASS  reinforced: stone produced in one craft: expected 17, got 17
+  PASS  elite controller on the alloy furnace: ceiling: expected 65, got 65
+  PASS  elite: copies within 65 cobblestone: expected 65, got 65
+  PASS  elite: cobblestone consumed in one craft: expected 65, got 65
+  PASS  elite: stone produced in one craft: expected 65, got 65
+  PASS  super controller on the alloy furnace: ceiling: expected 257, got 257
+  PASS  super: copies within 257 cobblestone: expected 257, got 257
+  PASS  super: cobblestone consumed in one craft: expected 257, got 257
+  PASS  super: stone produced in one craft: expected 257, got 257
+  PASS  ultimate controller on the alloy furnace: ceiling: expected 513, got 513
+  PASS  ultimate: copies within 513 cobblestone: expected 513, got 513
+  PASS  ultimate: cobblestone consumed in one craft: expected 513, got 513
+  PASS  ultimate: stone produced in one craft: expected 513, got 513
+  PASS  one cobblestone short of 257: expected 256, got 256
+  PASS  clamp above the ceiling: expected 64, got 64
+  PASS  clamp below zero: expected 0, got 0
+  PASS  clamp inside the range: expected 37, got 37
+  PASS  clamp with a zero ceiling: expected 0, got 0
+
+== M. the shipped example datapack carries the demonstrator
+  PASS  alloy_furnace max-parallelism: expected 2048, got 2048
+  PASS  alloy_furnace internal-parallelism: expected 1, got 1
+  PASS  alloy_furnace parallelizable: expected true, got true
+  PASS  the roof centre (0,1,1) accepts modular_machinery_reborn:parallel_controller
+  PASS  demo recipe machine: expected alloy_furnace, got alloy_furnace
+  PASS  demo recipe time: expected 5, got 5
+  PASS  demo recipe requirement kinds: expected [modularmachinery:energy, modularmachinery:item, modularmachinery:item], got [modularmachinery:energy, modularmachinery:item, modularmachinery:item]
+
+== N. the parallel-controller update packet
+  PASS  round trip of 0: expected 0, got 0
+  PASS  round trip of 1: expected 1, got 1
+  PASS  round trip of 4: expected 4, got 4
+  PASS  round trip of 64: expected 64, got 64
+  PASS  round trip of 512: expected 512, got 512
+  PASS  round trip of 2048: expected 2048, got 2048
+  PASS  round trip of 100000: expected 100000, got 100000
+  PASS  round trip of 2147483647: expected 2147483647, got 2147483647
+
+== O. an upgrade in a bus changes what the craft does
+  PASS  example_speed declares one modifier: expected 1, got 1
+  PASS  example_speed is stackable: expected true, got true
+  PASS  example_speed's modifier target: expected DURATION, got DURATION
+  PASS  example_speed's modifier operation: expected MULTIPLY, got MULTIPLY
+  PASS  example_speed's modifier value: expected 0.5, got 0.5
+  PASS  example_output_doubler declares one modifier: expected 1, got 1
+  PASS  example_output_doubler is NOT stackable: expected false, got false
+  PASS  example_output_doubler's io: expected OUTPUT, got OUTPUT
+  PASS  example_charge declares no modifier: expected 0, got 0
+  PASS  NORMAL slots: expected 3, got 3
+  PASS  REINFORCED slots: expected 6, got 6
+  PASS  ELITE slots: expected 9, got 9
+  PASS  SUPER slots: expected 12, got 12
+  PASS  ULTIMATE slots: expected 18, got 18
+  PASS  tier count: expected 5, got 5
+  PASS  ULTIMATE resolved with no config file: expected 18, got 18
+  PASS  the original's config upper bound: expected 18, got 18
+  PASS  mapping wrench.item parses and names modular_machinery_reborn:example_speed (its item resolves to air here, because ForgeRegistries is empty offline)
+  PASS  mapping modularium.item parses and names modular_machinery_reborn:example_output_doubler (its item resolves to air here, because ForgeRegistries is empty offline)
+  PASS  shipped declaration example_speed.json exists
+  PASS  shipped declaration example_output_doubler.json exists
+  PASS  the alloy furnace's roof front centre (0,1,0) accepts modular_machinery_reborn:upgrade_bus
+  PASS  the alloy furnace still has 26 parts: expected 26, got 26
+  PASS  an empty bus contributes nothing: expected 0, got 0
+  PASS  limit with an empty bus: expected 8, got 8
+  PASS  cobblestone consumed with an empty bus: expected 8, got 8
+  PASS  stone produced with an empty bus: expected 8, got 8
+  PASS  a speed upgrade contributes one modifier: expected 1, got 1
+  PASS  duration with the speed upgrade (5 ticks x 0.5): expected 3, got 3
+  PASS  duration multiplier with the speed upgrade: expected 2.0, got 2.0
+  PASS  ticks actually ticked with the speed upgrade: expected 3, got 3
+  PASS  cobblestone consumed with the speed upgrade: expected 8, got 8
+  PASS  stone produced with the speed upgrade: expected 8, got 8
+  PASS  FE drawn over the shortened craft (compensated per tick): expected 4800, got 4800
+  PASS  duration with two speed upgrades (5 x 0.25): expected 1, got 1
+  PASS  duration with three speed upgrades is floored at one tick: expected 1, got 1
+  PASS  a non-stackable upgrade's multiplier is unchanged at count 2: expected 2.0, got 2.0
+  PASS  a stackable upgrade's multiplier squares at count 2: expected 0.25, got 0.25
+  PASS  an output doubler contributes one modifier: expected 1, got 1
+  PASS  the doubled output divides the limit from 8 cobblestone: expected 4, got 4
+  PASS  cobblestone consumed with the output doubler: expected 4, got 4
+  PASS  stone produced with the output doubler: expected 8, got 8
+  PASS  the doubler's whitelist names the alloy furnace: expected true, got true
+  PASS  the doubler is refused by a different machine: expected false, got false
+  PASS  a bus upgrade incompatible with the machine contributes nothing: expected 0, got 0
+  PASS  the refused craft settles the unmodified number of copies: expected 2, got 2
+  PASS  stone produced with the refused upgrade (undoubled): expected 2, got 2
+  PASS  the unfiltered bag still holds the upgrade: expected 1, got 1
+  PASS  ...and reports it as incompatible with that machine: expected 1, got 1
+  PASS  two carrier slots merge into one upgrade: expected 1, got 1
+  PASS  ...with their counts summed: expected 2, got 2
+  PASS  a non-carrier item in a slot contributes nothing: expected 1, got 1
+  PASS  the merged upgrade is the one the declaration names: expected modular_machinery_reborn:example_speed, got modular_machinery_reborn:example_speed
+  PASS  ...and reading the bus with two carriers gives the squared multiplier: expected 0.25, got 0.25
+  PASS  two different carriers give two upgrades: expected 2, got 2
+  PASS  ...and their counts are separate: expected 2, got 2
+  PASS  ...and the output doubler is among them: expected true, got true
+  PASS  the block entity's reader is the registry-backed overload: expected 0, got 0
+  PASS  the joined set carries both modifiers: expected 2, got 2
+  PASS  the x4 output limits the copies a 16-slot hatch can hold: expected 3, got 3
+  PASS  cobblestone consumed with two x2 output modifiers: expected 3, got 3
+  PASS  stone produced with two x2 output modifiers (3 copies x 4): expected 12, got 12
+  PASS  controller join over one bus holding two upgrades: expected 2, got 2
+  PASS  controller join with no machine: expected 0, got 0
+  PASS  controller join over two buses: expected 4, got 4
+
+ALL CHECKS PASSED
+
+BUILD SUCCESSFUL in 18s
+4 actionable tasks: 2 executed, 2 up-to-date

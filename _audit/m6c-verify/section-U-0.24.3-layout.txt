@@ -1,0 +1,95 @@
+﻿== U. the two information blocks and the factory panel stay inside their own region
+  PASS  the information region's boundary (159 scaled = 114 panel px) is above the player-inventory label's row (119) and the first player slot row (131)
+  PASS  ...and the label row is itself above the first player slot row (119 < 131)
+  PASS  ...and the block starts at the top of that region, not part-way down (12 scaled)
+  PASS  a short payload: the block stays inside its region 159 (block Block[start=12, drawn=7/9, payloadEnd=132, footer=149, end=159, limit=159])
+  PASS  a short payload: the drawing loop and the measured payload agree on how many rows are drawn (walked 7, block says 7 of 9)
+  PASS  a short payload: the closing line starts at or after the payload's last row (149 >= 132)
+  PASS  a short payload: the block's bottom in panel pixels (114) is above the label (119) and the first slot row (131)
+  PASS  a long payload: the block stays inside its region 159 (block Block[start=12, drawn=7/14, payloadEnd=132, footer=149, end=159, limit=159])
+  PASS  a long payload: the drawing loop and the measured payload agree on how many rows are drawn (walked 7, block says 7 of 14)
+  PASS  a long payload: the closing line starts at or after the payload's last row (149 >= 132)
+  PASS  a long payload: the block's bottom in panel pixels (114) is above the label (119) and the first slot row (131)
+  PASS  a deliberately extreme payload: the block stays inside its region 159 (block Block[start=12, drawn=4/19, payloadEnd=72, footer=149, end=159, limit=159])
+  PASS  a deliberately extreme payload: the drawing loop and the measured payload agree on how many rows are drawn (walked 4, block says 4 of 19)
+  PASS  a deliberately extreme payload: the closing line starts at or after the payload's last row (149 >= 72)
+  PASS  a deliberately extreme payload: the block's bottom in panel pixels (114) is above the label (119) and the first slot row (131)
+  PASS  the recipe queue [8,8 86x197] lies inside the panel [0,0 280x213] (the 0.24.1 screenshot shows the queue free-standing to the left of it)
+  PASS  the scrollbar [94,8 12x197] lies inside the panel [0,0 280x213] (the 0.24.1 screenshot shows the queue free-standing to the left of it)
+  PASS  the information block [81,8 199x94] lies inside the panel [0,0 280x213] (the 0.24.1 screenshot shows the queue free-standing to the left of it)
+  PASS  the player grid and hotbar [112,131 160x74] lies inside the panel [0,0 280x213] (the 0.24.1 screenshot shows the queue free-standing to the left of it)
+  PASS  the blueprint slot [255,8 16x16] lies inside the panel [0,0 280x213] (the 0.24.1 screenshot shows the queue free-standing to the left of it)
+  PASS  the queue and the panel share one origin: queue x 8 >= panel x 0 and queue x+w 94 <= panel x+w 280
+  PASS  the queue starts inside the panel at its own left inset and the player grid starts at the menu's own x: queue x 8 == 8, grid x 112 == 112
+  PASS  the scrollbar follows the queue and stays inside the panel: 94 <= 94, 106 <= 280
+  PASS  the text block's own rectangle [81,8 199x94] still fits inside the panel, despite the original's queue/scrollbar overlap (text left 81 < scrollbar right 106)
+  PASS  * the original's queue/text overlap is reproduced, not hidden: text left 81 < queue right 94 (GuiFactoryController:39-42 vs :191-192)
+  PASS  the information block's bottom (102) is above the player-inventory label (119) and the first player slot row (131)
+  PASS  the player's slots are below the block and to the right of the queue: grid y 131 > text bottom 102
+  PASS  the label's own row is drawn where the panel texture has room for it (119 inside 0..213)
+  PASS  the panel blit's source offset is the original's (0, 0) and its extent is the whole texture: [0, 0, 0, 0, 280, 213]
+  PASS  ...and its destination is exactly the origin every panel-local offset is added to: [37, 91, 0, 0, 280, 213]
+  PASS  the queue element blit reads from the element sheet's own (0, 0) at 86x32: [0, 0, 86, 32]
+  PASS  factory a short payload: the block stays inside its region 143 (block Block[start=0, drawn=5/5, payloadEnd=90, footer=133, end=143, limit=143])
+  PASS  factory a short payload: the drawing loop and the measured payload agree on how many rows are drawn (walked 5, block says 5 of 5)
+  PASS  factory a short payload: the closing line starts at or after the payload's last row (133 >= 90)
+  PASS  factory a short payload: the block's bottom in panel pixels (102) is above the label (119) and the first slot row (131)
+  PASS  factory a short payload: the region held the whole payload without truncation (drawn 5)
+  PASS  factory a long payload: the block stays inside its region 143 (block Block[start=0, drawn=11/22, payloadEnd=130, footer=133, end=143, limit=143])
+  PASS  factory a long payload: the drawing loop and the measured payload agree on how many rows are drawn (walked 11, block says 11 of 22)
+  PASS  factory a long payload: the closing line starts at or after the payload's last row (133 >= 130)
+  PASS  factory a long payload: the block's bottom in panel pixels (102) is above the label (119) and the first slot row (131)
+  PASS  factory a long payload: the region had to drop rows (requested 22, drawn 11)
+  PASS  factory a deliberately extreme payload: the block stays inside its region 143 (block Block[start=0, drawn=11/59, payloadEnd=130, footer=133, end=143, limit=143])
+  PASS  factory a deliberately extreme payload: the drawing loop and the measured payload agree on how many rows are drawn (walked 11, block says 11 of 59)
+  PASS  factory a deliberately extreme payload: the closing line starts at or after the payload's last row (133 >= 130)
+  PASS  factory a deliberately extreme payload: the block's bottom in panel pixels (102) is above the label (119) and the first slot row (131)
+  PASS  factory a deliberately extreme payload: the region had to drop rows (requested 59, drawn 11)
+  -- fault injection: the predicates above are fed the 0.24.1 geometry; each check
+     below PASSES only when the predicate REJECTS it
+  PASS  injected: a queue one queue-width to the left of the panel origin [-78,8 86x197] is rejected by insidePanel(...) -- the shipped 'free-standing strip'
+  PASS  injected: ...and it is rejected by the origin inequality (queue x -78 < panel x 0)
+  PASS  injected: the 0.24.1 closing line lands at scaled y 654 (block end 664), past the region's boundary 159 -- the containment predicate rejects it
+  PASS  injected: ...and its end in panel pixels (478) is at or past the player-inventory label (119), which is the collision the owner photographed
+  PASS  injected: the unbounded factory block runs to scaled y 641 (461 panel px), past the region's boundary 143 / 102 panel px, so the predicate rejects it
+  PASS  the corrected long controller payload: the block stays inside its region 159 (block Block[start=12, drawn=4/19, payloadEnd=72, footer=149, end=159, limit=159])
+  PASS  the corrected long controller payload: the drawing loop and the measured payload agree on how many rows are drawn (walked 4, block says 4 of 19)
+  PASS  the corrected long controller payload: the closing line starts at or after the payload's last row (149 >= 72)
+  PASS  the corrected long controller payload: the block's bottom in panel pixels (114) is above the label (119) and the first slot row (131)
+  PASS  ...and the corrected controller block still draws most of the payload, not none of it (4 rows)
+  PASS  the corrected long factory payload: the block stays inside its region 143 (block Block[start=0, drawn=11/59, payloadEnd=130, footer=133, end=143, limit=143])
+  PASS  the corrected long factory payload: the drawing loop and the measured payload agree on how many rows are drawn (walked 11, block says 11 of 59)
+  PASS  the corrected long factory payload: the closing line starts at or after the payload's last row (133 >= 130)
+  PASS  the corrected long factory payload: the block's bottom in panel pixels (102) is above the label (119) and the first slot row (131)
+
+  -- the block as drawn, against the clip the screen installs
+  PASS  controller: the block as drawn [8,8 168x106] (panel px) lies inside the clip [4,0 176x213]
+  PASS  controller: the clip leaves the first glyph column intact: clip left 4 < glyph left 8 and glyph right 9 <= clip right 176
+  PASS  controller: the block's own rectangle reaches the clip's right edge and stops short of its bottom (168x106 inside 176x213)
+  PASS  factory: the block as drawn [81,8 199x94] (panel px) lies inside the clip [0,0 280x213]
+  PASS  factory: the clip leaves the first glyph column intact: clip left 0 < glyph left 81 and glyph right 82 <= clip right 280
+  PASS  factory: the block's own rectangle reaches the clip's right edge and stops short of its bottom (199x94 inside 280x213)
+  PASS  the controller's clip [4,0 176x213] is the block's rectangle dilated by 4 panel px on the left and flush with the panel's right and bottom
+  PASS  the controller's clip leaves the first glyph column its shadow: clip left 4 < glyph left 8 (shadow margin 1 scaled unit)
+  PASS  the factory's clip [0,0 280x213] is that panel's own rectangle, which the block [81,8 199x94] sits inside with room to spare on every side
+  PASS  the factory's clip leaves the first glyph column its shadow: clip left 0 < glyph left 81
+  PASS  both screens' block origins are their layout's own textRect(), not a second scaling of it: controller [8,8 168x106] vs [8,8 168x106], factory [81,8 199x94] vs [81,8 199x94]
+  -- fault injection: the drawn-in-clip predicate is fed the 0.24.2 clip edge,
+     which sat at panel x TEXT_X-2 = 10 while the block was painted from x 8
+  PASS  injected: the 0.24.2 clip [10,0 176x213] cuts the block [8,8 168x106] -- so this predicate FAILS on the shipped geometry, unlike the corrected [4,0 176x213] which passes
+  PASS  injected: ...and the amount it cut is 2 panel px off the first glyph column (clip left 10 > block left 8), which is the owner's report that the first column was half hidden
+  PASS  injected: the 0.24.1 'free-standing strip' queue [-78,8 86x197] is rejected by the panel-containment predicate the corrected queue [8,8 86x197] passes
+
+  -- the pose calls in the two screens' bytecode (the 0.24.2 defect was a missing one)
+  PASS  MachineControllerScreen.drawInfo: ...textBlockRect() really answers (8, 8), the block origin the clip check used (8, 8)
+  PASS  MachineControllerScreen.drawInfo: pushes the pose stack before drawing (found pushPose)
+  PASS  MachineControllerScreen.drawInfo: the pose is translated before anything is drawn, to the block's own origin from textBlockRect (1 translate(s) seen)
+  PASS  MachineControllerScreen.drawInfo: ...and those two floats are read from textBlockRect()[0] and [1] (arrays read: [scissorRect, scissorRect, scissorRect, scissorRect, textBlockRect, textBlockRect] at [0, 1, 2, 3, 0, 1]), not written into the call by hand
+  PASS  MachineControllerScreen.drawInfo: the scale comes after that translate, and before any string is drawn (translate at 68, scale at 76)
+  PASS  FactoryControllerScreen.drawFactoryStatus: ...textBlockRect() really answers (81, 8), the block origin the clip check used (81, 8)
+  PASS  FactoryControllerScreen.drawFactoryStatus: pushes the pose stack before drawing (found pushPose)
+  PASS  FactoryControllerScreen.drawFactoryStatus: the pose is translated before anything is drawn, to the block's own origin from textBlockRect (1 translate(s) seen)
+  PASS  FactoryControllerScreen.drawFactoryStatus: ...and those two floats are read from textBlockRect()[0] and [1] (arrays read: [scissorRect, scissorRect, scissorRect, scissorRect, textBlockRect, textBlockRect] at [0, 1, 2, 3, 0, 1]), not written into the call by hand
+  PASS  FactoryControllerScreen.drawFactoryStatus: the scale comes after that translate, and before any string is drawn (translate at 207, scale at 215)
+
+3 CHECK(S) FAILED

@@ -1,0 +1,96 @@
+// Throwaway init script for the M6c offline acceptance harness.
+// It only adds a verification task; build.gradle is not modified.
+//
+// Two Windows-specific hazards are handled here:
+//   1. The workspace path contains non-ASCII characters, and javac/java decode an @argfile with the platform
+//      codepage. Everything is therefore routed through the ASCII junction C:/mmwork.
+//   2. An expanded classpath is far past the command-line limit, and even an @argfile is subject to it once
+//      java expands it. The classpath is filtered down to the libraries this harness actually needs.
+allprojects {
+    afterEvaluate { project ->
+        if (project.plugins.hasPlugin('net.minecraftforge.gradle')) {
+            project.tasks.register('m6cVerify') {
+                group = 'verification'
+                description = 'Runs the M6c parallel-settlement acceptance harness.'
+
+                def root = 'C:/mmwork/.tmp-m6c-verify'
+                def sourceFile = root + '/mmverify/ParallelCraftCheck.java'
+                def classesDir = root + '/classes'
+                // The mod's own classes come from the built jar, whose path is pure ASCII; the Gradle output
+                // directories on this machine are not.
+                def modJar = null
+                // Every library the classpath filter below keeps. Plain substrings, no regex escaping needed.
+                def keepFragments = [
+                        'mergetool-1.1.5-api', 'modular_machinery_reborn-', 'forge-1.20.1-47.2.0_mapped',
+                        'client-extra.jar', 'fmlcore', 'fmlloader', 'forgespi', 'coremods', 'eventbus/',
+                        'unsafe', 'guava-31', 'failureaccess', 'jsr305', 'checker-qual', 'error_prone',
+                        'j2objc', 'gson-2.10.jar', 'log4j-api', 'log4j-core', 'log4j-slf4j2',
+                        'slf4j-api-2.0.1', 'netty-', 'joml', 'lwjgl-3.3.1.jar', 'oshi-core', 'jna-',
+                        'commons-lang3', 'commons-compress-1.21', 'commons-io', 'commons-codec-1.15',
+                        'commons-logging', 'fastutil-8.5.9', 'antlr4-runtime', 'maven-artifact-3.8.5',
+                        'typetools', 'jopt-simple', 'jline-', 'night-config', 'datafixerupper', 'authlib',
+                        'brigadier', 'text2speech', 'logging-1.1', 'patchy', 'blocklist', 'icu4j',
+                        'noexception', 'mixin-0.8.5.jar', 'bootstraplauncher', 'securejarhandler',
+                        'modlauncher-10', 'accesstransformers', 'nashorn', 'treelayout', 'javax.json',
+                        'ST4', 'antlr-runtime', 'terminalconsole', 'srgutils',
+                        // M6e's factory section builds in-memory ItemStackHandler ports and drives the mod's
+                        // recipe classes through Forge's item/energy machinery, which reaches org.objectweb.asm
+                        // (Type, ClassVisitor). Without ASM the harness dies with a NoClassDefFoundError the
+                        // moment it touches those classes.
+                        'org.ow2.asm'
+                ]
+
+                dependsOn project.tasks.named('jar')
+
+                doFirst {
+                    new File(classesDir).mkdirs()
+                    modJar = project.tasks.named('jar').get().archiveFile.get().asFile.absolutePath
+                            .replace('\\', '/')
+                            .replace('C:/Users/kk07H/Desktop/\u6a21\u7ec4', 'C:/mmwork')
+                    def all = []
+                    all << project.sourceSets.main.compileClasspath.asPath
+                    def cacheRoot = new File(project.gradle.gradleUserHomeDir, 'caches/modules-2/files-2.1')
+                    cacheRoot.eachFileRecurse { f ->
+                        if (f.isFile() && f.name.endsWith('.jar') && !f.name.endsWith('-sources.jar')
+                                && !f.name.endsWith('-javadoc.jar')) {
+                            all << f.absolutePath
+                        }
+                    }
+                    def kept = all.join(File.pathSeparator)
+                            .replace('\\', '/')
+                            .replace('C:/Users/kk07H/Desktop/\u6a21\u7ec4', 'C:/mmwork')
+                            .split(File.pathSeparator)
+                            .findAll { path -> keepFragments.any { fragment -> path.contains(fragment) } }
+                    def finalClasspath = ([classesDir, modJar] + kept).join(File.pathSeparator)
+                    if (kept.isEmpty()) {
+                        throw new GradleException('classpath filter matched nothing; raw path was: '
+                                + all.join(File.pathSeparator).replace('\\', '/')
+                                        .replace('C:/Users/kk07H/Desktop/\u6a21\u7ec4', 'C:/mmwork')
+                                        .split(File.pathSeparator).take(6).join('\n'))
+                    }
+                    new File(root + '/classpath.txt').setText(finalClasspath, 'UTF-8')
+
+                    def javacArgs = new File(root + '/javac-args.txt')
+                    javacArgs.setText('-nowarn -proc:none -encoding UTF-8 -classpath "' + finalClasspath + '" -d "'
+                            + classesDir + '" "' + sourceFile + '"\n', 'UTF-8')
+                    project.exec {
+                        executable = new File(System.getProperty('java.home'), 'bin/javac').absolutePath
+                        args = ['@' + javacArgs.absolutePath.replace('\\', '/')]
+                    }
+                }
+
+                doLast {
+                    def classpath = new File(root + '/classpath.txt').getText('UTF-8')
+                    def javaArgs = new File(root + '/java-args.txt')
+                    javaArgs.setText('-Dlog4j2.contextSelector=org.apache.logging.log4j.core.selector.'
+                            + 'BasicContextSelector\n-classpath "' + classpath + '" mmverify.ParallelCraftCheck\n',
+                            'US-ASCII')
+                    project.exec {
+                        executable = new File(System.getProperty('java.home'), 'bin/java').absolutePath
+                        args = ['@' + javaArgs.absolutePath.replace('\\', '/')]
+                    }
+                }
+            }
+        }
+    }
+}

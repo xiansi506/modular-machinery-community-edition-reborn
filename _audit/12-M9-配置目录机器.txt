@@ -1,0 +1,26 @@
+=== M9 验证：config/modular_machinery_reborn/machinery/ 扫描规则 ===
+模拟目录: C:\Users\kk07H\Desktop\模组\modular-machinery-reborn\examples\pack-author\config\modular_machinery_reborn\machinery
+
+模拟 MachineDirectory.scanMachinePaths() 的选择规则（独立实现，用于核对该规则本身）：
+  example_machine.json : -> 采纳为机器
+    registryname='example_machine' -> 控制器方块 'example_machine_controller' 绑定 'modular_machinery_reborn:example_machine'
+    readAll() 键: modular_machinery_reborn:example_machine
+
+扫描得到 1 个机器引用（预期 1）
+
+=== 示例机器定义按 MachineLoader 规则校验 ===
+  registryname = example_machine   localizedname = Example Machine
+  part: x=-1,0,1 y=-1 z=-1,0,1 elements='modular_machinery_reborn:blockcasing' -> 9 个位置
+    elements 解析为已注册方块 'modular_machinery_reborn:blockcasing'（blockstate 存在）
+  总位置数 = 9（控制器原点不计入匹配）
+
+=== 示例配方校验 ===
+  machine='example_machine'  recipeTime=40  requirements=3
+  machine 与机器 registryname 一致
+  - energy / input
+  - item / input
+  - item / output
+
+==== M9 静态验证：问题数 = 0 ====
+注意：配置目录扫描依赖运行时 FMLPaths.CONFIGDIR，无法离线执行；以上验证的是扫描规则与 JSON 契约，
+      实机验证需要把 examples/pack-author/config 复制到实例后重启游戏，观察日志与创造栏。

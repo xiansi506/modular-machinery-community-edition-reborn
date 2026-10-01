@@ -1,0 +1,11 @@
+{
+  "type": "modular_machinery_reborn:machine",
+  "machine": "example_machine",
+  "registryName": "example_machine_demo",
+  "recipeTime": 40,
+  "requirements": [
+    { "type": "modular_machinery_reborn:energy", "io-type": "input", "energyPerTick": 10 },
+    { "type": "modular_machinery_reborn:item", "io-type": "input", "item": "minecraft:cobblestone", "amount": 1 },
+    { "type": "modular_machinery_reborn:item", "io-type": "output", "item": "minecraft:stone", "amount": 1 }
+  ]
+}

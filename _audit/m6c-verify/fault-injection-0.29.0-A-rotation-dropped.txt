@@ -1,0 +1,1414 @@
+evidence file: C:\mmwork\_audit\m6c-verify\harness-run-0.29.0.txt
+  PASS  injected: the evidence tee's counters (control check that must pass)
+  FAIL  injected: the evidence tee's counters (control check that must fail)
+  PASS  injected: the evidence tee counts every check (2 observed) and every failure (1 observed), so the summary line below is the harness's own arithmetic
+2026-10-01 17:52:58,351 main WARN Advanced terminal features are not available in this environment
+
+== A. no modifiers, machine ceiling 8
+  PASS  parallelism limit from 128 coal / 8 per copy: expected 8, got 8
+  PASS  coal consumed: expected 64, got 64
+  PASS  diamonds produced: expected 8, got 8
+  PASS  FE drawn over the whole craft: expected 8000, got 8000
+
+== B. the alloy furnace's own modifier: item output x2 at the vent position
+  PASS  parallelism limit is unaffected by an output modifier: expected 8, got 8
+  PASS  diamonds produced (doubled): expected 16, got 16
+
+== C. a modifier that doubles the input cost divides the limit
+  PASS  limit from 128 coal at 16 per copy: expected 8, got 8
+  PASS  coal consumed: expected 128, got 128
+  PASS  diamonds produced: expected 8, got 8
+  PASS  limit from 64 coal at 16 per copy against a ceiling of 64: expected 4, got 4
+  PASS  coal consumed: expected 64, got 64
+  PASS  diamonds produced: expected 4, got 4
+  PASS  the same 64 coal without the modifier: expected 8, got 8
+
+== D. an output hatch with only 4 free slots caps the limit
+  PASS  limit from an output hatch that holds 4: expected 4, got 4
+
+== E. a recipe-level max-parallelism overrides a large machine ceiling
+  PASS  limit with max-parallelism 2 on a machine that allows 64: expected 2, got 2
+
+== F. an energy-starved machine is throttled by the energy requirement
+  PASS  limit from 250 FE at 100 FE/copy/tick: expected 2, got 2
+
+== G. duration modifiers
+  PASS  10 ticks x 0.5: expected 5, got 5
+  PASS  duration multiplier: expected 2.0, got 2.0
+  PASS  FE drawn is unchanged in total for a halved duration: expected 2000, got 2000
+
+== H. the limit is 0 when even one copy cannot be paid
+  PASS  limit with 3 of 8 coal: expected 0, got 0
+
+== I. a 50% output at parallelism 4
+  PASS  guaranteed diamonds over 400 crafts at parallelism 4: expected 1600, got 1600
+  PASS  chance emeralds over 400 crafts: got 800, expected about 800.0
+
+== J. default machine values preserve today's behaviour
+  PASS  default max-parallelism: expected 2048, got 2048
+  PASS  default internal-parallelism: expected 0, got 0
+  PASS  limit on a machine whose ceiling is 1 (the pre-M6c behaviour): expected 1, got 1
+  PASS  coal consumed: expected 8, got 8
+  PASS  diamonds produced: expected 1, got 1
+
+== K. the machine loader's field rules and validation messages
+  PASS  loaded {"registryname":"t","localizedname":"T","parts":[{"x":1,"y":-1,"z":0,"elements":"minecraft:stone"}]} -> max=2048 internal=0 parallelizable=true modifiers=0
+[17:53:01] [main/WARN] [co.re.mo.ma.MachineSchema/]: [modular_machinery_reborn] mmverify:test sets parallelizable=false while internal-parallelism is 4; the machine will still not run in parallel. Set "parallelizable": true, or remove 'internal-parallelism'.
+  PASS  loaded {"registryname":"t","max-parallelism":64,"internal-parallelism":4,"parallelizable":false,"parts":[{"x":1,"y":-1,"z":0,"elements":"minecraft:stone"}]} -> max=64 internal=4 parallelizable=false modifiers=0
+  PASS  loaded {"registryname":"t","modifiers":[{"elements":"minecraft:stone","x":0,"y":1,"z":0,"modifier":{"target":"item","io":"output","operation":1,"multiplier":2.0}}],"parts":[{"x":1,"y":-1,"z":0,"elements":"minecraft:stone"}]} -> max=2048 internal=0 parallelizable=true modifiers=1
+  PASS  rejected: 'max-parallelism' of mmverify:test is -1, but a parallelism cannot be negative. The original floored it at 0 (a machine with no parallel controller still runs exactly one copy), so write 0 for "no built-in parallelism".
+  PASS  rejected: 'max-parallelism' of mmverify:test must be a whole number. Write a non-negative integer such as "max-parallelism": 64, or remove the field.
+  PASS  rejected: 'internal-parallelism' of mmverify:test is 64, which is above its 'max-parallelism' (8). The ceiling must be at least the built-in amount. Raise "max-parallelism" to 64 or more, or lower "internal-parallelism".
+  PASS  rejected: 'parallelizable' of mmverify:test must be true or false. Write "parallelizable": true to let a parallel controller raise this machine's parallelism, or false to forbid it.
+  PASS  rejected: 'modifiers' of mmverify:test must be an array of modifier objects. Write "modifiers": [ { "elements": ..., "x": 0, "y": 1, "z": 0, "modifier": { ... } } ], or remove the field.
+  PASS  rejected: 'target' in mmverify:test is 'mana', which is not a requirement kind this mod has. Write one of "item", "fluid", "energy", "duration" or "*" (optionally namespaced, e.g. "modular_machinery_reborn:item").
+  PASS  rejected: 'operation' in mmverify:test is 7; the original only defines 0 (add) and 1 (multiply). Write "operation": 0 or "operation": 1.
+  PASS  rejected: 'io' in mmverify:test is 'sideways'; write "input" or "output".
+
+== L. a parallel controller raises the limit, and the raised limit settles that many copies
+  PASS  NORMAL ceiling: expected 4, got 4
+  PASS  REINFORCED ceiling: expected 16, got 16
+  PASS  ELITE ceiling: expected 64, got 64
+  PASS  SUPER ceiling: expected 256, got 256
+  PASS  ULTIMATE ceiling: expected 512, got 512
+  PASS  tier count: expected 5, got 5
+  PASS  ELITE resolved with no config file: expected 64, got 64
+  PASS  alloy furnace with no controller: expected 1, got 1
+  PASS  internal-parallelism 0 with no controller: expected 1, got 1
+  PASS  effectiveParallelCeiling() is the zero-controller case: expected 1, got 1
+  PASS  no controllers: count: expected 0, got 0
+  PASS  no controllers: sum: expected 0, got 0
+  PASS  one elite: count: expected 1, got 1
+  PASS  one elite: sum: expected 64, got 64
+  PASS  two elites: sum: expected 128, got 128
+  PASS  a controller dialled down to 8 contributes 8: expected 8, got 8
+  PASS  bare machine without a controller: expected 1, got 1
+  PASS  the same machine with one elite controller: expected 64, got 64
+  PASS  one elite controller raises the limit from 1 to 64
+  PASS  bare machine + super controller: expected 256, got 256
+  PASS  bare machine + ultimate controller: expected 512, got 512
+  PASS  alloy furnace (internal-parallelism 1) + elite: expected 65, got 65
+  PASS  a machine whose max-parallelism is 64 clamps an ultimate controller: expected 64, got 64
+  PASS  parallelizable:false ignores even an ultimate controller: expected 1, got 1
+  PASS  copies with no controller, from 512 cobblestone: expected 1, got 1
+  PASS  cobblestone consumed with no controller: expected 1, got 1
+  PASS  stone produced with no controller: expected 1, got 1
+  PASS  normal controller on the alloy furnace: ceiling: expected 5, got 5
+  PASS  normal: copies within 5 cobblestone: expected 5, got 5
+  PASS  normal: cobblestone consumed in one craft: expected 5, got 5
+  PASS  normal: stone produced in one craft: expected 5, got 5
+  PASS  reinforced controller on the alloy furnace: ceiling: expected 17, got 17
+  PASS  reinforced: copies within 17 cobblestone: expected 17, got 17
+  PASS  reinforced: cobblestone consumed in one craft: expected 17, got 17
+  PASS  reinforced: stone produced in one craft: expected 17, got 17
+  PASS  elite controller on the alloy furnace: ceiling: expected 65, got 65
+  PASS  elite: copies within 65 cobblestone: expected 65, got 65
+  PASS  elite: cobblestone consumed in one craft: expected 65, got 65
+  PASS  elite: stone produced in one craft: expected 65, got 65
+  PASS  super controller on the alloy furnace: ceiling: expected 257, got 257
+  PASS  super: copies within 257 cobblestone: expected 257, got 257
+  PASS  super: cobblestone consumed in one craft: expected 257, got 257
+  PASS  super: stone produced in one craft: expected 257, got 257
+  PASS  ultimate controller on the alloy furnace: ceiling: expected 513, got 513
+  PASS  ultimate: copies within 513 cobblestone: expected 513, got 513
+  PASS  ultimate: cobblestone consumed in one craft: expected 513, got 513
+  PASS  ultimate: stone produced in one craft: expected 513, got 513
+  PASS  one cobblestone short of 257: expected 256, got 256
+  PASS  clamp above the ceiling: expected 64, got 64
+  PASS  clamp below zero: expected 0, got 0
+  PASS  clamp inside the range: expected 37, got 37
+  PASS  clamp with a zero ceiling: expected 0, got 0
+
+== M. the shipped example datapack carries the demonstrator
+  PASS  alloy_furnace max-parallelism: expected 2048, got 2048
+  PASS  alloy_furnace internal-parallelism: expected 1, got 1
+  PASS  alloy_furnace parallelizable: expected true, got true
+  PASS  the roof centre (0,1,1) accepts modular_machinery_reborn:parallel_controller
+  PASS  demo recipe machine: expected alloy_furnace, got alloy_furnace
+  PASS  demo recipe time: expected 5, got 5
+  PASS  demo recipe requirement kinds: expected [modularmachinery:energy, modularmachinery:item, modularmachinery:item], got [modularmachinery:energy, modularmachinery:item, modularmachinery:item]
+
+== N. the parallel-controller update packet
+  PASS  round trip of 0: expected 0, got 0
+  PASS  round trip of 1: expected 1, got 1
+  PASS  round trip of 4: expected 4, got 4
+  PASS  round trip of 64: expected 64, got 64
+  PASS  round trip of 512: expected 512, got 512
+  PASS  round trip of 2048: expected 2048, got 2048
+  PASS  round trip of 100000: expected 100000, got 100000
+  PASS  round trip of 2147483647: expected 2147483647, got 2147483647
+
+== O. an upgrade in a bus changes what the craft does
+  PASS  example_speed declares one modifier: expected 1, got 1
+  PASS  example_speed is stackable: expected true, got true
+  PASS  example_speed's modifier target: expected DURATION, got DURATION
+  PASS  example_speed's modifier operation: expected MULTIPLY, got MULTIPLY
+  PASS  example_speed's modifier value: expected 0.5, got 0.5
+  PASS  example_output_doubler declares one modifier: expected 1, got 1
+  PASS  example_output_doubler is NOT stackable: expected false, got false
+  PASS  example_output_doubler's io: expected OUTPUT, got OUTPUT
+  PASS  example_charge declares no modifier: expected 0, got 0
+  PASS  NORMAL slots: expected 3, got 3
+  PASS  REINFORCED slots: expected 6, got 6
+  PASS  ELITE slots: expected 9, got 9
+  PASS  SUPER slots: expected 12, got 12
+  PASS  ULTIMATE slots: expected 18, got 18
+  PASS  tier count: expected 5, got 5
+  PASS  ULTIMATE resolved with no config file: expected 18, got 18
+  PASS  the original's config upper bound: expected 18, got 18
+  PASS  mapping wrench.item parses and names modular_machinery_reborn:example_speed (its item resolves to air here, because ForgeRegistries is empty offline)
+  PASS  mapping modularium.item parses and names modular_machinery_reborn:example_output_doubler (its item resolves to air here, because ForgeRegistries is empty offline)
+  PASS  shipped declaration example_speed.json exists
+  PASS  shipped declaration example_output_doubler.json exists
+  PASS  the alloy furnace's roof front centre (0,1,0) accepts modular_machinery_reborn:upgrade_bus
+  PASS  the alloy furnace still has 26 parts: expected 26, got 26
+  PASS  an empty bus contributes nothing: expected 0, got 0
+  PASS  limit with an empty bus: expected 8, got 8
+  PASS  cobblestone consumed with an empty bus: expected 8, got 8
+  PASS  stone produced with an empty bus: expected 8, got 8
+  PASS  a speed upgrade contributes one modifier: expected 1, got 1
+  PASS  duration with the speed upgrade (5 ticks x 0.5): expected 3, got 3
+  PASS  duration multiplier with the speed upgrade: expected 2.0, got 2.0
+  PASS  ticks actually ticked with the speed upgrade: expected 3, got 3
+  PASS  cobblestone consumed with the speed upgrade: expected 8, got 8
+  PASS  stone produced with the speed upgrade: expected 8, got 8
+  PASS  FE drawn over the shortened craft (compensated per tick): expected 4800, got 4800
+  PASS  duration with two speed upgrades (5 x 0.25): expected 1, got 1
+  PASS  duration with three speed upgrades is floored at one tick: expected 1, got 1
+  PASS  a non-stackable upgrade's multiplier is unchanged at count 2: expected 2.0, got 2.0
+  PASS  a stackable upgrade's multiplier squares at count 2: expected 0.25, got 0.25
+  PASS  an output doubler contributes one modifier: expected 1, got 1
+  PASS  the doubled output divides the limit from 8 cobblestone: expected 4, got 4
+  PASS  cobblestone consumed with the output doubler: expected 4, got 4
+  PASS  stone produced with the output doubler: expected 8, got 8
+  PASS  the doubler's whitelist names the alloy furnace: expected true, got true
+  PASS  the doubler is refused by a different machine: expected false, got false
+  PASS  a bus upgrade incompatible with the machine contributes nothing: expected 0, got 0
+  PASS  the refused craft settles the unmodified number of copies: expected 2, got 2
+  PASS  stone produced with the refused upgrade (undoubled): expected 2, got 2
+  PASS  the unfiltered bag still holds the upgrade: expected 1, got 1
+  PASS  ...and reports it as incompatible with that machine: expected 1, got 1
+  PASS  two carrier slots merge into one upgrade: expected 1, got 1
+  PASS  ...with their counts summed: expected 2, got 2
+  PASS  a non-carrier item in a slot contributes nothing: expected 1, got 1
+  PASS  the merged upgrade is the one the declaration names: expected modular_machinery_reborn:example_speed, got modular_machinery_reborn:example_speed
+  PASS  ...and reading the bus with two carriers gives the squared multiplier: expected 0.25, got 0.25
+  PASS  two different carriers give two upgrades: expected 2, got 2
+  PASS  ...and their counts are separate: expected 2, got 2
+  PASS  ...and the output doubler is among them: expected true, got true
+  PASS  the block entity's reader is the registry-backed overload: expected 0, got 0
+  PASS  the joined set carries both modifiers: expected 2, got 2
+  PASS  the x4 output limits the copies a 16-slot hatch can hold: expected 3, got 3
+  PASS  cobblestone consumed with two x2 output modifiers: expected 3, got 3
+  PASS  stone produced with two x2 output modifiers (3 copies x 4): expected 12, got 12
+  PASS  controller join over one bus holding two upgrades: expected 2, got 2
+  PASS  controller join with no machine: expected 0, got 0
+  PASS  controller join over two buses: expected 4, got 4
+
+== P. the machine loader's factory fields
+  PASS  no factory fields -> has-factory false (the original's own default)
+  PASS  no factory fields -> factory-only false
+  PASS  no factory fields -> max-threads 20 (Config.defaultFactoryMaxThread): expected 10, got 10
+  PASS  no factory fields -> no core threads: expected 0, got 0
+  PASS  a machine without has-factory is refused by a factory controller
+  PASS  ...and a plain controller is refused too, even with the flag on
+  PASS  has-factory true is read
+  PASS  factory-only false is read
+  PASS  max-threads 4 is read: expected 4, got 4
+  PASS  two core threads are read: expected 2, got 2
+  PASS  the first core thread's name: expected smelter, got smelter
+  PASS  ...and its pinned recipe set: expected [modular_machinery_reborn:recipes/demo], got [modular_machinery_reborn:recipes/demo]
+  PASS  a core thread with no 'recipes' may run anything: expected 0, got 0
+  PASS  ...and its name: expected anything, got anything
+  PASS  a bare recipe name gets this mod's namespace: expected [modular_machinery_reborn:alloy_smelter_diamond], got [modular_machinery_reborn:alloy_smelter_diamond]
+  PASS  a machine with has-factory is accepted by a factory controller
+  PASS  ...but not by a plain controller
+  PASS  the factory model's default thread count is the configured one: expected 10, got 10
+  PASS  the factory model's idle timeout is the original's: expected 200, got 200
+  PASS  the factory model's has-factory default is the original's (false)
+  PASS  rejected: 'has-factory' of mmverify:test must be true or false. Write "has-factory": true to give this machine a factory controller (a block that runs several different recipes at once), or remove the field.
+  PASS  rejected: 'factory-only' of mmverify:test must be true or false. Write "factory-only": true to say this machine may only be built around a factory controller, or remove the field.
+  PASS  rejected: 'max-threads' of mmverify:test is -1, but a thread count cannot be negative. Write 0 for "this machine may run nothing on a factory controller unless a core thread is declared", or remove the field.
+  PASS  rejected: 'max-threads' of mmverify:test must be a whole number. Write a non-negative integer such as "max-threads": 4 — the number of recipes this machine's factory controller may run at once — or remove the field (the default is 10).
+  PASS  rejected: 'core-threads' of mmverify:test must be an array of thread objects. Write "core-threads": [ { "name": "smelter", "recipes": [ "alloy_smelter_diamond" ] } ], or remove the field.
+  PASS  rejected: Core thread #0 of mmverify:test has no 'name'. A core thread is identified by its name (the original's threadName), so write "name": "smelter".
+  PASS  rejected: Core thread #0 of mmverify:test has an empty 'name'. Give it a name to write down, e.g. "name": "smelter".
+  PASS  rejected: Two core threads of mmverify:test are both named 'a'. Names key the threads, so they have to differ — rename one of them.
+  PASS  rejected: 'recipes' of core thread 'a' in mmverify:test must be an array of recipe names. Write "recipes": [ "alloy_smelter_diamond" ], or remove the field to let the thread run any recipe this machine has.
+  PASS  the shipped factory machine definition exists
+  PASS  the shipped factory machine declares has-factory
+  PASS  ...and max-threads: expected 4, got 4
+  PASS  ...and one core thread: expected 1, got 1
+  PASS  ...named: expected smelter, got smelter
+  PASS  ...with no pinned recipes: expected 0, got 0
+  PASS  ...and it is accepted by a factory controller
+  PASS  ...and refused by a plain controller
+  PASS  stone recipe machine: expected example_factory, got example_factory
+  PASS  stone recipe time: expected 5, got 5
+  PASS  smelt recipe machine: expected example_factory, got example_factory
+  PASS  smelt recipe time: expected 10, got 10
+  PASS  stone recipe requirement kinds: expected [modular_machinery_reborn:item, modular_machinery_reborn:item], got [modular_machinery_reborn:item, modular_machinery_reborn:item]
+  PASS  smelt recipe requirement kinds: expected [modular_machinery_reborn:energy, modular_machinery_reborn:item, modular_machinery_reborn:item], got [modular_machinery_reborn:energy, modular_machinery_reborn:item, modular_machinery_reborn:item]
+  PASS  the two recipes share no output item: expected [], got []
+  PASS  ...and share no input item: expected [], got []
+  PASS  the shipped factory claim exists
+  PASS  the claim's registryname: expected example_factory, got example_factory
+  PASS  the claim sets has-factory
+
+== Q. several different recipes run at once, one per thread
+  PASS  the two demonstrator recipes are different
+  PASS  two threads run at once with max-threads 4: 39 ticks ran two different recipes, first was [mmverify:factory_stone@1, mmverify:factory_smelt@1]
+  PASS  ...and the only recipes involved are the two distinct ones
+  PASS  two crafts ADVANCED in the same tick (not merely existed): 2
+  PASS  cobblestone consumed by the stone thread: expected 8, got 8
+  PASS  stone produced by the stone thread: expected 8, got 8
+  PASS  coal consumed by the coal thread: expected 8, got 8
+  PASS  diamond produced by the coal thread: expected 8, got 8
+  PASS  FE drawn by the coal thread (8 x 100 x 10): expected 8000, got 8000
+  PASS  no thread is left working when the inputs run out: expected 0, got 0
+  PASS  the ordinary pool is at most max-threads
+  PASS  a one-slot factory can only ever hold one thread: expected 1, got 1
+  PASS  ...where a four-slot one holds more than one at a time
+  PASS  in 40 ticks the one-slot factory settled 8 crafts and the four-slot one 12
+  PASS  ...and the one-slot factory's crafts are one recipe at a time: expected 1, got 1
+  PASS  max-threads 0 means no ordinary thread may ever run: expected 0, got 0
+  PASS  two pinned core threads: 39 ticks ran two different recipes, first was [mmverify:factory_stone@1, mmverify:factory_smelt@1]
+  PASS  ...two crafts advanced in the same tick: 2
+  PASS  ...the pinned stone thread settled 8: expected 8, got 8
+  PASS  ...and the pinned coal thread settled 4: expected 4, got 4
+  PASS  ...the pinned threads are still there: expected 2, got 2
+  PASS  the core thread is there before anything is crafted: expected 1, got 1
+  PASS  ...and is still there after the work is done: expected 1, got 1
+  PASS  ...and the machine's two recipes were both settled: expected 16, got 16
+  PASS  a core thread pinned to an unknown recipe stays idle
+  PASS  ...while the ordinary pool did the work: expected 4, got 4
+  PASS  a core thread pinned to a real recipe runs it, and keeps running it: expected 4, got 4
+  PASS  ...and the ordinary pool was there to pick up anything it could not take
+  PASS  the first thread claims the whole ceiling: expected 8, got 8
+  PASS  ...and the next thread is reduced to one copy: expected 1, got 1
+  PASS  ...and so is the third: expected 1, got 1
+  PASS  so the three claims come to the ceiling plus the two extra threads: expected 10, got 10
+  PASS  each thread's claim is what the ceiling had left, floored at 1
+  PASS  a lone thread settles its whole claim in one settlement: expected 8, got 8
+  PASS  the save carries the original's own NBT keys
+  PASS  every thread came back: expected 3, got 3
+  PASS  ...still working: expected 2, got 2
+  PASS  ...with their progress: expected 3, got 3
+  PASS  ...and their recipes: expected mmverify:factory_stone, got mmverify:factory_stone
+  PASS  ordinary threads were created while there was work
+  PASS  an idle ordinary thread is still there before its timeout
+  PASS  with nothing left to craft, the idle ordinary threads are reaped: expected 0, got 0
+  PASS  ...and the pool did not refill while there was nothing to do
+  PASS  ...while a core thread survives the same sweep: expected 1, got 1
+  PASS  ...and the ordinary one still went: expected 0, got 0
+  PASS  block=factory + machine without has-factory -> no factory
+  PASS  block=factory + machine with has-factory -> factory
+  PASS  block=plain + machine with has-factory -> no factory
+  PASS  block=plain + machine without has-factory -> no factory
+  PASS  a null machine is never a factory
+  PASS  maxThreads() on a null machine falls back to the original's default: expected 10, got 10
+  PASS  the shipped factory claim would register a factory controller
+  PASS  the alloy furnace claim does NOT ask for a factory controller
+
+== R. the factory's config keys, preview rows, panel metrics and textures
+  PASS  the config spec defines this many keys: expected 15, got 15
+  PASS  the rendered spec has 'parallel-controller.normal.max-parallelism' = 4
+  PASS  the rendered spec has 'parallel-controller.reinforced.max-parallelism' = 16
+  PASS  the rendered spec has 'parallel-controller.elite.max-parallelism' = 64
+  PASS  the rendered spec has 'parallel-controller.super.max-parallelism' = 256
+  PASS  the rendered spec has 'parallel-controller.ultimate.max-parallelism' = 512
+  PASS  the rendered spec has 'upgrade-bus.normal.max-upgrade_slot' = 3
+  PASS  the rendered spec has 'upgrade-bus.reinforced.max-upgrade_slot' = 6
+  PASS  the rendered spec has 'upgrade-bus.elite.max-upgrade_slot' = 9
+  PASS  the rendered spec has 'upgrade-bus.super.max-upgrade_slot' = 12
+  PASS  the rendered spec has 'upgrade-bus.ultimate.max-upgrade_slot' = 18
+  PASS  the rendered spec has 'factory-system.default-factory-max-thread' = 10
+  PASS  the rendered spec has 'factory-system.enable-factory-controller-bydefault' = false
+  PASS  the rendered spec has 'smart-interface.enable-smart-interface-bydefault' = false
+  PASS  no rendered key repeats a path element (the 0.20.0 defect)
+  PASS  ModConfig.factoryDefaultMaxThread(): expected 10, got 10
+  PASS  ModConfig.factoryControllerEnabledByDefault() is false
+  PASS  MachineDefinition.DEFAULT_MAX_THREADS follows the config: expected 10, got 10
+  PASS  FactoryThreadModel.DEFAULT_MAX_THREADS follows the config: expected 10, got 10
+  PASS  ...and a machine that does not say gets that number: expected 10, got 10
+  FAIL  the user's existing config file is readable by the new spec (2220 chars, was already correct: true, corrections applied: 0)
+  PASS  after the correction the file is correct
+  PASS  every key, old and new, is readable from that file: expected 13, got 13
+  PASS  the spec reports itself loaded after setConfig
+  PASS  saving writes both factory-system keys — and M6d-b's smart-interface key — into the file
+  PASS  ...and the ten pre-existing keys are still there
+  PASS  ...and it gained no repeated path element
+  PASS  ...and the user's own values survived (the first tier is still 4)
+  FAIL  ...the correction was purely additive (0 corrections)
+  FAIL  ...and the file grew only by those keys (was 2220, now 2220 chars)
+  PASS  ...and re-reading the saved file finds all thirteen keys at their defaults: expected 13, got 13
+  PASS  a machine with no factory prints no max-threads row
+  PASS  ...and no core-threads row
+  PASS  ...and the four unconditional rows are still there: expected 4, got 4
+  (rows) [gui.preview.button.machine_info, gui.preview.button.machine_info.xyz.0, gui.preview.button.machine_info.xyz.1 [1, 1, 1], gui.preview.button.machine_info.controller_y_pos [1], gui.preview.button.machine_info.max_threads [7]]
+  PASS  a factory without a core-thread preset prints max-threads
+  PASS  ...and still no core-threads row
+  PASS  ...and the row carries the machine's own number
+  PASS  ...so it has five rows: expected 5, got 5
+  (rows) [gui.preview.button.machine_info, gui.preview.button.machine_info.xyz.0, gui.preview.button.machine_info.xyz.1 [1, 1, 1], gui.preview.button.machine_info.controller_y_pos [1], gui.preview.button.machine_info.max_threads [7], gui.preview.button.machine_info.core_threads [2]]
+  PASS  a factory with a two-entry preset prints a core-threads row of 2
+  PASS  ...so it has six rows: expected 6, got 6
+  PASS  max-threads comes before core-threads, as in the original
+  PASS  ...and both come after the parallelism rows, as in the original
+  PASS  a preset without has-factory prints core-threads but not max-threads
+  PASS  panel width: expected 280, got 280
+  PASS  panel height: expected 213, got 213
+  PASS  recipe element width: expected 86, got 86
+  PASS  recipe element height: expected 32, got 32
+  PASS  elements per page: expected 6, got 6
+  PASS  recipe queue origin x: expected 8, got 8
+  PASS  recipe queue origin y: expected 8, got 8
+  PASS  scrollbar left: expected 94, got 94
+  PASS  scrollbar top: expected 8, got 8
+  PASS  scrollbar height: expected 197, got 197
+  PASS  text block origin x in panel px: expected 81, got 81
+  PASS  text block origin y in panel px: expected 8, got 8
+  PASS  information wrap width: expected 187, got 187
+  PASS  font scale (x100): expected 72, got 72
+  PASS  row label x inside the scaled matrix: expected 13, got 13
+  PASS  row wrap width: expected 111, got 111
+  PASS  row text y offset: expected 2, got 2
+  PASS  line pitch: expected 10, got 10
+  PASS  spacer before the closing line: expected 5, got 5
+  PASS  gap after a name or status block: expected 15, got 15
+  PASS  row step: expected 33, got 33
+  PASS  the recipe queue and the information block do not overlap (queue ends at 94 panel px, the text starts at 113)
+  PASS  six rows fit inside the panel
+  PASS  guifactory.png is byte-for-byte the original's (SHA-256 C54FA65BCAA38927B4210C8C56A6D97FC55D1FB144DAAD8444C5B76CC94CC51E)
+  PASS  guifactory.png dimensions match (280x213)
+  PASS  guifactoryelements.png is byte-for-byte the original's (SHA-256 59E3B15AF436E1DFFE05B329C0EEC687FFC05004CF377F78328840AF8BEE1184)
+  PASS  guifactoryelements.png dimensions match (256x256)
+  PASS  guifactory.png really is the 280x213 panel the screen blits whole (280x213)
+  PASS  zh_cn and en_us define the same key set (176 keys; only-zh=[], only-en=[])
+  PASS  the language files' key count: expected 176, got 176
+  PASS  zh gui.modular_machinery_reborn.factory.threads is the original's wording: expected %s 线程运行中 / %s 最大线程数, got %s 线程运行中 / %s 最大线程数
+  PASS  en gui.modular_machinery_reborn.factory.threads is the original's wording: expected %s Threads Running / %s Threads Max, got %s Threads Running / %s Threads Max
+  PASS  zh gui.modular_machinery_reborn.factory.thread is the original's wording: expected 线程 #%s, got 线程 #%s
+  PASS  en gui.modular_machinery_reborn.factory.thread is the original's wording: expected Thread #%s, got Thread #%s
+  PASS  zh gui.preview.button.machine_info.max_threads is the original's wording: expected 基础线程数（仅集成控制器）：§b%s§f, got 基础线程数（仅集成控制器）：§b%s§f
+  PASS  en gui.preview.button.machine_info.max_threads is the original's wording: expected Max Threads(Only Factory Controller)：§b%s§f, got Max Threads(Only Factory Controller)：§b%s§f
+  PASS  zh gui.preview.button.machine_info.core_threads is the original's wording: expected 特殊线程数（仅集成控制器）：§9%s§f, got 特殊线程数（仅集成控制器）：§9%s§f
+  PASS  en gui.preview.button.machine_info.core_threads is the original's wording: expected Special Threads(Only Factory Controller)：§9%s§f, got Special Threads(Only Factory Controller)：§9%s§f
+  PASS  the factory screen's two keys are the only new gui.<modid>.factory ones: expected [gui.modular_machinery_reborn.factory.thread, gui.modular_machinery_reborn.factory.threads], got [gui.modular_machinery_reborn.factory.thread, gui.modular_machinery_reborn.factory.threads]
+
+== S. a value written through the controller is read by interface_number_input
+  PASS  declared type count: expected 2, got 2
+  PASS  declared type names, in declaration order: expected [mode, speed], got [mode, speed]
+  PASS  hasSmartInterfaces(): expected true, got true
+  PASS  'mode' default: expected 3.0, got 3.0
+  PASS  'mode' priority: expected 10, got 10
+  PASS  'speed' default: expected 0.5, got 0.5
+  PASS  'speed' priority defaults to 0: expected 0, got 0
+  PASS  an undeclared type is null: expected null, got null
+  PASS  the highest-priority declaration is the one a fresh value binds to: expected mode, got mode
+  PASS  an author value format is applied: expected mode=4.0, got mode=4.0
+  PASS  a type with no format falls back to the default line: expected null, got null
+  PASS  an unusable value format falls back instead of throwing: expected null, got null
+  PASS  the declared type's own mismatch message is reachable: expected gui.mmverify.mode.mismatch, got gui.mmverify.mode.mismatch
+  PASS  ...and the original's default when the type gives none: expected craftcheck.failure.interface.number.notequal, got craftcheck.failure.interface.number.notequal
+  PASS  a definition with no field declares no type: expected false, got false
+  PASS  rejected: 'smart-interfaces' of mmverify:test must be an array of interface type objects. Write "smart-interfaces": [ { "type": "mode", "default": 0, "priority": 1000 } ], or remove the field to declare no interface type at all (then no interface_number_input requirement can ever be satisfied on this machine).
+  PASS  rejected: Smart interface #0 of mmverify:test has no 'type'. The type's name is what a recipe's interface_number_input requirement quotes, so write "type": "mode".
+  PASS  rejected: Smart interface #0 of mmverify:test has an empty 'type'. Give it a name to quote from a recipe, e.g. "type": "mode".
+  PASS  rejected: Two smart interfaces of mmverify:test are both named 'a'. The name is how a requirement finds the value, so a duplicate would make one of them unreachable — rename one of them.
+  PASS  rejected: 'default' of smart interface 'a' in mmverify:test must be a number. Write the value a freshly formed machine starts from, e.g. "default": 0, or remove the field (the default is 0).
+  PASS  rejected: 'priority' of smart interface 'a' in mmverify:test must be a whole number. Write the number that decides which declared type an undeclared value binds to (the largest wins), e.g. "priority": 1000, or remove the field (the default is 0).
+  PASS  rejected: 'header' of smart interface 'a' in mmverify:test must be a string. Write a translation key such as "gui.example.mode.header" (or remove the field); a number or an object here can never be printed.
+  PASS  a fresh store holds nothing: expected 0, got 0
+  PASS  the controller's own field is this store (SmartInterfaceStore)
+  PASS  bind reports a change when it fills a default in
+  PASS  binding fills in 'mode' at its declared default: expected 3.0, got 3.0
+  PASS  binding fills in 'speed' at its declared default: expected 0.5, got 0.5
+  PASS  binding declares both values: expected 2, got 2
+  PASS  ...in declaration order: expected [mode, speed], got [mode, speed]
+  PASS  a second bind changes nothing (idempotent, as the 10-tick structure check requires)
+  PASS  re-binding does not overwrite an edited value: expected 7.0, got 7.0
+  PASS  re-binding to a machine that dropped a type reports the change
+  PASS  a value whose type the new machine does not declare is dropped: expected null, got null
+  PASS  the new machine's own type is NOT overwritten (it already had a value): expected 0.5, got 0.5
+  PASS  a write reports the stored value: expected 12.5, got 12.5
+  PASS  a write really moves the value: expected 12.5, got 12.5
+  PASS  a write to an undeclared type is refused: expected null, got null
+  PASS  ...and stores nothing: expected null, got null
+  PASS  NaN is refused: expected null, got null
+  PASS  ...and leaves the previous value alone: expected 12.5, got 12.5
+  PASS  infinity is refused too: expected null, got null
+  PASS  ...and still leaves the previous value alone: expected 12.5, got 12.5
+  PASS  the values go under the original's own key: expected true, got true
+  PASS  ...as a compound of type -> float: expected 12.5, got 12.5
+  PASS  a reload restores the edited value, not the default: expected 12.5, got 12.5
+  PASS  ...and the other type with it: expected 0.5, got 0.5
+  PASS  reconciling a restored store leaves the restored value alone: expected 12.5, got 12.5
+  PASS  the ports carry the controller's value: expected 12.5, got 12.5
+  PASS  the ports carry the declared type too: expected mode, got mode
+  PASS  ...and answer null for a type the machine does not declare: expected null, got null
+  PASS  a plain HatchCollection has no interface value: expected null, got null
+  PASS  ...and no declared type either: expected null, got null
+  PASS  the value inside [10, 20] satisfies the requirement
+  PASS  the value outside [0, 5] does not
+  PASS  an exact-value requirement for the stored value satisfies
+  PASS  a type the machine does not declare is never satisfied
+  PASS  ...and reports the original's missing-interface key: expected component.missing.modularmachinery.interface.number, got component.missing.modularmachinery.interface.number
+  PASS  a mismatch reports the declared type's own notequal message: expected gui.mmverify.mode.mismatch, got gui.mmverify.mode.mismatch
+  PASS  the original's default key when the type gives none: expected craftcheck.failure.interface.number.notequal, got craftcheck.failure.interface.number.notequal
+  PASS  a satisfied requirement reports no failure: expected null, got null
+  PASS  min == the stored value satisfies
+  PASS  max == the stored value satisfies
+  PASS  just above max does not
+  PASS  just below min does not
+  PASS  a recipe whose interface value is out of range refuses to start
+  PASS  ...and the recipe says why: expected gui.mmverify.mode.mismatch, got gui.mmverify.mode.mismatch
+  PASS  ...and no coal was consumed: expected 0, got 0
+  PASS  ...and no diamond was produced: expected 0, got 0
+  PASS  the edit is accepted: expected 3.0, got 3.0
+  PASS  the same recipe starts once the value is in range
+  PASS  ...and reports no failure: expected null, got null
+  PASS  coal really consumed: expected 1, got 1
+  PASS  diamond really produced: expected 1, got 1
+  PASS  changing the value back out of range stops the recipe again
+  PASS  ...and nothing moved this time either: expected 0, got 0
+  PASS  a machine with no declaration holds no value: expected 0, got 0
+  PASS  ...and its value source answers null: expected null, got null
+  PASS  ...and a write to it is refused: expected null, got null
+  PASS  an interface requirement on such a machine cannot start
+  PASS  ...and reports the original's missing key: expected component.missing.modularmachinery.interface.number, got component.missing.modularmachinery.interface.number
+  PASS  ...and nothing moved: expected 0, got 0
+  PASS  the failure key list is the two original keys, in wire order: expected [component.missing.modularmachinery.interface.number, craftcheck.failure.interface.number.notequal], got [component.missing.modularmachinery.interface.number, craftcheck.failure.interface.number.notequal]
+  PASS  index of the missing key: expected 0, got 0
+  PASS  index of the mismatch key: expected 1, got 1
+  PASS  index of no failure: expected -1, got -1
+
+== S2. the interface_number_input JSON shape and its JEI tip
+  PASS  the recipe handed in carries the requirement this section is about (3 requirements)
+  PASS  the production parser is being driven for kind 'interface_number_input'
+  PASS  parsed {"type":"modularmachinery:interface_number_input","io-type":"input","interface":"mode","minValue":10,"maxValue":20} -> com.reborn.modularmachinery.recipe.InterfaceNumberInputRequirement@76093fa9
+  PASS  the production parser is being driven for kind 'interface_number_input'
+  PASS  parsed {"type":"modularmachinery:interface_number_input","io-type":"input","interface":"mode","value":4.5} -> com.reborn.modularmachinery.recipe.InterfaceNumberInputRequirement@547d3e8e
+  PASS  the production parser is being driven for kind 'interface_number_input'
+  PASS  parsed {"type":"modular_machinery_reborn:interface_number_input","io-type":"input","interface":"mode","value":1} -> com.reborn.modularmachinery.recipe.InterfaceNumberInputRequirement@6f823df7
+  PASS  the production parser is being driven for kind 'interface_number_input'
+  PASS  parsed {"type":"interface_number_input","io-type":"input","interface":"mode","minValue":1} -> com.reborn.modularmachinery.recipe.InterfaceNumberInputRequirement@4afdcdf6
+  PASS  the production parser is being driven for kind 'interface_number_input'
+  PASS  rejected: An interface_number_input in a requirement of mmverify:gated is written with "io-type": "output", but the original's requirement is an input only — it gates a craft on a value, it never produces one. Write "io-type": "input".
+  PASS  the production parser is being driven for kind 'interface_number_input'
+  PASS  rejected: 'minValue' (20.0) is above 'maxValue' (10.0) in a requirement of mmverify:gated. The two ends are inclusive, so write the lower bound first — or write "value": 20.0 for an exact match.
+  PASS  the production parser is being driven for kind 'interface_number_input'
+  PASS  rejected: Missing 'value' in a requirement of mmverify:gated. An interface_number_input needs "interface" (the interface type the machine declares) plus either "value" or "minValue"/"maxValue".
+  PASS  the production parser is being driven for kind 'interface_number_input'
+  PASS  rejected: 'value' in a requirement of mmverify:gated must be a number. Write the value the machine's smart data interface has to hold, e.g. "value": 4.
+  PASS  the production parser is being driven for kind 'interface_number_input'
+  PASS  rejected: Missing 'interface' in a requirement of mmverify:gated. An interface_number_input needs "interface" (the interface type the machine declares) plus either "value" or "minValue"/"maxValue".
+  PASS  the production parser is being driven for kind 'interface_number_input'
+  PASS  rejected: 'interface' in a requirement of mmverify:gated is empty. Write the name of an interface type the machine declares, e.g. "interface": "mode".
+  PASS  the production parser is being driven for kind 'interface_number_input'
+  PASS  parsed interface type: expected mode, got mode
+  PASS  parsed minValue: expected 10.0, got 10.0
+  PASS  parsed maxValue: expected 20.0, got 20.0
+  PASS  a min != max range is not an exact value: expected false, got false
+  PASS  and it is a start-phase input, the original's own phase: expected true, got true
+  PASS  ...and not per-tick: expected false, got false
+  PASS  the production parser is being driven for kind 'interface_number_input'
+  PASS  the 'value' shorthand makes an exact range: expected true, got true
+  PASS  ...with both ends at that value: expected 4.5 / 4.5, got 4.5 / 4.5
+  PASS  MachineRecipeText reads the key 'tooltip.modular_machinery_reborn.smartinterface.value'
+  PASS  MachineRecipeText reads the key 'tooltip.modular_machinery_reborn.smartinterface.minvalue'
+  PASS  MachineRecipeText reads the key 'tooltip.modular_machinery_reborn.smartinterface.maxvalue'
+  PASS  ...and branches on the requirement's own isExactValue()
+  PASS  the tip reads the declared value line for an exact requirement (no %,d mismatch): expected true, got true
+
+== S3. the smart-interface update packet and the channel's message table
+  PASS  round trip 0.0 / 'mode' -> 0.0 / 'mode'
+  PASS  round trip -1.5 / 'mode' -> -1.5 / 'mode'
+  PASS  round trip 3.25 / 'mode' -> 3.25 / 'mode'
+  PASS  round trip 12345.75 / 'mode' -> 12345.75 / 'mode'
+  PASS  round trip 3.4028235E38 / 'mode' -> 3.4028235E38 / 'mode'
+  PASS  round trip 1.4E-45 / 'mode' -> 1.4E-45 / 'mode'
+  PASS  the channel id constants are 0, 1 and 2: expected true, got true
+  PASS  the channel registers exactly three messages: expected 3, got 3
+  PASS  all three messages are registered against those constants
+  PASS  the protocol version is unchanged from 0.20.0's '1'
+
+== S4. the smart-interface language keys
+  PASS  zh craftcheck.failure.interface.number.notequal is the original's wording: expected 智能数据接口输入的数值不同！, got 智能数据接口输入的数值不同！
+  PASS  en craftcheck.failure.interface.number.notequal is the original's wording: expected Different values for Smart Data Interface inputs!, got Different values for Smart Data Interface inputs!
+  PASS  zh component.missing.modularmachinery.interface.number is the original's wording: expected 没有找到对应类型的智能数据接口！, got 没有找到对应类型的智能数据接口！
+  PASS  en component.missing.modularmachinery.interface.number is the original's wording: expected No Smart Data Interface found!, got No Smart Data Interface found!
+  PASS  zh tooltip.modular_machinery_reborn.smartinterface.value is the original's wording: expected 智能接口数值输入：%s, got 智能接口数值输入：%s
+  PASS  en tooltip.modular_machinery_reborn.smartinterface.value is the original's wording: expected Smart Interface Number Input：%s, got Smart Interface Number Input：%s
+  PASS  zh tooltip.modular_machinery_reborn.smartinterface.minvalue is the original's wording: expected 智能接口最小数值输入：%s, got 智能接口最小数值输入：%s
+  PASS  en tooltip.modular_machinery_reborn.smartinterface.minvalue is the original's wording: expected Smart Interface Min Number Input：%s, got Smart Interface Min Number Input：%s
+  PASS  zh tooltip.modular_machinery_reborn.smartinterface.maxvalue is the original's wording: expected 智能接口最大数值输入：%s, got 智能接口最大数值输入：%s
+  PASS  en tooltip.modular_machinery_reborn.smartinterface.maxvalue is the original's wording: expected Smart Interface Max Number Input：%s, got Smart Interface Max Number Input：%s
+  PASS  zh gui...smartinterface.value keeps the original's value line: expected 当前值：%.0f, got 当前值：%.0f
+  PASS  en gui...smartinterface.value keeps the original's value line: expected Current Value: %.0f, got Current Value: %.0f
+  PASS  the merged screen has no 'gui.modular_machinery_reborn.smartinterface.prev' key (the original's case cannot arise)
+  PASS  the merged screen has no 'gui.modular_machinery_reborn.smartinterface.next' key (the original's case cannot arise)
+  PASS  the merged screen has no 'gui.modular_machinery_reborn.smartinterface.notfound' key (the original's case cannot arise)
+  PASS  the merged screen has no 'gui.modular_machinery_reborn.smartinterface.title' key (the original's case cannot arise)
+  PASS  zh has all eight new keys: expected 8, got 8
+  PASS  en has all eight new keys: expected 8, got 8
+  PASS  the value line really is a format string a float can fill
+
+== T. no failure is a sentinel, and a sentinel never reaches a list lookup
+  PASS  the sentinel the harness uses (-1) is the class's own NO_START_FAILURE (-1)
+  PASS  the list is the two keys the wire format carries: expected 2, got 2
+  PASS  index 0 is the missing-type key: expected component.missing.modularmachinery.interface.number, got component.missing.modularmachinery.interface.number
+  PASS  index 1 is the mismatch key: expected craftcheck.failure.interface.number.notequal, got craftcheck.failure.interface.number.notequal
+  PASS  clientStartFailure is initialised to the sentinel -1: expected iconst_m1, got iconst_m1
+  PASS  failureKeyAt(-1) is null (the sentinel means "no failure"): expected null, got null
+  PASS  failureKeyAt(-2) is null (the sentinel means "no failure"): expected null, got null
+  PASS  failureKeyAt(2) is null (the sentinel means "no failure"): expected null, got null
+  PASS  failureKeyAt(3) is null (the sentinel means "no failure"): expected null, got null
+  PASS  failureKeyAt(-2147483648) is null (the sentinel means "no failure"): expected null, got null
+  PASS  failureKeyAt(2147483647) is null (the sentinel means "no failure"): expected null, got null
+  PASS  ...while index 0 still reports its key: expected component.missing.modularmachinery.interface.number, got component.missing.modularmachinery.interface.number
+  PASS  ...and index 1 still reports its key: expected craftcheck.failure.interface.number.notequal, got craftcheck.failure.interface.number.notequal
+  PASS  a controller with no level answers as the client (isServerSide() is false)
+  PASS  an out-of-range index from the wire is stored as the sentinel: expected -1, got -1
+  PASS  ...and startFailureKey() answers null for it: expected null, got null
+  PASS  a real index from the wire is kept: expected 1, got 1
+  PASS  ...and startFailureKey() reports that key: expected craftcheck.failure.interface.number.notequal, got craftcheck.failure.interface.number.notequal
+  PASS  startFailureKey() with the mirror at the sentinel is null, not an exception: expected null, got null
+  PASS  startFailureKey() with the mirror one past the end is null too: expected null, got null
+  PASS  startFailureKey() with a below-zero index is null too: expected null, got null
+  PASS  load() of a save with no failure stores the sentinel: expected -1, got -1
+  PASS  ...and the key is null: expected null, got null
+  PASS  load() of a save with a real failure stores its index: expected 1, got 1
+  PASS  ...and the key round-trips back out: expected craftcheck.failure.interface.number.notequal, got craftcheck.failure.interface.number.notequal
+  PASS  load() of a save with a key this build does not know falls back to the sentinel: expected -1, got -1
+  PASS  ...and the key is null: expected null, got null
+  PASS  load() clears a previous failure when the save has none: expected -1, got -1
+  PASS  failureLines(null) draws nothing: expected [], got []
+  PASS  failureLines(a real key) draws exactly that key: expected [craftcheck.failure.interface.number.notequal], got [craftcheck.failure.interface.number.notequal]
+  PASS  drawInfo really asks the controller for the key and consumes failureLines(...) (checked in the class bytes)
+  PASS  the menu exposes startFailureKey() returning String
+  PASS  ...and it is the screen's only failure source (exactly one *FailureKey accessor)
+  PASS  ControllerStatus.byOrdinal(-1) is a status, never an exception: expected MISSING_STRUCTURE, got MISSING_STRUCTURE
+  PASS  ControllerStatus.byOrdinal(5) is a status, never an exception: expected MISSING_STRUCTURE, got MISSING_STRUCTURE
+  PASS  ControllerStatus.byOrdinal(-2147483648) is a status, never an exception: expected MISSING_STRUCTURE, got MISSING_STRUCTURE
+  PASS  ControllerStatus.byOrdinal(2147483647) is a status, never an exception: expected MISSING_STRUCTURE, got MISSING_STRUCTURE
+  PASS  factoryThreadStatus(-1) on an empty factory is -1: expected -1, got -1
+  PASS  factoryThreadStatus(0) on an empty factory is -1: expected -1, got -1
+  PASS  factoryThreadStatus(6) on an empty factory is -1: expected -1, got -1
+  PASS  factoryThreadStatus(2147483647) on an empty factory is -1: expected -1, got -1
+
+== U. the two information blocks and the factory panel stay inside their own region
+  PASS  the information region's boundary (159 scaled = 114 panel px) is above the player-inventory label's row (119) and the first player slot row (131)
+  PASS  ...and the label row is itself above the first player slot row (119 < 131)
+  PASS  ...and the block starts at the top of that region, not part-way down (12 scaled)
+  PASS  a short payload: the block stays inside its region 159 (block Block[start=12, drawn=7/9, payloadEnd=132, footer=149, end=159, limit=159])
+  PASS  a short payload: the drawing loop and the measured payload agree on how many rows are drawn (walked 7, block says 7 of 9)
+  PASS  a short payload: the closing line starts at or after the payload's last row (149 >= 132)
+  PASS  a short payload: the block's bottom in panel pixels (114) is above the label (119) and the first slot row (131)
+  PASS  a long payload: the block stays inside its region 159 (block Block[start=12, drawn=7/14, payloadEnd=132, footer=149, end=159, limit=159])
+  PASS  a long payload: the drawing loop and the measured payload agree on how many rows are drawn (walked 7, block says 7 of 14)
+  PASS  a long payload: the closing line starts at or after the payload's last row (149 >= 132)
+  PASS  a long payload: the block's bottom in panel pixels (114) is above the label (119) and the first slot row (131)
+  PASS  a deliberately extreme payload: the block stays inside its region 159 (block Block[start=12, drawn=4/19, payloadEnd=72, footer=149, end=159, limit=159])
+  PASS  a deliberately extreme payload: the drawing loop and the measured payload agree on how many rows are drawn (walked 4, block says 4 of 19)
+  PASS  a deliberately extreme payload: the closing line starts at or after the payload's last row (149 >= 72)
+  PASS  a deliberately extreme payload: the block's bottom in panel pixels (114) is above the label (119) and the first slot row (131)
+  PASS  the recipe queue [8,8 86x197] lies inside the panel [0,0 280x213] (the 0.24.1 screenshot shows the queue free-standing to the left of it)
+  PASS  the scrollbar [94,8 12x197] lies inside the panel [0,0 280x213] (the 0.24.1 screenshot shows the queue free-standing to the left of it)
+  PASS  the information block [81,8 199x94] lies inside the panel [0,0 280x213] (the 0.24.1 screenshot shows the queue free-standing to the left of it)
+  PASS  the player grid and hotbar [112,131 160x74] lies inside the panel [0,0 280x213] (the 0.24.1 screenshot shows the queue free-standing to the left of it)
+  PASS  the blueprint slot [255,8 16x16] lies inside the panel [0,0 280x213] (the 0.24.1 screenshot shows the queue free-standing to the left of it)
+  PASS  the queue and the panel share one origin: queue x 8 >= panel x 0 and queue x+w 94 <= panel x+w 280
+  PASS  the queue starts inside the panel at its own left inset and the player grid starts at the menu's own x: queue x 8 == 8, grid x 112 == 112
+  PASS  the scrollbar follows the queue and stays inside the panel: 94 <= 94, 106 <= 280
+  PASS  the text block's own rectangle [81,8 199x94] still fits inside the panel, despite the original's queue/scrollbar overlap (text left 81 < scrollbar right 106)
+  PASS  * the original's queue/text overlap is reproduced, not hidden: text left 81 < queue right 94 (GuiFactoryController:39-42 vs :191-192)
+  PASS  the information block's bottom (102) is above the block's floor row (119) and the first player slot row (131)
+  PASS  the player's slots are below the block and to the right of the queue: grid y 131 > text bottom 102
+  PASS  the block's floor row is inside the panel texture (119 inside 0..213)
+  PASS  the panel blit's source offset is the original's (0, 0) and its extent is the whole texture: [0, 0, 0, 0, 280, 213]
+  PASS  ...and its destination is exactly the origin every panel-local offset is added to: [37, 91, 0, 0, 280, 213]
+  PASS  the queue element blit reads from the element sheet's own (0, 0) at 86x32: [0, 0, 86, 32]
+  PASS  factory a short payload: the block stays inside its region 143 (block Block[start=0, drawn=5/5, payloadEnd=90, footer=133, end=143, limit=143])
+  PASS  factory a short payload: the drawing loop and the measured payload agree on how many rows are drawn (walked 5, block says 5 of 5)
+  PASS  factory a short payload: the closing line starts at or after the payload's last row (133 >= 90)
+  PASS  factory a short payload: the block's bottom in panel pixels (102) is above the label (119) and the first slot row (131)
+  PASS  factory a short payload: the region held the whole payload without truncation (drawn 5)
+  PASS  factory a long payload: the block stays inside its region 143 (block Block[start=0, drawn=11/22, payloadEnd=130, footer=133, end=143, limit=143])
+  PASS  factory a long payload: the drawing loop and the measured payload agree on how many rows are drawn (walked 11, block says 11 of 22)
+  PASS  factory a long payload: the closing line starts at or after the payload's last row (133 >= 130)
+  PASS  factory a long payload: the block's bottom in panel pixels (102) is above the label (119) and the first slot row (131)
+  PASS  factory a long payload: the region had to drop rows (requested 22, drawn 11)
+  PASS  factory a deliberately extreme payload: the block stays inside its region 143 (block Block[start=0, drawn=11/59, payloadEnd=130, footer=133, end=143, limit=143])
+  PASS  factory a deliberately extreme payload: the drawing loop and the measured payload agree on how many rows are drawn (walked 11, block says 11 of 59)
+  PASS  factory a deliberately extreme payload: the closing line starts at or after the payload's last row (133 >= 130)
+  PASS  factory a deliberately extreme payload: the block's bottom in panel pixels (102) is above the label (119) and the first slot row (131)
+  PASS  factory a deliberately extreme payload: the region had to drop rows (requested 59, drawn 11)
+  -- fault injection: the predicates above are fed the 0.24.1 geometry; each check
+     below PASSES only when the predicate REJECTS it
+  PASS  injected: a queue one queue-width to the left of the panel origin [-78,8 86x197] is rejected by insidePanel(...) -- the shipped 'free-standing strip'
+  PASS  injected: ...and it is rejected by the origin inequality (queue x -78 < panel x 0)
+  PASS  injected: the 0.24.1 closing line lands at scaled y 654 (block end 664), past the region's boundary 159 -- the containment predicate rejects it
+  PASS  injected: ...and its end in panel pixels (478) is at or past the player-inventory label (119), which is the collision the owner photographed
+  PASS  injected: the unbounded factory block runs to scaled y 641 (461 panel px), past the region's boundary 143 / 102 panel px, so the predicate rejects it
+  PASS  the corrected long controller payload: the block stays inside its region 159 (block Block[start=12, drawn=4/19, payloadEnd=72, footer=149, end=159, limit=159])
+  PASS  the corrected long controller payload: the drawing loop and the measured payload agree on how many rows are drawn (walked 4, block says 4 of 19)
+  PASS  the corrected long controller payload: the closing line starts at or after the payload's last row (149 >= 72)
+  PASS  the corrected long controller payload: the block's bottom in panel pixels (114) is above the label (119) and the first slot row (131)
+  PASS  ...and the corrected controller block still draws most of the payload, not none of it (4 rows)
+  PASS  the corrected long factory payload: the block stays inside its region 143 (block Block[start=0, drawn=11/59, payloadEnd=130, footer=133, end=143, limit=143])
+  PASS  the corrected long factory payload: the drawing loop and the measured payload agree on how many rows are drawn (walked 11, block says 11 of 59)
+  PASS  the corrected long factory payload: the closing line starts at or after the payload's last row (133 >= 130)
+  PASS  the corrected long factory payload: the block's bottom in panel pixels (102) is above the label (119) and the first slot row (131)
+
+  -- the block as drawn, against the clip the screen installs
+  PASS  controller: the block as drawn [8,8 168x106] (panel px) lies inside the clip [4,0 176x213]
+  PASS  controller: the clip leaves the first glyph column intact: clip left 4 < glyph left 8 and glyph right 9 <= clip right 176
+  PASS  controller: the block's own rectangle reaches the clip's right edge and stops short of its bottom (168x106 inside 176x213)
+  PASS  factory: the block as drawn [81,8 199x94] (panel px) lies inside the clip [0,0 280x213]
+  PASS  factory: the clip leaves the first glyph column intact: clip left 0 < glyph left 81 and glyph right 82 <= clip right 280
+  PASS  factory: the block's own rectangle reaches the clip's right edge and stops short of its bottom (199x94 inside 280x213)
+  PASS  the controller's clip [4,0 176x213] is the block's rectangle dilated by 4 panel px on the left and flush with the panel's right and bottom
+  PASS  the controller's clip leaves the first glyph column its shadow: clip left 4 < glyph left 8 (shadow margin 1 scaled unit)
+  PASS  the factory's clip [0,0 280x213] is that panel's own rectangle, which the block [81,8 199x94] sits inside with room to spare on every side
+  PASS  the factory's clip leaves the first glyph column its shadow: clip left 0 < glyph left 81
+  PASS  both screens' block origins are their layout's own textRect(), not a second scaling of it: controller [8,8 168x106] vs [8,8 168x106], factory [81,8 199x94] vs [81,8 199x94]
+  -- fault injection: the drawn-in-clip predicate is fed the 0.24.2 clip edge,
+     which sat at panel x TEXT_X-2 = 10 while the block was painted from x 8
+  PASS  injected: the 0.24.2 clip [10,0 176x213] cuts the block [8,8 168x106] -- so this predicate FAILS on the shipped geometry, unlike the corrected [4,0 176x213] which passes
+  PASS  injected: ...and the amount it cut is 2 panel px off the first glyph column (clip left 10 > block left 8), which is the owner's report that the first column was half hidden
+  PASS  injected: the 0.24.1 'free-standing strip' queue [-78,8 86x197] is rejected by the panel-containment predicate the corrected queue [8,8 86x197] passes
+
+  -- the pose calls in the two screens' bytecode (the 0.24.2 defect was a missing one)
+  PASS  MachineControllerScreen.drawInfo: ...textBlockRect() really answers (8, 8), the block origin the clip check used (8, 8)
+  PASS  MachineControllerScreen.drawInfo: pushes the pose stack before drawing (found pushPose)
+  PASS  MachineControllerScreen.drawInfo: the pose is translated before anything is drawn, to the block's own origin from textBlockRect (1 translate(s) seen)
+  PASS  MachineControllerScreen.drawInfo: ...and those two floats are read from textBlockRect()[0] and [1] (arrays read: [scissorRect, scissorRect, scissorRect, scissorRect, textBlockRect, textBlockRect] at [0, 1, 2, 3, 0, 1]), not written into the call by hand
+  PASS  MachineControllerScreen.drawInfo: the scale comes after that translate, and before any string is drawn (translate at 68, scale at 76)
+  PASS  FactoryControllerScreen.drawFactoryStatus: ...textBlockRect() really answers (81, 8), the block origin the clip check used (81, 8)
+  PASS  FactoryControllerScreen.drawFactoryStatus: pushes the pose stack before drawing (found pushPose)
+  PASS  FactoryControllerScreen.drawFactoryStatus: the pose is translated before anything is drawn, to the block's own origin from textBlockRect (1 translate(s) seen)
+  PASS  FactoryControllerScreen.drawFactoryStatus: ...and those two floats are read from textBlockRect()[0] and [1] (arrays read: [scissorRect, scissorRect, scissorRect, scissorRect, textBlockRect, textBlockRect] at [0, 1, 2, 3, 0, 1]), not written into the call by hand
+  PASS  FactoryControllerScreen.drawFactoryStatus: the scale comes after that translate, and before any string is drawn (translate at 207, scale at 215)
+
+== V. the items sit in the frames the texture draws, the factory screen draws its information block, and it draws no label
+  PASS  guifactory.png decoded from its pixels: 280x213
+  PASS  the sheet's slot holes, derived from its pixels (a 16x16 8B8B8B interior with a 373737 inset shadow and a FFFFFF highlight), number 37: they are at (255,8), (112,131), (130,131), (148,131), (166,131), (184,131), (202,131), (220,131), (238,131), (256,131), (112,149), (130,149), (148,149), (166,149), (184,149), (202,149), (220,149), (238,149), (256,149), (112,167), (130,167), (148,167), (166,167), (184,167), (202,167), (220,167), (238,167), (256,167), (112,189), (130,189), (148,189), (166,189), (184,189), (202,189), (220,189), (238,189), (256,189)
+  PASS  the screen declares the sheet's real size as its blit's texture size: declared 280x213 against the file's 280x213 (the original's own xSize/ySize, GuiFactoryController:50-51,88)
+  PASS  the blit's source region is the whole sheet and its destination is the whole panel: [0, 0, 0, 0, 280, 213, 280, 213] as {destX, destY, uOffset, vOffset, width, height, textureWidth, textureHeight}
+  PASS  ...so the mapping texel -> panel pixel is the identity: texel (280, 213) lands on (280, 213)
+  PASS  the menu's own slot table has the 36 rectangles of a player inventory (36): 112,131 … 256,189
+  PASS  ALL 36 player slots are centred in a hole the sheet really draws (36 of 36 coincide exactly)
+  PASS  the blueprint slot [255, 8] is centred in the sheet's own blueprint hole at (255, 8) (1 of 1)
+  PASS  ...and those coincidences are a bijection: 36 slots onto 36 distinct holes (one apiece, no sharing)
+  PASS  ...and the converse holds: every hole outside the blueprint's own is a menu slot (0 orphan holes in 37)
+
+  -- the information block and the player-inventory label, read out of the bytecode
+  PASS  FactoryControllerScreen.renderLabels invokes drawFactoryStatus (1 call): the information block is reached from the render path at all
+  PASS  ...and renderBg does not (0 calls), because renderBg runs before the pose carries the panel origin -- a panel-local translate there lands off-panel and the clip hides the whole block, which is the shipped 0.24.3/0.24.4 shape
+  PASS  drawFactoryStatus really draws text: 10 GuiGraphics#drawString call(s) -- its ten draw sites are the redstone row, the blueprint heading and name, the structure heading and name, the status heading and value, the thread row, the two parallelism rows and the closing line
+  PASS  ...and the keys it loads are the two the owner named: gui.modular_machinery_reborn.controller.blueprint present=true, gui.modular_machinery_reborn.controller.structure present=true (11 string constant(s) in the method; the old check's 'no invocation at all' was satisfied by the empty method that shipped)
+  PASS  ...which the language files spell as the owner's two lines: zh "找到蓝图：%s" / "找到结构：%s", en "Found blueprint: %s" / "Found structure: %s"
+  -- one origin: where the panel translate lives, read out of the vanilla class
+  PASS  the vanilla render calls renderBg before it translates the pose and renderLabels after: renderBg at instruction 17, translate at 55, renderLabels at 150
+  PASS  ...and that translate is fed the panel origin: leftPos read at instruction 3 and topPos at 8, both before the translate at 55 -- so the information block belongs to the renderLabels side of it, and the panel-local textBlockRect() is the right coordinate there
+  PASS  the block is placed by the layout's own rectangle: textBlockRect() [81,8 199x94] == FactoryPanel.textRect() [81,8 199x94] -- the same rectangle section U checks the clip against, so the block cannot drift away from the rest of the screen
+  PASS  ...and that rectangle, once the foreground pass's own (leftPos, topPos) translate is added, lands inside the panel [0,0 280x213] and inside the clip [0,0 280x213]
+  -- the player-inventory label and the title, read out of the three classes
+  PASS  FactoryControllerScreen.renderLabels reads no field at all (0 field reads over 1 invocation(s)): it cannot be reading the three fields the label is drawn from, nor the three the title is drawn from
+  PASS  ...and the screen never invokes AbstractContainerScreen#renderLabels (0 calls), which is the only method that draws either of them
+  PASS  ...and it contains no "container.inventory" literal (0 occurrences)
+  PASS  ...and it reads none of playerInventoryTitle/inventoryLabelX/inventoryLabelY/title/titleLabelX/titleLabelY anywhere in the class (0 reads)
+  PASS  ...and the ban is not vacuous: the vanilla AbstractContainerScreen#renderLabels really draws both (2 drawString call(s), reading playerInventoryTitle 1 time(s) and title 1 time(s) out of its own bytecode)
+  PASS  injected: MachineControllerScreen.renderLabels -- which legitimately keeps the label because the original's GuiMachineController:49-50 does call super -- is caught by the same predicate (2 invocations, 4 field reads)
+
+  -- the blit call itself, read out of the bytecode (the 256-default one is the defect)
+  PASS  blitPanel calls the overload that takes the sheet's size (1 call) and never the 256x256 default (0 calls)
+  PASS  ...whose arguments come from panelBlitFull() (1 call)
+  PASS  ...which in turn takes the destination and source from panelBlit() (1 call)
+  PASS  ...and blitPanel itself asks panelTextureSize() for the two size arguments (1 call), rather than typing 256, 256 into the call
+  PASS  ...and renderBg draws the panel through that one method (1 call), so the screen's only blit of the sheet is the checked one
+  PASS  injected: the same scan does find the 256-default blit in MachineControllerScreen.renderBg (1 call), where controller_legacy.png really is 256x256 — so the check above is not vacuously true
+  -- fault injection: the predicates above are fed a broken implementation; each
+     check below PASSES only when the predicate REJECTS it
+  PASS  injected: the slots moved by a single panel pixel put 0 of 36 items in their frames, so the predicate rejects a one-pixel origin error
+  PASS  injected: the slots moved by one whole slot pitch (18 panel px) leave the last column frameless: 32 of 36 coincide, so the 'ALL 36' predicate rejects it even though a whole-pitch shift lands most slots on a NEIGHBOUR's hole (32 distinct holes)
+  PASS  injected: 0.24.3's blit -- the 256x256 default against this 280x213 sheet, so the panel is drawn stretched 1.09375x in x and 0.832x in y -- puts 0 of 36 items in their frames: the predicate rejects the shipped defect too
+  PASS  ...and it says by how much: inventory row 0 col 0 at (112,131) is 28.061 panel px off its frame; inventory row 0 col 1 at (130,131) is 28.061 panel px off its frame; inventory row 0 col 2 at (148,131) is 28.061 panel px off its frame
+
+== W. failure-action: the machine decides what a failed tick costs
+  PASS  the loader reads "failure-action": "reset": expected RESET, got RESET
+  PASS  the loader reads "failure-action": "still": expected STILL, got STILL
+  PASS  the loader reads "failure-action": "decrease": expected DECREASE, got DECREASE
+  PASS  a definition that does not declare failure-action gets the original's default: expected STILL, got STILL
+  PASS  ...and that fallback is MachineDefinition.DEFAULT_FAILURE_ACTION: expected STILL, got STILL
+  PASS  rejected: 'failure-action' of mmverify:test must be one of "reset", "still" or "decrease"; found "rest". Write "failure-action": "still" to hold a craft's progress while it cannot be served, "decrease" to lose one tick of progress per failed tick, or "reset" to drop the whole craft's progress; remove the field to use the default (still).
+  PASS  rejected: 'failure-action' of mmverify:test must be a string — one of "reset", "still" or "decrease" (the original's RecipeFailureActions). Found 5. Write "failure-action": "still" to hold a craft's progress while it cannot be served, "decrease" to lose one tick of progress per failed tick, or "reset" to drop the whole craft's progress; remove the field to use the default (still).
+  PASS  rejected: 'failure-action' of mmverify:test must be a string — one of "reset", "still" or "decrease" (the original's RecipeFailureActions). Found {}. Write "failure-action": "still" to hold a craft's progress while it cannot be served, "decrease" to lose one tick of progress per failed tick, or "reset" to drop the whole craft's progress; remove the field to use the default (still).
+  PASS  rejected: 'failure-action' of mmverify:test must be a string — one of "reset", "still" or "decrease" (the original's RecipeFailureActions). Found []. Write "failure-action": "still" to hold a craft's progress while it cannot be served, "decrease" to lose one tick of progress per failed tick, or "reset" to drop the whole craft's progress; remove the field to use the default (still).
+  PASS  rejected: 'failure-action' of mmverify:test must be a string — one of "reset", "still" or "decrease" (the original's RecipeFailureActions). Found null. Write "failure-action": "still" to hold a craft's progress while it cannot be served, "decrease" to lose one tick of progress per failed tick, or "reset" to drop the whole craft's progress; remove the field to use the default (still).
+  PASS  rejected: 'failure-action' of mmverify:test must be a string — one of "reset", "still" or "decrease" (the original's RecipeFailureActions). Found true. Write "failure-action": "still" to hold a craft's progress while it cannot be served, "decrease" to lose one tick of progress per failed tick, or "reset" to drop the whole craft's progress; remove the field to use the default (still).
+  PASS  reset applied to progress 0,1,5,64: expected 0,0,0,0, got 0,0,0,0
+  PASS  still applied to progress 0,1,5,64: expected 0,1,5,64, got 0,1,5,64
+  PASS  decrease applied to progress 0,1,5,64: expected 0,0,4,63, got 0,0,4,63
+
+  -- the controller: the machine's action applied to its own progress
+  PASS  the controller applies "reset" (5 -> 0) to a craft at progress 5: expected 0, got 0
+  PASS  the controller applies "decrease" (5 -> 4) to a craft at progress 5: expected 4, got 4
+  PASS  the controller applies "decrease" at 1 (1 -> 0) to a craft at progress 1: expected 0, got 0
+  PASS  the controller applies "decrease" at 0 (nothing left to lose) to a craft at progress 0: expected 0, got 0
+  PASS  the controller applies "still" (unchanged) to a craft at progress 5: expected 5, got 5
+  PASS  the controller applies no declaration at all (the default holds the craft) to a craft at progress 5: expected 5, got 5
+  PASS  the controller applies a machine that is not in the registry (the default holds the craft) to a craft at progress 5: expected 5, got 5
+  PASS  the controller applies no machine id at all (the default holds the craft) to a craft at progress 5: expected 5, got 5
+  PASS  MachineControllerBlockEntity.tick reaches the failure-action at all (1 call(s) to applyFailureAction) -- the 0.24.5 lesson: a correct method nothing calls
+  PASS  FactoryEngine.tickThread asks the host for the machine's failure-action (1 call(s))
+  PASS  ...and applies it to the craft's own progress (1 call(s))
+
+  -- the factory engine: a per-tick requirement that cannot be paid
+  PASS  STILL: three ticks that cannot pay the energy requirement took the craft from 3 to 3 (the original's doFailureAction says 3)
+  PASS  STILL: ...and the craft stays armed, holding the one-shot input it already paid (cobblestone consumed 1, thread still holds it)
+  PASS  STILL: the craft settles once the energy is back (stone produced): expected 1, got 1
+  PASS  STILL: ...and its one-shot input was paid exactly once, never re-paid by the action: expected 1, got 1
+  PASS  DECREASE: three ticks that cannot pay the energy requirement took the craft from 3 to 0 (the original's doFailureAction says 0)
+  PASS  DECREASE: ...and the craft stays armed, holding the one-shot input it already paid (cobblestone consumed 1, thread still holds it)
+  PASS  DECREASE: the craft settles once the energy is back (stone produced): expected 1, got 1
+  PASS  DECREASE: ...and its one-shot input was paid exactly once, never re-paid by the action: expected 1, got 1
+  PASS  RESET: three ticks that cannot pay the energy requirement took the craft from 3 to 0 (the original's doFailureAction says 0)
+  PASS  RESET: ...and the craft stays armed, holding the one-shot input it already paid (cobblestone consumed 1, thread still holds it)
+  PASS  RESET: the craft settles once the energy is back (stone produced): expected 1, got 1
+  PASS  RESET: ...and its one-shot input was paid exactly once, never re-paid by the action: expected 1, got 1
+  PASS  with RESET and no failed tick the craft runs exactly as before: no craft left (-1), 1 stone, 1 cobblestone consumed
+  PASS  with STILL and no failed tick the craft runs exactly as before: no craft left (-1), 1 stone, 1 cobblestone consumed
+  PASS  with DECREASE and no failed tick the craft runs exactly as before: no craft left (-1), 1 stone, 1 cobblestone consumed
+  PASS  RESET: a craft whose result does not fit holds its progress (9 of 10, thread still holds it) -- the finish hold is not a failed tick, in the original either
+  PASS  STILL: a craft whose result does not fit holds its progress (9 of 10, thread still holds it) -- the finish hold is not a failed tick, in the original either
+
+== X. ingredient_array_input: the original's own reader, and one-of-the-group consumption
+  PASS  the production parser class com.reborn.modularmachinery.recipe.IngredientArrayParser exists (red-first: it does not, yet)
+
+  -- (1) the shape, read through the production parser
+  PASS  the original's documented example parses at all
+  PASS  the array carries both entries: expected 2, got 2
+  PASS  entry 0's amount: expected 2, got 2
+  PASS  entry 1's amount: expected 5, got 5
+  PASS  entry 0's chance (the original reads 'chance' off the requirement, not off the entry): expected 0.5, got 0.5
+  PASS  entry 1's chance: expected 0.5, got 0.5
+  PASS  the requirement is an input: expected true, got true
+  PASS  ...and a start-phase requirement, because an input array is paid when the craft starts: expected true, got true
+  PASS  ...and it is NOT a tick requirement: expected false, got false
+  PASS  ...and it is not a finish-phase requirement: expected false, got false
+  PASS  an entry with no 'amount' defaults to 1: expected 1, got 1
+  PASS  an entry with no 'chance' defaults to 1.0 (consumed unconditionally): expected 1.0, got 1.0
+  PASS  an 'amount' above 64 is refused rather than silently clamped (com.google.gson.JsonParseException: An entry's 'amount' in a requirement of mmverify:array is 1000, above the 64 an item stack can hold. Write 64 or less.)
+  PASS  an '@meta' suffix is refused, not guessed at
+  PASS  the type id 'modular_machinery_reborn:ingredient_array_input' is accepted as the same requirement
+  PASS  the type id 'ingredient_array_input' is accepted as the same requirement
+
+  -- (2) a malformed requirement is refused loudly, and the message says what to write
+  PASS  rejected for the right reason: Missing or malformed 'items' in a requirement of mmverify:array. An ingredient_array_input needs "items" as an array of {"item": "namespace:path"} objects, e.g. "items": [{"item": "minecraft:diamond"}, {"item": "#forge:gems/emerald"}]. 'amount' and 'chance', if you want them, go next to 'items' and apply to the whole group.
+  PASS  rejected for the right reason: Missing or malformed 'items' in a requirement of mmverify:array. An ingredient_array_input needs "items" as an array of {"item": "namespace:path"} objects, e.g. "items": [{"item": "minecraft:diamond"}, {"item": "#forge:gems/emerald"}]. 'amount' and 'chance', if you want them, go next to 'items' and apply to the whole group.
+  PASS  rejected for the right reason: Missing or malformed 'items' in a requirement of mmverify:array. An ingredient_array_input needs "items" as an array of {"item": "namespace:path"} objects, e.g. "items": [{"item": "minecraft:diamond"}, {"item": "#forge:gems/emerald"}]. 'amount' and 'chance', if you want them, go next to 'items' and apply to the whole group.
+  PASS  rejected for the right reason: 'items' in a requirement of mmverify:array is empty. An ingredient_array_input needs at least one entry — the group's members are the items it may consume one of.
+  PASS  rejected for the right reason: An entry of the 'items' array in a requirement of mmverify:array is not a JSON object. Each entry is written as {"item": "namespace:path"}.
+  PASS  rejected for the right reason: 'item' in an entry of the 'items' array in a requirement of mmverify:array must be a string. Write the item id, e.g. "item": "minecraft:diamond".
+  PASS  rejected for the right reason: Missing 'item' in an entry of the 'items' array in a requirement of mmverify:array. Write the item the group may consume, e.g. "item": "minecraft:diamond", or a tag, e.g. "item": "#forge:gems/diamond".
+  PASS  rejected for the right reason: Field [chance] belongs next to 'items', not inside an entry, in a requirement of mmverify:array. The original read 'chance' and 'nbt' off the requirement itself (RequirementTypeIngredientArray:105/115) and rolled that one chance for the whole group, so a value written inside an entry was ignored; write it once next to 'items'. (An entry's own 'amount' is honoured here — see D19.)
+  PASS  rejected for the right reason: An entry's 'amount' in a requirement of mmverify:array is 0, but every copy has to consume at least 1. Write a whole number of at least 1.
+  PASS  rejected for the right reason: Unknown item 'minecraft:not_a_real_item' in a requirement of mmverify:array
+  PASS  rejected for the right reason: 'item' in an entry of the 'items' array in a requirement of mmverify:array is empty. Write the item id, e.g. "item": "minecraft:diamond".
+  PASS  rejected for the right reason: An entry's 'amount' in a requirement of mmverify:array is 0, but every copy has to consume at least 1. Write a whole number of at least 1.
+  PASS  rejected for the right reason: An entry's 'amount' in a requirement of mmverify:array is -3, but every copy has to consume at least 1. Write a whole number of at least 1.
+  PASS  rejected for the right reason: An entry's 'amount' in a requirement of mmverify:array must be a number. Write how many of this item one copy of the craft consumes, e.g. "amount": 2.
+  PASS  rejected for the right reason: 'chance' in a requirement of mmverify:array is 5.0, but it has to be between 0 and 1. The original silently ignored a value outside that range (RequirementTypeIngredientArray:110-112); write a fraction such as 0.5.
+  PASS  rejected for the right reason: 'chance' in a requirement of mmverify:array is -1.0, but it has to be between 0 and 1. The original silently ignored a value outside that range (RequirementTypeIngredientArray:110-112); write a fraction such as 0.5.
+  PASS  rejected for the right reason: Field [nbt] belongs next to 'items', not inside an entry, in a requirement of mmverify:array. The original read 'chance' and 'nbt' off the requirement itself (RequirementTypeIngredientArray:105/115) and rolled that one chance for the whole group, so a value written inside an entry was ignored; write it once next to 'items'. (An entry's own 'amount' is honoured here — see D19.)
+  PASS  rejected for the right reason: Unsupported field [minAmount] in a requirement of mmverify:array. An ingredient_array_input understands 'items' (required), 'amount' and 'chance' (both applying to the whole group). The original's 'nbt', 'minAmount' and 'maxAmount' are not ported; write one 'modularmachinery:item' requirement per stack if you need them, or put 'amount'/'chance' next to 'items' where the original read them.
+  PASS  rejected for the right reason: An ingredient_array_input in a requirement of mmverify:array is written with "io-type": "output", but an array is a group of alternative <inputs> — the original's reader always built an input (RequirementIngredientArray's IOType.INPUT constructor, :48-52). Write "io-type": "input"; for several possible outputs, list one "modularmachinery:item" output per stack.
+
+  -- (3) an array must survive being sent to the client, or a server's recipes render wrongly
+  PASS  the requirement carries the entries the wire path needs (2x minecraft:diamond, 5x minecraft:emerald)
+
+  -- (4) the quantities that actually move, driven in MachineControllerBlockEntity#tick's order
+  PASS  canStart with exactly the diamond the group asks for: expected true, got true
+  PASS  diamonds after one copy (the group's first entry): expected 0, got 0
+  PASS  emeralds after one copy (the group's second entry is untouched): expected 1, got 1
+  PASS  the output the craft produced: expected 1, got 1
+  PASS  diamonds consumed when 9 were available (only the 2 asked for): expected 2, got 2
+  PASS  emeralds consumed when 4 were available (the group stops at the first entry): expected 0, got 0
+  PASS  and the surplus is still there: expected 7 / 4, got 7 / 4
+  PASS  the requirement the short case uses reads back as 2x minecraft:diamond then 1x minecraft:emerald (entries=2)
+  PASS  entry 0 sees exactly the 1 diamond the rig holds: expected 1, got 1
+  PASS  entry 1 sees exactly the 1 emerald the rig holds: expected 1, got 1
+  PASS  one emerald alone pays the one copy, so the limit is 1 (entry 0's shortfall is not fatal): expected 1, got 1
+  PASS  canStart with a diamond short but the emerald alternative present: expected true, got true
+  PASS  ...and the emerald is what was consumed: expected 0, got 0
+  PASS  ...while the unusable diamond stayed: expected 1, got 1
+  PASS  canStart when neither entry can pay a copy: expected false, got false
+  PASS  ...and the first entry is still there: expected 1, got 1
+  PASS  ...and the limit is 0: expected 0, got 0
+  PASS  diamonds consumed by 3 copies (2 per copy, first entry): expected 6, got 6
+  PASS  emeralds consumed by 3 copies (the first entry satisfied every copy, so the group stops there): expected 0, got 0
+  PASS  stones produced by 3 copies: expected 3, got 3
+  PASS  with no payable diamond entry, 3 emeralds carry 3 copies: expected 3, got 3
+  PASS  diamonds consumed when the diamond entry cannot pay a copy: expected 0, got 0
+  PASS  emeralds consumed when every copy fell through to the second entry: expected 3, got 3
+  PASS  stones produced by that mix of entries: expected 3, got 3
+  PASS  at a ceiling of 2 the diamond entry serves both copies: expected 2, got 2
+  PASS  ...consuming 4 diamonds: expected 4, got 4
+  PASS  ...and leaving the emerald untouched: expected 1, got 1
+  PASS  the original's documented example consumes its entry's amount of 2 diamonds, not 1: expected 2, got 2
+  PASS  ...and leaves the emerald alone, because one entry satisfies the copy: expected 2, got 2
+  PASS  an entry with no 'amount' inherits the requirement's 3: expected 3, got 3
+  PASS  an entry's own 'amount' wins over the requirement-level one: expected 1, got 1
+
+  -- (5) the copy count: the original marks this class Parallelizable, so it bounds the settlement
+  PASS  limit with 4 diamonds (2/copy) + 2 emeralds (1/copy) at ceiling 8: expected 4, got 4
+  PASS  limit with 100 diamonds (2/copy) + 2 emeralds (1/copy) at ceiling 8: expected 8, got 8
+  PASS  limit with 40 diamonds (2/copy) + 20 emeralds (1/copy) at ceiling 8: expected 8, got 8
+  PASS  limit with 4 diamonds (2/copy) + 0 emeralds (1/copy) at ceiling 8: expected 2, got 2
+  PASS  limit with 2 diamonds (2/copy) + 1 emeralds (1/copy) at ceiling 8: expected 2, got 2
+  PASS  limit with 5 diamonds (2/copy) + 1 emeralds (1/copy) at ceiling 8: expected 3, got 3
+  PASS  limit with 1 diamonds (2/copy) + 100 emeralds (1/copy) at ceiling 8: expected 8, got 8
+  PASS  limit with 0 diamonds (2/copy) + 100 emeralds (1/copy) at ceiling 4: expected 4, got 4
+  PASS  the limit from 5 diamonds + 1 emerald, entry A taking 2 copies and entry B the third: expected 3, got 3
+  PASS  diamonds consumed by that limit (2 copies x 2): expected 4, got 4
+  PASS  emeralds consumed by that limit (the third copy fell through to entry B): expected 1, got 1
+  PASS  the array takes part in the recipe's parallelism minimum (it is Parallelizable, as in the original): expected true, got true
+
+  -- (6) a group that cannot be paid consumes nothing at all
+  PASS  a group with no emerald can still serve one copy from its diamond entry: expected 1, got 1
+  PASS  ...and asking did not consume the diamond the first entry wanted: expected 2, got 2
+  PASS  a group with no diamond at all serves its copies from the emerald entry instead: expected 8, got 8
+  PASS  ...and the emerald is untouched by merely asking: expected 64, got 64
+  PASS  a group with neither entry payable serves nothing: expected 0, got 0
+  PASS  ...and the one diamond is still there: expected 1, got 1
+
+== Y. the MOC compatibility namespace: registry names, old saves, tooltip, spec, assets
+  PASS  the production class com.reborn.modularmachinery.block.MocNamespace exists (red-first: it does not, yet)
+
+  -- (1) the timing crux: is the config readable when the registry event fires?
+  PASS  Forge's ForgeStatesProvider chains the GATHER phase CREATE_REGISTRIES -> OBJECT_HOLDERS -> ... -> UNFREEZE_DATA -> LOAD_REGISTRIES
+  PASS  ...and LOAD_REGISTRIES is the state that posts the registry events (LOAD_REGISTRIES at 1458, postRegisterEvents at 1569)
+  PASS  ...and CONFIG_LOAD is the state that calls ConfigTracker.loadConfigs (CONFIG_LOAD at 2619, loadConfigs at 2827), so the config file arrives after the registry event
+  PASS  ...and CONFIG_LOAD is declared in ModLoadingPhase.LOAD while the registry chain is ModLoadingPhase.GATHER
+  PASS  with no config handed to the spec — the state Forge is in while RegisterEvent fires — SPEC.isLoaded() is false (on entry it was true, which is section R's leftover, not a game fact)
+  PASS  ...and in that state ModConfig.mocCompatibleMode() answers its pre-config fallback, false, whatever the file says (false)
+  PASS  ...and disableMocDeprecatedTip() answers its fallback too (false)
+[17:53:01] [main/WARN] [ne.mi.co.ForgeConfigSpec/CORE]: Configuration file SimpleCommentedConfig:{general=SimpleCommentedConfig:{disable-moc-deprecated-tip=true, modular-controller-compatible-mode=true}} is not correct. Correcting
+[17:53:01] [main/WARN] [ne.mi.co.ForgeConfigSpec/CORE]: Incorrect key parallel-controller was corrected from null to its default, SimpleCommentedConfig:{}. 
+[17:53:01] [main/WARN] [ne.mi.co.ForgeConfigSpec/CORE]: Incorrect key parallel-controller.normal was corrected from null to its default, SimpleCommentedConfig:{}. 
+[17:53:01] [main/WARN] [ne.mi.co.ForgeConfigSpec/CORE]: Incorrect key parallel-controller.normal.max-parallelism was corrected from null to its default, 4. 
+[17:53:01] [main/WARN] [ne.mi.co.ForgeConfigSpec/CORE]: Incorrect key parallel-controller.reinforced was corrected from null to its default, SimpleCommentedConfig:{}. 
+[17:53:01] [main/WARN] [ne.mi.co.ForgeConfigSpec/CORE]: Incorrect key parallel-controller.reinforced.max-parallelism was corrected from null to its default, 16. 
+[17:53:01] [main/WARN] [ne.mi.co.ForgeConfigSpec/CORE]: Incorrect key parallel-controller.elite was corrected from null to its default, SimpleCommentedConfig:{}. 
+[17:53:01] [main/WARN] [ne.mi.co.ForgeConfigSpec/CORE]: Incorrect key parallel-controller.elite.max-parallelism was corrected from null to its default, 64. 
+[17:53:01] [main/WARN] [ne.mi.co.ForgeConfigSpec/CORE]: Incorrect key parallel-controller.super was corrected from null to its default, SimpleCommentedConfig:{}. 
+[17:53:01] [main/WARN] [ne.mi.co.ForgeConfigSpec/CORE]: Incorrect key parallel-controller.super.max-parallelism was corrected from null to its default, 256. 
+[17:53:01] [main/WARN] [ne.mi.co.ForgeConfigSpec/CORE]: Incorrect key parallel-controller.ultimate was corrected from null to its default, SimpleCommentedConfig:{}. 
+[17:53:01] [main/WARN] [ne.mi.co.ForgeConfigSpec/CORE]: Incorrect key parallel-controller.ultimate.max-parallelism was corrected from null to its default, 512. 
+[17:53:01] [main/WARN] [ne.mi.co.ForgeConfigSpec/CORE]: Incorrect key upgrade-bus was corrected from null to its default, SimpleCommentedConfig:{}. 
+[17:53:01] [main/WARN] [ne.mi.co.ForgeConfigSpec/CORE]: Incorrect key upgrade-bus.normal was corrected from null to its default, SimpleCommentedConfig:{}. 
+[17:53:01] [main/WARN] [ne.mi.co.ForgeConfigSpec/CORE]: Incorrect key upgrade-bus.normal.max-upgrade_slot was corrected from null to its default, 3. 
+[17:53:01] [main/WARN] [ne.mi.co.ForgeConfigSpec/CORE]: Incorrect key upgrade-bus.reinforced was corrected from null to its default, SimpleCommentedConfig:{}. 
+[17:53:01] [main/WARN] [ne.mi.co.ForgeConfigSpec/CORE]: Incorrect key upgrade-bus.reinforced.max-upgrade_slot was corrected from null to its default, 6. 
+[17:53:01] [main/WARN] [ne.mi.co.ForgeConfigSpec/CORE]: Incorrect key upgrade-bus.elite was corrected from null to its default, SimpleCommentedConfig:{}. 
+[17:53:01] [main/WARN] [ne.mi.co.ForgeConfigSpec/CORE]: Incorrect key upgrade-bus.elite.max-upgrade_slot was corrected from null to its default, 9. 
+[17:53:01] [main/WARN] [ne.mi.co.ForgeConfigSpec/CORE]: Incorrect key upgrade-bus.super was corrected from null to its default, SimpleCommentedConfig:{}. 
+[17:53:01] [main/WARN] [ne.mi.co.ForgeConfigSpec/CORE]: Incorrect key upgrade-bus.super.max-upgrade_slot was corrected from null to its default, 12. 
+[17:53:01] [main/WARN] [ne.mi.co.ForgeConfigSpec/CORE]: Incorrect key upgrade-bus.ultimate was corrected from null to its default, SimpleCommentedConfig:{}. 
+[17:53:01] [main/WARN] [ne.mi.co.ForgeConfigSpec/CORE]: Incorrect key upgrade-bus.ultimate.max-upgrade_slot was corrected from null to its default, 18. 
+[17:53:01] [main/WARN] [ne.mi.co.ForgeConfigSpec/CORE]: Incorrect key factory-system was corrected from null to its default, SimpleCommentedConfig:{}. 
+[17:53:01] [main/WARN] [ne.mi.co.ForgeConfigSpec/CORE]: Incorrect key factory-system.default-factory-max-thread was corrected from null to its default, 10. 
+[17:53:01] [main/WARN] [ne.mi.co.ForgeConfigSpec/CORE]: Incorrect key factory-system.enable-factory-controller-bydefault was corrected from null to its default, false. 
+[17:53:01] [main/WARN] [ne.mi.co.ForgeConfigSpec/CORE]: Incorrect key smart-interface was corrected from null to its default, SimpleCommentedConfig:{}. 
+[17:53:01] [main/WARN] [ne.mi.co.ForgeConfigSpec/CORE]: Incorrect key smart-interface.enable-smart-interface-bydefault was corrected from null to its default, false. 
+  PASS  control: with a config setting both keys true, the accessors read it (so the two answers above are about WHEN the config is available, not about dead accessors)
+
+  -- (2) the registry names the original used, and which machines get one
+[17:53:01] [main/WARN] [co.re.mo.ma.MachineDirectory/]: [modular_machinery_reborn] C:\mmwork\.tmp-m6c-verify\moc-fixture\machinery\not_a_machine.json has no 'registryname', so it gets no controller block
+  PASS  declarations that get an MOC controller (4 files, 3 name a machine, 1 is factory-only): expected 2, got 2
+  PASS  alloy_furnace is claimed: expected modular_machinery_reborn:alloy_furnace, got modular_machinery_reborn:alloy_furnace
+  PASS  the declaration file 'renamed_declaration.json' claims modular_machinery_reborn:transformer: expected modular_machinery_reborn:transformer, got modular_machinery_reborn:transformer
+  PASS  ...and no block path came from the file name
+  PASS  the file without a 'registryname' got no controller at all
+  PASS  the 'factory-only' machine (declared in factory_only_one.json) got no MOC controller — the original's isFactoryOnly guard, RegistryBlocks.java:410-412 (refs: [alloy_furnace, transformer])
+  PASS  MocNamespace.controllerName(machine).getPath(): expected alloy_furnace_controller, got alloy_furnace_controller
+  PASS  MocNamespace.controllerName(machine), namespace and path together: expected modularcontroller:alloy_furnace_controller, got modularcontroller:alloy_furnace_controller
+  PASS  ...and a differently named machine maps to its own path: expected modularcontroller:transformer_controller, got modularcontroller:transformer_controller
+  PASS  the namespace constant: expected modularcontroller, got modularcontroller
+  PASS  ModBlocks keeps the compatibility entries in their own DeferredRegister pair, so the ids can carry a namespace that is not the mod's
+  PASS  ...and both registers are created with MocNamespace.NAMESPACE — the literal 'modularcontroller' is in ModBlocks' <clinit> constant pool 2 time(s) — so the ids really are in that namespace rather than renamed into the mod's
+  PASS  ...and the block entries are MachineControllerBlock while the item entries are MocMachineControllerItem
+  PASS  ...and the two registers are handed to the event bus by one method, which the mod constructor calls (ModBlocks.registerMocNamespace)
+  PASS  ...and the registration is driven by ModBlocks.MOC_CONTROLLERS, which is filled from the production rule and from nothing else
+  PASS  ...and the machine that binds a compatibility controller is the same MachineRef the ordinary controller uses (no second declaration format)
+
+  -- (3) the alias rule: nothing enumerates an MOC controller as a controller
+  PASS  ModBlocks.controllerItems() adds the ordinary bound items and never the compatibility ones ([BOUND_CONTROLLER_ITEMS, MACHINE_CONTROLLER_ITEM])
+  PASS  ...and mocControllerItems() — a separate accessor — is the only place that exposes them
+  PASS  the creative tab — and every other method of ModBlocks — never lists the compatibility items: expected 0, got 0
+  PASS  the creative tab's item lambda still reads the ordinary bound controllers: expected 1, got 1
+  PASS  ...and it lists none of the compatibility items (they exist for old saves, not to be handed out): expected 0, got 0
+  PASS  JEI registers catalysts from ModBlocks.controllerItems(), so the aliases cannot enter JEI
+  PASS  ...and it does NOT register catalysts from mocControllerItems()
+  PASS  ...and it does not name the compatibility class anywhere
+  PASS  ModBlocks.boundControllerBlock(...) reads the ordinary map, not the compatibility one, so the structure preview keeps showing the ordinary controller
+  PASS  the pack's mod-namespace half is built from controllersNeedingGeneratedAssets()
+  PASS  ...and its compatibility half from ModBlocks.MOC_CONTROLLERS, so each namespace gets its own files
+  PASS  ...and the two halves are merged into one file map, so neither namespace is dropped
+  PASS  ...and the file arithmetic itself lives in GeneratedControllerAssets, which reads no registry — which is what lets section (7) build the very files the live pack builds
+  PASS  the controller block entity never consults the block's namespace, so an MOC controller forms and runs through exactly the same path as an ordinary one
+  PASS  ...and neither does the controller block itself (no namespace branch, no MocNamespace reference)
+
+  -- (4) an existing modularcontroller block in an old save
+  PASS  ModBlocks registers the compatibility block as a MachineControllerBlock — the ordinary class, so there is no second block class for a save to have to migrate between
+  PASS  ...and only its item is a distinct class (MocMachineControllerItem), which is where the original put the deprecation tooltip in 1.20.1 terms
+  PASS  ...and MocMachineControllerItem extends MachineControllerItem, so it cannot have drifted from the ordinary item's behaviour
+  PASS  ...and no MOC factory controller is registered, because the original had no BlockFactoryController branch in the compatibility namespace (RegistryBlocks.java:408-420): 2 factory name literal(s)
+  PASS  the controller block's newBlockEntity creates the ordinary MachineControllerBlockEntity, so an old block resumes with the same tile and no migration
+  PASS  ...and its ticker is bound to the mod's single machine_controller block entity type, so nothing about the tile is namespace-dependent
+  PASS  ...and the tile takes its bound machine from the block state's block (MachineControllerBlockEntity:281-283), which is why the compatibility block finds its machine with no extra wiring
+
+  -- (5) the deprecation tooltip
+  PASS  com.reborn.modularmachinery.item.MocMachineControllerItem exists (red-first: it does not, yet)
+  PASS  the item's appendHoverText loads the original's tip.0 key, verbatim (position 0)
+  PASS  ...and tip.1 (position 1)
+  PASS  ...and in the original's order, tip.0 before tip.1 (BlockController.java:119-120)
+  PASS  appendHoverText loads exactly those two literals, so no extra line was invented (found [tile.modularmachinery.machinecontroller.deprecated.tip.0, tile.modularmachinery.machinecontroller.deprecated.tip.1])
+  PASS  the tooltip consults ModConfig.disableMocDeprecatedTip (the original's gate, BlockController.java:118)
+  PASS  ...and it calls super.appendHoverText first, so the ordinary item's tooltip is not lost
+  PASS  no other controller class mentions the deprecation tip: expected 0, got 0
+  PASS  the item does not override getDescriptionId(), so it inherits the ordinary controller's '%s Controller' key, which both language files carry
+  PASS  ...and it does not override getName(ItemStack) either, so a bound machine's display name still comes from the ordinary path
+
+  -- (6) the two config keys, read out of the rendered spec
+  PASS  the config spec defines this many keys: expected 15, got 15
+  PASS  the rendered spec has 'general.modular-controller-compatible-mode' = false
+  PASS  the rendered spec has 'general.disable-moc-deprecated-tip' = false
+  PASS  no rendered key repeats a path element (the 0.20.0 defect)
+  PASS  the 13 pre-existing keys are untouched
+  PASS  ModConfig.mocCompatibleMode() is false by default
+  PASS  ModConfig.disableMocDeprecatedTip() is false by default
+  PASS  both accessors exist and are the same feature the spec defines
+  PASS  the inert key's comment says it is inert and why (it names LOAD_REGISTRIES and CONFIG_LOAD) — an inert key whose comment promises behaviour it cannot deliver is worse than no key
+  PASS  ...and it says the compatibility items are not in the creative tab
+  PASS  ...and the live key's comment is the original's wording for it
+
+  -- (7) generated assets, the language files and the creative tab
+  PASS  a blockstate is generated for modularcontroller:alloy_furnace_controller (343 chars)
+  PASS  ...and it points at the mod's own block/machine_controller model
+  PASS  ...and it carries the same four facing variants the shipped controller blockstate does, so an old save's placed block faces the right way
+  PASS  an item model is generated for modularcontroller:alloy_furnace_controller
+  PASS  ...and the compatibility half has no factory-controller file, as the original had none in that namespace
+  PASS  the transformer claim gets its own two files, keyed by the MACHINE path
+  PASS  ...and no file is named after the declaration's file name
+  PASS  the compatibility half carries two files per declared machine: expected 4, got 4
+  PASS  the mod's own namespace's half is still generated (no regression) and carries the factory files when a declaration asks for one
+  PASS  the two namespaces' file sets are disjoint, so no file is generated twice: expected 10, got 10
+  PASS  ...and every compatibility file's id is in the 'modularcontroller' namespace
+  PASS  ModBlocks' creative tab does not list the compatibility controllers (the original did, but its MOC blocks were ordinary craftable controllers too; here they exist only so an old save loads, and a fresh install must look unchanged)
+  PASS  en_us.json key count: expected 176, got 176
+  PASS  zh_cn.json key count: expected 176, got 176
+  PASS  the two files carry identical key sets (176 keys each)
+  PASS  zh tip.0 is the original's wording, verbatim: expected 模块化控制器兼容将会在未来的版本被移除。, got 模块化控制器兼容将会在未来的版本被移除。
+  PASS  zh tip.1 is the original's wording, verbatim: expected 请联系整合包作者将控制器转移至 MMCE 的控制器中。, got 请联系整合包作者将控制器转移至 MMCE 的控制器中。
+  PASS  en tip.0 is the original's wording, verbatim: expected Modular controller compatibility will be removed in a future release., got Modular controller compatibility will be removed in a future release.
+  PASS  en tip.1 is the original's wording, verbatim: expected Please contact the modpack author to transfer the controller to MMCE's controller., got Please contact the modpack author to transfer the controller to MMCE's controller.
+  PASS  the MOC item's inherited name key exists in both files
+  PASS  section Y left the config spec exactly as section R had it (the same child config instance)
+
+== Z. 0.28.0 — the KubeJS machine-definition entry point (v2a)
+  PASS  the KubeJS builder's class file is on the classpath
+  PASS  the KubeJS machine-event class file is on the classpath
+  PASS  the KubeJS event group's class file is on the classpath
+  PASS  the KubeJS plugin's class file is on the classpath
+  PASS  ...and the KubeJS runtime is deliberately not on this classpath (so the script half is game-only)
+  PASS  the script-shaped definition carries the core fields and nothing else: expected [registryname, localizedname, parts], got [registryname, localizedname, parts]
+  PASS  a script machine's id: expected modular_machinery_reborn:kubejs_smoke, got modular_machinery_reborn:kubejs_smoke
+  PASS  ...its localized name: expected Scripted Smoke, got Scripted Smoke
+  PASS  ...its part count: expected 2, got 2
+  PASS  ...and the blocks a single part accepted: expected [minecraft:furnace[facing=north], minecraft:iron_block], got [minecraft:furnace[facing=north], minecraft:iron_block]
+  PASS  ...and the other part's block: expected [minecraft:stone], got [minecraft:stone]
+  PASS  a bare registry name gets this mod's namespace: expected modular_machinery_reborn:bare, got modular_machinery_reborn:bare
+  PASS  a namespaced registry name is kept: expected verify:other, got verify:other
+  PASS  a script machine runs one copy (no parallel fields): expected 1, got 1
+  PASS  ...so it is not parallel in practice
+  PASS  ...carries no modifiers
+  PASS  ...declares no smart interfaces
+  PASS  ...is not a factory
+  PASS  ...its failure action is the original's default: expected STILL, got STILL
+  PASS  ...and it does not require a blueprint
+  PASS  the same sentence from both paths for no parts at all: Expected a JSON array in mmverify:z_json 'parts'
+  PASS  ...and each path names its own definition for no parts at all
+  PASS  the same sentence from both paths for a part with no 'elements': A part of mmverify:z_json has no 'elements'
+  PASS  ...and each path names its own definition for a part with no 'elements'
+  PASS  the same sentence from both paths for 'parts' that is not an array: Expected a JSON array in mmverify:z_json 'parts'
+  PASS  ...and each path names its own definition for 'parts' that is not an array
+  PASS  the same sentence from both paths for a coordinate that is not a number: Coordinate 'x' of mmverify:z_json must be a number or an array of numbers
+  PASS  ...and each path names its own definition for a coordinate that is not a number
+  PASS  the same sentence from both paths for an element that is neither a block id nor a variable: 'not_a_variable' in mmverify:z_json is neither a namespaced block id nor a known variable
+  PASS  ...and each path names its own definition for an element that is neither a block id nor a variable
+  PASS  the same sentence from both paths for no registryname: Missing required field 'registryname' in mmverify:z_json
+  PASS  ...and each path names its own definition for no registryname
+  PASS  the same sentence from both paths for no 'parts' field: Expected a JSON array in mmverify:z_json 'parts'
+  PASS  ...and each path names its own definition for no 'parts' field
+  PASS  a valid definition yields the same id through both paths: expected modular_machinery_reborn:t, got modular_machinery_reborn:t
+  PASS  ...the same localized name: expected T, got T
+  PASS  ...the same pattern: expected {BlockPos{x=1, y=-1, z=0}=[minecraft:stone]}, got {BlockPos{x=1, y=-1, z=0}=[minecraft:stone]}
+  PASS  ...and the same ceiling: expected 1, got 1
+  PASS  a script-side message names the machine: Expected a JSON array in machine 't' 'parts'
+  PASS  a data-pack-side message names the file: Expected a JSON array in mmverify:z_json 'parts'
+  PASS  an unknown script field is refused: machine 't' has root field(s) this schema does not know: localyzedname. Nothing would read them, so the definition is refused rather than accepted with a field that does nothing. Check the spelling against the documented fields (registryname, localizedname, parts, failure-action, requires-blueprint, max-parallelism, internal-parallelism, parallelizable, modifiers, has-factory, factory-only, max-threads, core-threads, smart-interfaces); the v2a script API implements the core fields only, and a note can be written as a "//..." key.
+  PASS  ...and the refusal lists the documented fields
+  PASS  a "//"-note key is accepted
+  PASS  the deferred field 'modifiers' is refused by name rather than silently ignored: machine 't' declares modifiers, which the KubeJS machine API does not implement yet. It is refused rather than accepted and ignored, because a definition that looks like it said something and did nothing is the failure this project keeps paying for. Remove the field to use the same default a data-pack machine gets when it omits it (no modifiers, no smart interfaces, no factory, parallelism of one copy, failure-action 'still', no blueprint requirement); the deferred slice is recorded in 移植方案-v2.md §9.
+  PASS  the deferred field 'smart-interfaces' is refused by name rather than silently ignored: machine 't' declares smart-interfaces, which the KubeJS machine API does not implement yet. It is refused rather than accepted and ignored, because a definition that looks like it said something and did nothing is the failure this project keeps paying for. Remove the field to use the same default a data-pack machine gets when it omits it (no modifiers, no smart interfaces, no factory, parallelism of one copy, failure-action 'still', no blueprint requirement); the deferred slice is recorded in 移植方案-v2.md §9.
+  PASS  the deferred field 'has-factory' is refused by name rather than silently ignored: machine 't' declares has-factory, which the KubeJS machine API does not implement yet. It is refused rather than accepted and ignored, because a definition that looks like it said something and did nothing is the failure this project keeps paying for. Remove the field to use the same default a data-pack machine gets when it omits it (no modifiers, no smart interfaces, no factory, parallelism of one copy, failure-action 'still', no blueprint requirement); the deferred slice is recorded in 移植方案-v2.md §9.
+  PASS  the deferred field 'factory-only' is refused by name rather than silently ignored: machine 't' declares factory-only, which the KubeJS machine API does not implement yet. It is refused rather than accepted and ignored, because a definition that looks like it said something and did nothing is the failure this project keeps paying for. Remove the field to use the same default a data-pack machine gets when it omits it (no modifiers, no smart interfaces, no factory, parallelism of one copy, failure-action 'still', no blueprint requirement); the deferred slice is recorded in 移植方案-v2.md §9.
+  PASS  the deferred field 'max-threads' is refused by name rather than silently ignored: machine 't' declares max-threads, which the KubeJS machine API does not implement yet. It is refused rather than accepted and ignored, because a definition that looks like it said something and did nothing is the failure this project keeps paying for. Remove the field to use the same default a data-pack machine gets when it omits it (no modifiers, no smart interfaces, no factory, parallelism of one copy, failure-action 'still', no blueprint requirement); the deferred slice is recorded in 移植方案-v2.md §9.
+  PASS  the deferred field 'core-threads' is refused by name rather than silently ignored: machine 't' declares core-threads, which the KubeJS machine API does not implement yet. It is refused rather than accepted and ignored, because a definition that looks like it said something and did nothing is the failure this project keeps paying for. Remove the field to use the same default a data-pack machine gets when it omits it (no modifiers, no smart interfaces, no factory, parallelism of one copy, failure-action 'still', no blueprint requirement); the deferred slice is recorded in 移植方案-v2.md §9.
+  PASS  the deferred field 'max-parallelism' is refused by name rather than silently ignored: machine 't' declares max-parallelism, which the KubeJS machine API does not implement yet. It is refused rather than accepted and ignored, because a definition that looks like it said something and did nothing is the failure this project keeps paying for. Remove the field to use the same default a data-pack machine gets when it omits it (no modifiers, no smart interfaces, no factory, parallelism of one copy, failure-action 'still', no blueprint requirement); the deferred slice is recorded in 移植方案-v2.md §9.
+  PASS  the deferred field 'internal-parallelism' is refused by name rather than silently ignored: machine 't' declares internal-parallelism, which the KubeJS machine API does not implement yet. It is refused rather than accepted and ignored, because a definition that looks like it said something and did nothing is the failure this project keeps paying for. Remove the field to use the same default a data-pack machine gets when it omits it (no modifiers, no smart interfaces, no factory, parallelism of one copy, failure-action 'still', no blueprint requirement); the deferred slice is recorded in 移植方案-v2.md §9.
+  PASS  the deferred field 'parallelizable' is refused by name rather than silently ignored: machine 't' declares parallelizable, which the KubeJS machine API does not implement yet. It is refused rather than accepted and ignored, because a definition that looks like it said something and did nothing is the failure this project keeps paying for. Remove the field to use the same default a data-pack machine gets when it omits it (no modifiers, no smart interfaces, no factory, parallelism of one copy, failure-action 'still', no blueprint requirement); the deferred slice is recorded in 移植方案-v2.md §9.
+  PASS  the deferred field 'failure-action' is refused by name rather than silently ignored: machine 't' declares failure-action, which the KubeJS machine API does not implement yet. It is refused rather than accepted and ignored, because a definition that looks like it said something and did nothing is the failure this project keeps paying for. Remove the field to use the same default a data-pack machine gets when it omits it (no modifiers, no smart interfaces, no factory, parallelism of one copy, failure-action 'still', no blueprint requirement); the deferred slice is recorded in 移植方案-v2.md §9.
+  PASS  the deferred field 'requires-blueprint' is refused by name rather than silently ignored: machine 't' declares requires-blueprint, which the KubeJS machine API does not implement yet. It is refused rather than accepted and ignored, because a definition that looks like it said something and did nothing is the failure this project keeps paying for. Remove the field to use the same default a data-pack machine gets when it omits it (no modifiers, no smart interfaces, no factory, parallelism of one copy, failure-action 'still', no blueprint requirement); the deferred slice is recorded in 移植方案-v2.md §9.
+  PASS  the deferred list only names fields the schema knows and the core API does not use: []
+  PASS  the data-pack path still evaluates 'modifiers' (the deferral is script-only)
+  PASS  ...and 'has-factory'
+  PASS  ...and 'failure-action'
+  PASS  ...and 'requires-blueprint'
+  PASS  strict reading rejects an unknown root field
+[17:53:01] [main/WARN] [co.re.mo.ma.MachineSchema/]: [modular_machinery_reborn] machine 't' has root field(s) this loader does not know: registrynam. They are ignored. If they were meant to have an effect, check the spelling against the documented fields (registryname, localizedname, parts, failure-action, requires-blueprint, max-parallelism, internal-parallelism, parallelizable, modifiers, has-factory, factory-only, max-threads, core-threads, smart-interfaces); a note can be written as a "//..." key.
+  PASS  tolerant reading accepts the same field (the original's behaviour, kept for data packs)
+[17:53:01] [main/WARN] [co.re.mo.ma.MachineSchema/]: [modular_machinery_reborn] mmverify:z_json has root field(s) this loader does not know: registrynam. They are ignored. If they were meant to have an effect, check the spelling against the documented fields (registryname, localizedname, parts, failure-action, requires-blueprint, max-parallelism, internal-parallelism, parallelizable, modifiers, has-factory, factory-only, max-threads, core-threads, smart-interfaces); a note can be written as a "//..." key.
+  PASS  the loader's own readMachine stays tolerant
+  PASS  ...and both readings accept a valid definition
+[17:53:01] [main/WARN] [co.re.mo.ma.MachineSchema/]: [modular_machinery_reborn] machine 't' has root field(s) this loader does not know: a, b. They are ignored. If they were meant to have an effect, check the spelling against the documented fields (registryname, localizedname, parts, failure-action, requires-blueprint, max-parallelism, internal-parallelism, parallelizable, modifiers, has-factory, factory-only, max-threads, core-threads, smart-interfaces); a note can be written as a "//..." key.
+  PASS  tolerant mode does not become strict when several unknown fields are present
+  PASS  ...while strict mode refuses them all at once
+  PASS  the script layer staged two definitions in cycle 1: expected 2, got 2
+[17:53:01] [main/WARN] [co.re.mo.ma.MachineDefinitions/]: [modular_machinery_reborn] The KubeJS script layer defines 'modular_machinery_reborn:from_pack_shadowed', which a data pack or the config directory also defines; the script wins for this server. Script definitions take precedence over the machine definition directory (config/<modid>/machinery) and over the data pack — remove it from one of the two, or give the machine a different registryname.
+[17:53:01] [main/INFO] [co.re.mo.ma.MachineDefinitions/]: [modular_machinery_reborn] 2 machine definition(s) came from the KubeJS script layer and shadowed 1 other definition(s)
+  PASS  after reload 1 there are three machines (2 data pack + 1 new, one shadowed): expected 3, got 3
+  PASS  the data pack's untouched machine survives
+  PASS  the script-only machine is present
+  PASS  the script's definition won the collision
+  PASS  the shadowed id was reported: expected [modular_machinery_reborn:from_pack_shadowed], got [modular_machinery_reborn:from_pack_shadowed]
+[17:53:01] [main/WARN] [co.re.mo.ma.MachineDefinitions/]: [modular_machinery_reborn] The KubeJS script layer defines 'modular_machinery_reborn:from_pack_shadowed', which a data pack or the config directory also defines; the script wins for this server. Script definitions take precedence over the machine definition directory (config/<modid>/machinery) and over the data pack — remove it from one of the two, or give the machine a different registryname.
+[17:53:01] [main/INFO] [co.re.mo.ma.MachineDefinitions/]: [modular_machinery_reborn] 2 machine definition(s) came from the KubeJS script layer and shadowed 1 other definition(s)
+  PASS  ...and applyScriptLayer returns the same ids: expected [modular_machinery_reborn:from_pack_shadowed], got [modular_machinery_reborn:from_pack_shadowed]
+[17:53:01] [main/WARN] [co.re.mo.ma.MachineDefinitions/]: [modular_machinery_reborn] The KubeJS script layer defines 'modular_machinery_reborn:from_pack_shadowed', which a data pack or the config directory also defines; the script wins for this server. Script definitions take precedence over the machine definition directory (config/<modid>/machinery) and over the data pack — remove it from one of the two, or give the machine a different registryname.
+[17:53:01] [main/INFO] [co.re.mo.ma.MachineDefinitions/]: [modular_machinery_reborn] 2 machine definition(s) came from the KubeJS script layer and shadowed 1 other definition(s)
+  PASS  the script machine is still there after a second reload (same ids, same order): expected [modular_machinery_reborn:from_pack_kept, modular_machinery_reborn:from_pack_shadowed, modular_machinery_reborn:from_script_only], got [modular_machinery_reborn:from_pack_kept, modular_machinery_reborn:from_pack_shadowed, modular_machinery_reborn:from_script_only]
+  PASS  ...and it is still the script's definition, not the data pack's
+  PASS  ...and the script-only machine did not displace anything
+  PASS  the script layer holds only the surviving script's machine: expected 1, got 1
+  PASS  the baseline really is the two data-pack machines: expected 2, got 2
+  PASS  ...and the shadowing machine is one of them
+  PASS  a copy of the baseline still has two machines: expected 2, got 2
+[17:53:01] [main/INFO] [co.re.mo.ma.MachineDefinitions/]: [modular_machinery_reborn] 1 machine definition(s) came from the KubeJS script layer
+  PASS  ...applying a layer that no longer mentions the shadowed id neither restores nor removes anything: the data pack's two plus the surviving script's one: expected 3, got 3
+  PASS  ...and the data pack's own definition of the shadowed id is the one in the table: expected from the data pack, got from the data pack
+[17:53:01] [main/INFO] [co.re.mo.ma.MachineDefinitions/]: [modular_machinery_reborn] 1 machine definition(s) came from the KubeJS script layer
+  PASS  the shadowing script's definition is gone
+  PASS  ...and the data pack's definition of that id is back, unshadowed
+  PASS  ...and the surviving script's machine is untouched
+  PASS  ...so the table is the two data-pack machines plus one: expected 3, got 3
+[17:53:01] [main/INFO] [co.re.mo.ma.MachineDefinitions/]: [modular_machinery_reborn] 1 machine definition(s) came from the KubeJS script layer
+  PASS  a machine no script defined is not in the table (the control)
+[17:53:01] [main/INFO] [co.re.mo.ma.MachineDefinitions/]: [modular_machinery_reborn] 1 machine definition(s) came from the KubeJS script layer
+  PASS  ...it is staged
+  PASS  ...and with the script deleted it is not in the table at all
+  PASS  ...while every data-pack machine is untouched
+  PASS  two scripts claiming one id stage one definition: expected 1, got 1
+  PASS  ...and the later one wins: expected second, got second
+  PASS  a reload with no scripts stages nothing: expected 0, got 0
+  PASS  ...and merging it leaves the data pack untouched: expected [modular_machinery_reborn:from_pack_kept, modular_machinery_reborn:from_pack_shadowed], got [modular_machinery_reborn:from_pack_kept, modular_machinery_reborn:from_pack_shadowed]
+  PASS  the script-layer holder never registers a block or an item (D8)
+  PASS  the per-machine controller list comes from the config-directory scan, which runs at construction and cannot see a script
+  PASS  ...and the loader says what a machine with no controller block of its own gets, for data-pack and script machines alike
+  PASS  ...and that message mentions the script case, so the answer is not left to a design document
+  PASS  the schema's own rejection sentences were found in its class file (the filter is not empty): [must be one of, must be a whole number, must be an array, cannot be negative, has no parts besides the controller, does not know, does not implement yet, must be true or false, above its 'max-parallelism']
+  PASS  the builder re-implements none of the schema's rejection sentences: []
+  PASS  the builder calls MachineSchema.read
+  PASS  ...and it stages what it built
+  PASS  the builder calls MachineSchema.read with strict=true and never with false (iconst_1+static call at 10412, iconst_0+static call at -1, the read itself at 10483; text before the read: ze:()I127:)
+  PASS  ...and never touches ModBlocks (it runs while scripts run, before blocks matter)
+  PASS  the plugin never touches ModBlocks either
+  PASS  the loader reads definitions through MachineSchema (one schema, two paths)
+  PASS  the loader applies the KubeJS script layer
+  PASS  the loader replaces the registry (which is why the merge has to live there)
+  PASS  the loader does not decide anything about KubeJS itself — it reads the staged layer only
+  PASS  javap ran on MachineLoader (35169 chars)
+  PASS  javap showed apply()'s instructions (24015 chars of the disassembly)
+  PASS  the disassembly's call-site shapes are the ones this check looks for: readMachine:(Lnet/m / applyScriptLayer:(Ljava/ / replace:(Ljava/
+  PASS  all three call sites are visible in the disassembly (readMachine 4221, applyScriptLayer 5657, replace 5788)
+  PASS  the script layer is applied after the data pack has been parsed (readMachine at 4221 < applyScriptLayer at 5657)
+  PASS  ...and before the registry is replaced, so the merged table is what the registry sees (applyScriptLayer at 5657 < replace at 5788)
+  PASS  the plugin implements onServerReload()
+  PASS  the plugin implements registerEvents()
+  PASS  the plugin implements registerBindings()
+  PASS  the plugin implements registerRecipeSchemas()
+  PASS  ...and delegates the machine event to MachineEvents, so the sequence has a testable home
+  PASS  registerBindings' code constructs KubeJS's EventGroupWrapper rather than publishing the raw group (the 0.28.0 defect; a pool search alone misses this, as injection A showed) — 1
+  PASS  ...and it still never touches ModBlocks (it runs while scripts run, before blocks matter)
+  PASS  MachineEvents exists and mentions both halves of the sequence
+  PASS  javap ran on MachineEvents (4141 chars)
+  PASS  javap showed MachineEvents' instructions
+  PASS  post() clears the script layer before it instantiates the event (beginCycle at 872 < new MachineRegistryEventJS at 1043)
+  PASS  the KubeJS jar was found, so the reload-order chain is checked against KubeJS's own bytecode
+  PASS  ServerScriptManager loads the scripts and calls the plugin hook (onServerReload)
+  PASS  ...and wrapResourceManager is entered from the mixin on WorldLoader$PackConfig.createResourceManager, the point /reload passes through
+  PASS  ...and that mixin's target really is PackConfig#createResourceManager (KubeJS's own refmap)
+  PASS  kubejs.plugins.txt is at the classpath root (the 0.27.1 fix)
+  PASS  ...and not under META-INF/ (where KubeJS would not read it)
+  PASS  ...and it declares this mod's plugin: com.reborn.modularmachinery.kubejs.ModularMachineryKubeJSPlugin
+  PASS  javap read the builder's member list for the overload check (21910 chars)
+  PASS  part(int,int,int,Object...) is declared — the spelling every existing script uses: [public com.reborn.modularmachinery.kubejs.MachineBuilderJS part(int, int, int, java.lang.Object...);]
+  PASS  ...and it is the class's only 'part' (0.28.1 declared a second, List-taking 'part' here, so which of the two a script reached was Rhino's business): 'part' declared 1 time(s) [public com.reborn.modularmachinery.kubejs.MachineBuilderJS part(int, int, int, java.lang.Object...);]
+  PASS  ...while the list spelling has its own name: 'parts' declared 1 time(s) [public com.reborn.modularmachinery.kubejs.MachineBuilderJS parts(java.util.List<? extends java.lang.Number>, java.util.List<? extends java.lang.Number>, java.util.List<? extends java.lang.Number>, java.lang.Object...);]
+
+== Z9. 0.28.1 — the machine event really reaches a script as a callable event
+  PASS  KubeJS's own classes could be loaded for this check (the deobfuscated build, which pairs with this harness's Mojmap Minecraft): C:\Users\kk07H\Desktop\模组\.gradle-home\caches\forge_gradle\deobf_dependencies\libs\kubejs\1.20.1_mapped_official_1.20.1\kubejs-1.20.1_mapped_official_1.20.1.jar
+  PASS  ...and so could the Rhino fork KubeJS runs scripts with: C:\Users\kk07H\Desktop\模组\.gradle-home\caches\forge_gradle\deobf_dependencies\libs\rhino\1.20.1_mapped_official_1.20.1\rhino-1.20.1_mapped_official_1.20.1.jar
+  PASS  ...while the production jars this checkout ships are SRG-remapped (libs/kubejs-1.20.1.jar, byte-identical to the instance's), so building on them here would have been a mapping mismatch, not a test
+  PASS  a stand-in for Architectury's Platform was compiled (KubeJS reads the game folder while its own classes initialise, and this harness has no mod loader): C:\Users\kk07H\AppData\Local\Temp\mmverify-kjs-stub\classes
+[17:53:05] [main/INFO] [KubeJS/]: Loaded common.properties
+[17:53:05] [main/INFO] [KubeJS/]: Loaded dev.properties
+  PASS  registerEvents() is what puts the machine event group into KubeJS's own group registry under 'MachineRegistryEvents' — without it KubeJS never binds the group, and a binding with no group behind it is another way to ship an event no script can call
+  PASS  ...with exactly one typed event on it ([registry])
+  PASS  registerBindings published 'MachineRegistryEvents' (dev.latvian.mods.kubejs.event.EventGroupWrapper)
+  PASS  ...as a KubeJS EventGroupWrapper rather than the raw group (the 0.28.0 defect)
+  PASS  a script sees 'registry' on the published binding as: expected function, got function
+  PASS  ...and the property is the group's own event handler (dev.latvian.mods.kubejs.event.EventHandler)
+  PASS  ...and calling it reaches that handler instead of failing to find it (stopped at: java.lang.IllegalStateException: Unknown script type!)
+  PASS  the raw group 0.28.0 bound exposes no event: typeof ...registry: expected undefined, got undefined
+  PASS  ...and the script dies with the owner's own TypeError: dev.latvian.mods.rhino.EcmaError: TypeError: Cannot find function registry in object dev.latvian.mods.rhino.NativeJavaObject@5ec2462. (mmverify-z9.js#1)
+
+== Z10. 0.28.2 — the documented .part(x, y, z, …) resolves to the scalar method, run through Rhino
+  PASS  the deobfuscated KubeJS + Rhino jars were found for Z10 (same pair section Z9 drives): C:\Users\kk07H\Desktop\模组\.gradle-home\caches\forge_gradle\deobf_dependencies\libs\kubejs\1.20.1_mapped_official_1.20.1\kubejs-1.20.1_mapped_official_1.20.1.jar / C:\Users\kk07H\Desktop\模组\.gradle-home\caches\forge_gradle\deobf_dependencies\libs\rhino\1.20.1_mapped_official_1.20.1\rhino-1.20.1_mapped_official_1.20.1.jar
+  PASS  the Architectury Platform stand-in compiled
+  PASS  the real MachineRegistryEventJS was instantiated (com.reborn.modularmachinery.kubejs.MachineRegistryEventJS) for the script to call machine() on
+  PASS  the documented scalar call, evaluated by KubeJS's own Rhino, builds exactly the definition the data pack would have carried ("x":1 is reachable only through part(int,int,int,Object...), so this is the resolution being read off the result): expected {"registryname":"scripted_smoke","localizedname":"Scripted Smoke","parts":[{"x":1,"y":-1,"z":0,"elements":"minecraft:stone"},{"x":0,"y":1,"z":0,"elements":["modular_machinery_reborn:blockcasing[casing=plain]","modular_machinery_reborn:blockcasing[casing=vent]"]}]}, got {"registryname":"scripted_smoke","localizedname":"Scripted Smoke","parts":[{"x":1,"y":-1,"z":0,"elements":"minecraft:stone"},{"x":0,"y":1,"z":0,"elements":["modular_machinery_reborn:blockcasing[casing=plain]","modular_machinery_reborn:blockcasing[casing=vent]"]}]}
+  PASS  ...and the array spelling, now `parts(...)`, still expands a list of coordinates into the cartesian product the guide documents: expected {"registryname":"kubejs_wall","parts":[{"x":[-1,0,1],"y":0,"z":[-1,0,1],"elements":"minecraft:iron_block"},{"x":0,"y":1,"z":0,"elements":"minecraft:furnace[facing=north]"}]}, got {"registryname":"kubejs_wall","parts":[{"x":[-1,0,1],"y":0,"z":[-1,0,1],"elements":"minecraft:iron_block"},{"x":0,"y":1,"z":0,"elements":"minecraft:furnace[facing=north]"}]}
+  PASS  the 0.28.1 array spelling .part([...], [...], [...], …) is refused by the scalar signature: dev.latvian.mods.rhino.EvaluatorException: Cannot convert -1,0,1 to java.lang.Integer (mmverify-z10.js#1)
+  PASS  a fractional coordinate is refused by name rather than truncated to a different block: com.google.gson.JsonParseException: Coordinate 'x' is 1.5, which is not whole: a fractional coordinate would be truncated to a different block. Write a whole number, e.g. .part(1, -1, 0, ...).
+  PASS  ...while a whole number written with a decimal point is still accepted (1.0 is 1, so the check is wholeness rather than the Java type): expected {"registryname":"probe_whole","parts":[{"x":1,"y":0,"z":0,"elements":"minecraft:stone"}]}, got {"registryname":"probe_whole","parts":[{"x":1,"y":0,"z":0,"elements":"minecraft:stone"}]}
+  PASS  the class the script meets declares one 'parts' and no list-taking 'part' ('parts'=1, list-taking 'part'=0)
+  PASS  a script's array arrives at a Java List parameter as: expected [-1.0, 0.0, 1.0], got [-1.0, 0.0, 1.0]
+  PASS  ...so its elements are Double, not Integer — which is why parts(…) is declared over Number: expected java.lang.Double, got java.lang.Double
+  PASS  ...and a script's NUMBER has no conversion to List at all (99 is Rhino's "cannot convert"), so the scalar spelling can never fall into a list-shaped method by weight either: expected 99, got 99
+  PASS  ...while the same number converts to Integer at weight 2 — the tie 0.28.1 left for the JVM's method order to break, and the reason both spellings now have their own name
+
+== AA. the construct tool: selection arithmetic, the export fragment, and the gate
+  PASS  the production class com.reborn.modularmachinery.selection.StructureSelection exists (red-first: it does not, yet)
+  PASS  the production class com.reborn.modularmachinery.selection.SelectionExport exists (red-first: it does not, yet)
+  PASS  the production class com.reborn.modularmachinery.selection.ExportPart exists (red-first: it does not, yet)
+  PASS  the production class com.reborn.modularmachinery.selection.BlockSample exists (red-first: it does not, yet)
+  PASS  the production class com.reborn.modularmachinery.selection.MachineFragmentWriter exists (red-first: it does not, yet)
+  PASS  the production class com.reborn.modularmachinery.network.SelectionSyncPacket exists (red-first: it does not, yet)
+  PASS  the production class com.reborn.modularmachinery.item.ConstructToolItem exists (red-first: it does not, yet)
+  PASS  the loader's own registry resolves minecraft:stone in this harness (Block{minecraft:stone}), which is what lets the fragment be fed back through BlockMatcher.parse
+
+== AA1. the tool's language keys, against the original's wording
+  PASS  zh 'tooltip.constructtool.creative' is the original's wording (创造模式用机械结构到 JSON 转换工具)
+  PASS  en 'tooltip.constructtool.creative' is the original's wording (Creative Structure-To-JSON Tool)
+  PASS  zh 'message.structurebuild.empty' is the original's wording (你没有选中任何东西。)
+  PASS  en 'message.structurebuild.empty' is the original's wording (You have nothing selected to save.)
+  PASS  zh 'message.structurebuild.confirmrotation' is the original's wording (控制器面朝 %s)
+  PASS  en 'message.structurebuild.confirmrotation' is the original's wording (Controller is facing %s)
+  PASS  zh 'message.structurebuild.confirmrotation.rotating' is the original's wording (保存时将结构旋转 %s 度……)
+  PASS  en 'message.structurebuild.confirmrotation.rotating' is the original's wording (Rotating structure for saving by %s degrees...)
+  PASS  zh 'message.structurebuild.warndedicated' is the original's wording (你现在是在服务器上保存机器配置！请不要忘记从服务器上下载对应文件！)
+  PASS  en 'message.structurebuild.warndedicated' is the original's wording (You're saving the machine on a dedicated server! Be sure to download it from the server!)
+  PASS  zh 'message.structurebuild.save' is the original's wording (机器配置已保存在机器文件夹下的 '%s' 中！)
+  PASS  en 'message.structurebuild.save' is the original's wording (Machine saved as %s in the machinery directory!)
+  PASS  zh 'message.structurebuild.fail' is the original's wording (机器配置保存失败！请查阅日志文件获取详细信息！)
+  PASS  en 'message.structurebuild.fail' is the original's wording (Failed to save the machine to a file! Check the log for more information!)
+  PASS  the two language files carry the same key set (176 zh / 176 en, difference none)
+
+== AA2. the selection: a toggled set, in insertion order, with no cap
+  PASS  a fresh selection's size: expected 0, got 0
+  PASS  ...and it is empty
+  PASS  ...and its position list is empty
+  PASS  toggling one position reports it as added
+  PASS  ...size is 1: expected 1, got 1
+  PASS  ...and it is that position: expected [BlockPos{x=1, y=2, z=3}], got [BlockPos{x=1, y=2, z=3}]
+  PASS  toggling the same position again reports it as removed
+  PASS  ...size is back to 0: expected 0, got 0
+  PASS  ...and it is empty again
+  PASS  three toggles keep insertion order: expected [BlockPos{x=1, y=2, z=3}, BlockPos{x=4, y=5, z=6}, BlockPos{x=-7, y=0, z=8}], got [BlockPos{x=1, y=2, z=3}, BlockPos{x=4, y=5, z=6}, BlockPos{x=-7, y=0, z=8}]
+  PASS  ...toggling a selected position again removes it: expected [BlockPos{x=4, y=5, z=6}, BlockPos{x=-7, y=0, z=8}], got [BlockPos{x=4, y=5, z=6}, BlockPos{x=-7, y=0, z=8}]
+  PASS  ...and re-adding it appends it at the end, rather than restoring its old place: expected [BlockPos{x=4, y=5, z=6}, BlockPos{x=-7, y=0, z=8}, BlockPos{x=1, y=2, z=3}], got [BlockPos{x=4, y=5, z=6}, BlockPos{x=-7, y=0, z=8}, BlockPos{x=1, y=2, z=3}]
+  PASS  ...and no position is ever stored twice: expected 3, got 3
+  PASS  the list returned by positions() is a copy: expected 3, got 3
+  PASS  of(...) deduplicates but keeps the first occurrence's order: expected [BlockPos{x=1, y=2, z=3}, BlockPos{x=4, y=5, z=6}, BlockPos{x=-7, y=0, z=8}], got [BlockPos{x=1, y=2, z=3}, BlockPos{x=4, y=5, z=6}, BlockPos{x=-7, y=0, z=8}]
+  PASS  ...and it is a copy of the argument, not a view: expected 3, got 3
+  PASS  contains(another position) is false
+  PASS  4096 toggled positions are all kept (the original has no size cap): expected 4096, got 4096
+  PASS  ...the first is still the first: expected BlockPos{x=0, y=64, z=0}, got BlockPos{x=0, y=64, z=0}
+  PASS  ...and the last is still the last: expected BlockPos{x=63, y=64, z=63}, got BlockPos{x=63, y=64, z=63}
+
+== AA3. the rotation: offsets are written as if the controller faced north
+  PASS  rotationSteps(NORTH): expected 0, got 0
+  PASS  rotationSteps(EAST): expected 1, got 1
+  PASS  rotationSteps(SOUTH): expected 2, got 2
+  PASS  rotationSteps(WEST): expected 3, got 3
+  PASS  rotate((1,2,3), 1): expected BlockPos{x=3, y=2, z=-1}, got BlockPos{x=3, y=2, z=-1}
+  PASS  rotate((1,2,3), 0) is the identity: expected BlockPos{x=1, y=2, z=3}, got BlockPos{x=1, y=2, z=3}
+  PASS  rotate(p, 4) is the identity: expected BlockPos{x=1, y=2, z=3}, got BlockPos{x=1, y=2, z=3}
+  PASS  rotate(p, 5) == rotate(p, 1): expected BlockPos{x=3, y=2, z=-1}, got BlockPos{x=3, y=2, z=-1}
+  PASS  offsets for a north-facing controller are relative to it: expected [BlockPos{x=1, y=0, z=0}, BlockPos{x=0, y=1, z=0}, BlockPos{x=0, y=0, z=1}], got [BlockPos{x=1, y=0, z=0}, BlockPos{x=0, y=1, z=0}, BlockPos{x=0, y=0, z=1}]
+  FAIL  offsets for a east-facing controller are the north ones turned 1 quarter turn(s): expected [BlockPos{x=0, y=0, z=-1}, BlockPos{x=0, y=1, z=0}, BlockPos{x=1, y=0, z=0}], got [BlockPos{x=1, y=0, z=0}, BlockPos{x=0, y=1, z=0}, BlockPos{x=0, y=0, z=1}]
+  FAIL  offsets for a south-facing controller are the north ones turned 2 quarter turn(s): expected [BlockPos{x=-1, y=0, z=0}, BlockPos{x=0, y=1, z=0}, BlockPos{x=0, y=0, z=-1}], got [BlockPos{x=1, y=0, z=0}, BlockPos{x=0, y=1, z=0}, BlockPos{x=0, y=0, z=1}]
+  FAIL  offsets for a west-facing controller are the north ones turned 3 quarter turn(s): expected [BlockPos{x=0, y=0, z=1}, BlockPos{x=0, y=1, z=0}, BlockPos{x=-1, y=0, z=0}], got [BlockPos{x=1, y=0, z=0}, BlockPos{x=0, y=1, z=0}, BlockPos{x=0, y=0, z=1}]
+  PASS  the tool's offsets for north are the loader's own rotation of the same set ([BlockPos{x=1, y=0, z=0}, BlockPos{x=0, y=1, z=0}, BlockPos{x=0, y=0, z=1}])
+  FAIL  the tool's offsets for east are the loader's own rotation of the same set ([BlockPos{x=0, y=0, z=-1}, BlockPos{x=0, y=1, z=0}, BlockPos{x=1, y=0, z=0}])
+  FAIL  the tool's offsets for south are the loader's own rotation of the same set ([BlockPos{x=-1, y=0, z=0}, BlockPos{x=0, y=1, z=0}, BlockPos{x=0, y=0, z=-1}])
+  FAIL  the tool's offsets for west are the loader's own rotation of the same set ([BlockPos{x=0, y=0, z=1}, BlockPos{x=0, y=1, z=0}, BlockPos{x=-1, y=0, z=0}])
+  PASS  an empty selection produces no offsets
+  PASS  a selected controller position becomes the origin, as in the original: expected [BlockPos{x=0, y=0, z=0}, BlockPos{x=1, y=0, z=0}], got [BlockPos{x=0, y=0, z=0}, BlockPos{x=1, y=0, z=0}]
+  PASS  ...which is exactly what the loader skips later (see AA4's round trip)
+
+== AA4. the descriptor, and the loader accepting the fragment
+  PASS  describe(stone): expected minecraft:stone, got minecraft:stone
+  PASS  describe(oak_stairs) names every property, sorted: expected minecraft:oak_stairs[facing=north,half=bottom,shape=straight,waterlogged=false], got minecraft:oak_stairs[facing=north,half=bottom,shape=straight,waterlogged=false]
+  PASS  BlockMatcher.parse accepts the descriptor the tool writes
+  PASS  ...and it matches the state it was written from (a state round trip)
+  PASS  ...and it does not match a different state of the same block
+  PASS  the fragment parses as JSON
+  PASS  ...and it carries 'parts' as its only root field, so it is a fragment rather than a definition ([parts])
+  PASS  the loader refuses the fragment until it has a registryname, in its own words: Missing required field 'registryname' in the construct tool's fragment
+  PASS  with a registryname added the loader reads it into one part per selected position: expected 2, got 2
+  PASS  ...and their relative positions are the tool's offsets: expected [BlockPos{x=1, y=0, z=0}, BlockPos{x=0, y=1, z=0}], got [BlockPos{x=1, y=0, z=0}, BlockPos{x=0, y=1, z=0}]
+  PASS  ...and each part accepts the block state it was written from
+
+== AA5. the fragment text
+  PASS  one part, no nbt: expected {
+    "parts": [
+        {
+            "x": 1,
+            "y": 0,
+            "z": 0,
+            "elements": [
+                "minecraft:stone"
+            ]
+        }
+    ]}, got {
+    "parts": [
+        {
+            "x": 1,
+            "y": 0,
+            "z": 0,
+            "elements": [
+                "minecraft:stone"
+            ]
+        }
+    ]}
+  PASS  one part with nbt: expected {
+    "parts": [
+        {
+            "x": -1,
+            "y": 2,
+            "z": 3,
+            "nbt": {"LootTable":"x"},
+            "elements": [
+                "minecraft:chest"
+            ]
+        }
+    ]}, got {
+    "parts": [
+        {
+            "x": -1,
+            "y": 2,
+            "z": 3,
+            "nbt": {"LootTable":"x"},
+            "elements": [
+                "minecraft:chest"
+            ]
+        }
+    ]}
+  PASS  two parts are comma-separated and the last has no trailing comma
+  PASS  ...and the element of each is the descriptor it was given
+  PASS  an empty part list is still valid JSON: expected {
+    "parts": [
+    ]}, got {
+    "parts": [
+    ]}
+  PASS  ...which the JSON parser accepts
+  PASS  an unavailable position is skipped, in order: expected 2, got 2
+  PASS  ...the first kept part is the first available position with its descriptor (ExportPart[position=BlockPos{x=1, y=0, z=0}, descriptor=minecraft:stone, nbtJson=null])
+  PASS  ...and the second carries its own position, descriptor and nbt (ExportPart[position=BlockPos{x=3, y=0, z=0}, descriptor=minecraft:dirt, nbtJson={"a":1}])
+  PASS  ...and the unavailable count is what the caller must report: expected 1, got 1
+  PASS  a sample list of the wrong length is refused (IllegalArgumentException)
+
+== AA6. the tile entity's NBT becomes a JSON object without its coordinates
+  PASS  ...the coordinates are gone (keys left: {Mode:"input",energy:1234L,formed:1b,id:"modular_machinery_reborn:item_input_hatch",ratio:0.5d,slots:[I;1,2,3],tiers:[1,2]})
+  PASS  the NBT as a JSON object (keys sorted, arrays as arrays, types flattened as JSON has no byte/short): expected {"Mode":"input","energy":1234,"formed":1,"id":"modular_machinery_reborn:item_input_hatch","ratio":0.5,"slots":[1,2,3],"tiers":[1,2]}, got {"Mode":"input","energy":1234,"formed":1,"id":"modular_machinery_reborn:item_input_hatch","ratio":0.5,"slots":[1,2,3],"tiers":[1,2]}
+  PASS  ...which is a JSON object the fragment can embed
+  PASS  a compound with nothing left is an empty JSON object: expected {}, got {}
+
+== AA7. the file name, the collision suffix, and UTF-8
+  PASS  the file name is the original's scheme: expected machine-Alice-2026-10-02_03.04.05.json, got machine-Alice-2026-10-02_03.04.05.json
+  PASS  the first write uses the plain name: expected machine-Alice-2026-10-02_03.04.05.json, got machine-Alice-2026-10-02_03.04.05.json
+  PASS  ...the file exists
+  PASS  ...and its bytes are UTF-8, exactly as written: expected {
+  "parts": [],
+  "note": "机器"
+}, got {
+  "parts": [],
+  "note": "机器"
+}
+  PASS  the second write of the same name collides as ' (0)': expected machine-Alice-2026-10-02_03.04.05 (0).json, got machine-Alice-2026-10-02_03.04.05 (0).json
+  PASS  ...and the first file is untouched: expected {
+  "parts": [],
+  "note": "机器"
+}, got {
+  "parts": [],
+  "note": "机器"
+}
+  PASS  the third as ' (1)': expected machine-Alice-2026-10-02_03.04.05 (1).json, got machine-Alice-2026-10-02_03.04.05 (1).json
+  PASS  a missing directory is created (C:\Users\kk07H\AppData\Local\Temp\mmverify-construct11614564860490394932\machinery\deeper\machine-Alice-2026-10-02_03.04.05.json)
+  PASS  ...and the returned path is inside the directory it was given
+
+== AA8. the gate: server side, creative, and allowed to use commands
+  PASS  maySelect(clientSide=false, creative=false, commands=false) is false
+  PASS  maySelect(clientSide=false, creative=false, commands=true) is false
+  PASS  maySelect(clientSide=false, creative=true, commands=false) is false
+  PASS  maySelect(clientSide=false, creative=true, commands=true) is true
+  PASS  maySelect(clientSide=true, creative=false, commands=false) is false
+  PASS  maySelect(clientSide=true, creative=false, commands=true) is false
+  PASS  maySelect(clientSide=true, creative=true, commands=false) is false
+  PASS  maySelect(clientSide=true, creative=true, commands=true) is false
+  PASS  ...so exactly one of the eight combinations may select: expected 1, got 1
+  PASS  ...and a survival player is refused even when allowed to use commands
+  PASS  ...and an op in creative who may not use commands is refused (the original demands both)
+
+== AA9. the selection sync packet
+  PASS  a packet of 0 position(s) is 4 bytes (a count, then three ints per position): expected 4, got 4
+  PASS  ...and decodes to the same 0 position(s) in the same order
+  PASS  ...leaving nothing unread: expected 0, got 0
+  PASS  a packet of 1 position(s) is 16 bytes (a count, then three ints per position): expected 16, got 16
+  PASS  ...and decodes to the same 1 position(s) in the same order
+  PASS  ...leaving nothing unread: expected 0, got 0
+  PASS  a packet of 3 position(s) is 40 bytes (a count, then three ints per position): expected 40, got 40
+  PASS  ...and decodes to the same 3 position(s) in the same order
+  PASS  ...leaving nothing unread: expected 0, got 0
+  PASS  a packet of 4096 position(s) is 49156 bytes (a count, then three ints per position): expected 49156, got 49156
+  PASS  ...and decodes to the same 4096 position(s) in the same order
+  PASS  ...leaving nothing unread: expected 0, got 0
+  PASS  a truncated packet is refused (IndexOutOfBoundsException)
+
+== AA10. the tool places nothing (there is no build half in the original)
+  PASS  javap read ConstructToolItem (19161 chars)
+  PASS  ...and it never calls setBlock
+  PASS  ...and it never calls setBlockAndUpdate
+  PASS  ...and it never calls destroyBlock
+  PASS  ...and it never calls removeBlock
+  PASS  ...and it never calls placeBlock
+  PASS  ...and it never calls fillBlocks
+  PASS  ...while it does override useOn (the click that the original handled in onItemUse)
+
+SUMMARY: 1162 PASS / 9 FAIL (1171 checks)
+9 CHECK(S) FAILED

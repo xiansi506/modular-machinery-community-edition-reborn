@@ -1,0 +1,64 @@
+# ============================================================
+#  Modular Machinery: Community Edition Reborn -- .gitignore
+# ============================================================
+
+# ---- 依赖与构建产物 ----
+.gradle-home/
+.gradle/
+**/build/
+_build-cache/
+*.class
+*.jar
+!**/gradle/wrapper/gradle-wrapper.jar
+
+# ---- 第三方 jar：不要入库（JEI / KubeJS / Rhino，各有自己的许可证）----
+modular-machinery-reborn/libs/*.jar
+
+# ---- 发布版二进制：走 GitHub Releases，不入 git 历史（只留 README 与 SHA256）----
+releases/**/*.jar
+
+# ---- 临时与侦察目录（本机工作痕迹，不是项目内容）----
+.tmp-*/
+_debug/
+_ref/
+_speedtest/
+_archive/
+_tools/
+logs/
+**/logs/
+*.log
+*_javap*.txt
+
+# ---- 上游 1.12.2 源码与发行包：不必入库 ----
+# 上游 MMCE 是 GPL-3.0，重新分发本身是允许的（须保留许可证与声明），
+# 但本仓库不需要内嵌它——直接链接上游仓库即可。
+_mmce-src/
+ModularMachinery-Community-Edition-master.zip
+
+# ---- 与本模组无关的其他项目 ----
+rainbow-lotus/
+terra-plate-extension/
+botaniatweaks-*.jar
+项目日志-*.md
+
+# ---- IDE / 系统 ----
+.idea/
+*.iml
+.vscode/
+.settings/
+.classpath
+.project
+Thumbs.db
+desktop.ini
+.DS_Store
+
+# ---- 本地实例与存档（若曾拷进来）----
+run/
+saves/
+config/
+README-工作区索引.md
+
+# ---- 原始 Gradle 日志：噪音，不是证据（SUMMARY 文件才是证据）----
+_audit/**/*-raw-gradle.txt
+_audit/m6c-verify/green-run-0.28.2-raw-gradle-2.txt
+_audit/m6c-verify/green-run-0.28.2-raw-gradle-3.txt

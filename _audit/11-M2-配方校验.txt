@@ -1,0 +1,48 @@
+### alloy_smelter\alloy_smelter_diamond.json
+    machine=alloy_furnace  recipeTime=5  requirements=4
+    输入: 能源 100 FE/t（合计 500 FE） | input 32x minecraft:coal | input 8x minecraft:tnt
+    输出: output 1x minecraft:diamond
+
+### alloy_smelter\alloy_smelter_modularium.json
+    machine=alloy_furnace  recipeTime=120  requirements=6
+    输入: 能源 20 FE/t（合计 2400 FE） | input 1x ore:ingotIron | input 1x ore:ingotGold | input 1x ore:dustRedstone | input 1x ore:dustGlowstone
+    输出: output 4x modular_machinery_reborn:itemmodularium
+
+### centrifuge\centrifuge_centrifuge_blaze_powder.json
+    machine=iron_centrifuge  recipeTime=60  requirements=4
+    输入: 能源 16 FE/t（合计 960 FE） | input 1x minecraft:blaze_powder
+    输出: output 1x minecraft:gunpowder  概率 95% | output 1x minecraft:glowstone_dust  概率 40%
+
+### centrifuge\centrifuge_centrifuge_grass.json
+    machine=iron_centrifuge  recipeTime=120  requirements=11
+    输入: 能源 16 FE/t（合计 1920 FE） | input 1x minecraft:grass_block
+    输出: output 1x minecraft:dirt | output 1x minecraft:wheat_seeds  概率 70% | output 1x minecraft:light_blue_dye  概率 5% | output 1x minecraft:pumpkin_seeds  概率 10% | output 1x minecraft:melon_seeds  概率 10% | output 1x minecraft:clay_ball  概率 40% | output 1x minecraft:brown_mushroom  概率 30% | output 1x minecraft:red_mushroom  概率 30% | output 1x minecraft:nether_wart  概率 1%
+
+### centrifuge\centrifuge_centrifuge_magma_cream.json
+    machine=iron_centrifuge  recipeTime=60  requirements=4
+    输入: 能源 16 FE/t（合计 960 FE） | input 1x minecraft:magma_cream
+    输出: output 1x minecraft:slime_ball  概率 95% | output 1x minecraft:blaze_powder  概率 95%
+
+### centrifuge\centrifuge_centrifuge_wool.json
+    machine=iron_centrifuge  recipeTime=60  requirements=6
+    输入: 能源 16 FE/t（合计 960 FE） | input 1x minecraft:white_wool
+    输出: output 2x minecraft:string | output 2x minecraft:string  概率 75% | output 1x minecraft:string  概率 40% | output 1x minecraft:string  概率 20%
+
+### centrifuge\centrifuge_wash_glowstone.json
+    machine=iron_centrifuge  recipeTime=120  requirements=3
+    输入: 能源 16 FE/t（合计 1920 FE） | input 1x ore:dustGlowstone
+    输出: output 1x minecraft:gunpowder  概率 60%
+
+### centrifuge\centrifuge_wash_redstone.json
+    machine=iron_centrifuge  recipeTime=180  requirements=3
+    输入: 能源 16 FE/t（合计 2880 FE） | input 1x ore:dustRedstone
+    输出: output 1x minecraft:gunpowder  概率 60%
+
+### power_transformer_energy_transform.json
+    machine=transformer  recipeTime=1  requirements=2
+    输入: 能源 128 FE/t（合计 128 FE）
+    输出: 输出能源 128 FE/t
+
+==== 配方数 = 9   问题数 = 0 ====
+
+=== 全部 item 引用（去重） ===

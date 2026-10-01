@@ -1,0 +1,46 @@
+== V. the items sit in the frames the texture draws, the factory screen draws its information block, and it draws no label
+  PASS  guifactory.png decoded from its pixels: 280x213
+  PASS  the sheet's slot holes, derived from its pixels (a 16x16 8B8B8B interior with a 373737 inset shadow and a FFFFFF highlight), number 37: they are at (255,8), (112,131), (130,131), (148,131), (166,131), (184,131), (202,131), (220,131), (238,131), (256,131), (112,149), (130,149), (148,149), (166,149), (184,149), (202,149), (220,149), (238,149), (256,149), (112,167), (130,167), (148,167), (166,167), (184,167), (202,167), (220,167), (238,167), (256,167), (112,189), (130,189), (148,189), (166,189), (184,189), (202,189), (220,189), (238,189), (256,189)
+  PASS  the screen declares the sheet's real size as its blit's texture size: declared 280x213 against the file's 280x213 (the original's own xSize/ySize, GuiFactoryController:50-51,88)
+  PASS  the blit's source region is the whole sheet and its destination is the whole panel: [0, 0, 0, 0, 280, 213, 280, 213] as {destX, destY, uOffset, vOffset, width, height, textureWidth, textureHeight}
+  PASS  ...so the mapping texel -> panel pixel is the identity: texel (280, 213) lands on (280, 213)
+  PASS  the menu's own slot table has the 36 rectangles of a player inventory (36): 112,131 ?? 256,189
+  PASS  ALL 36 player slots are centred in a hole the sheet really draws (36 of 36 coincide exactly)
+  PASS  the blueprint slot [255, 8] is centred in the sheet's own blueprint hole at (255, 8) (1 of 1)
+  PASS  ...and those coincidences are a bijection: 36 slots onto 36 distinct holes (one apiece, no sharing)
+  PASS  ...and the converse holds: every hole outside the blueprint's own is a menu slot (0 orphan holes in 37)
+
+  -- the information block and the player-inventory label, read out of the bytecode
+  PASS  FactoryControllerScreen.renderLabels invokes drawFactoryStatus (1 call): the information block is reached from the render path at all
+  PASS  ...and renderBg does not (0 calls), because renderBg runs before the pose carries the panel origin -- a panel-local translate there lands off-panel and the clip hides the whole block, which is the shipped 0.24.3/0.24.4 shape
+  PASS  drawFactoryStatus really draws text: 10 GuiGraphics#drawString call(s) -- its ten draw sites are the redstone row, the blueprint heading and name, the structure heading and name, the status heading and value, the thread row, the two parallelism rows and the closing line
+  PASS  ...and the keys it loads are the two the owner named: gui.modular_machinery_reborn.controller.blueprint present=true, gui.modular_machinery_reborn.controller.structure present=true (11 string constant(s) in the method; the old check's 'no invocation at all' was satisfied by the empty method that shipped)
+  PASS  ...which the language files spell as the owner's two lines: zh "????????%s" / "???????%s", en "Found blueprint: %s" / "Found structure: %s"
+  -- one origin: where the panel translate lives, read out of the vanilla class
+  PASS  the vanilla render calls renderBg before it translates the pose and renderLabels after: renderBg at instruction 17, translate at 55, renderLabels at 150
+  PASS  ...and that translate is fed the panel origin: leftPos read at instruction 3 and topPos at 8, both before the translate at 55 -- so the information block belongs to the renderLabels side of it, and the panel-local textBlockRect() is the right coordinate there
+  PASS  the block is placed by the layout's own rectangle: textBlockRect() [81,8 199x94] == FactoryPanel.textRect() [81,8 199x94] -- the same rectangle section U checks the clip against, so the block cannot drift away from the rest of the screen
+  PASS  ...and that rectangle, once the foreground pass's own (leftPos, topPos) translate is added, lands inside the panel [0,0 280x213] and inside the clip [0,0 280x213]
+  -- the player-inventory label and the title, read out of the three classes
+  PASS  FactoryControllerScreen.renderLabels reads no field at all (0 field reads over 1 invocation(s)): it cannot be reading the three fields the label is drawn from, nor the three the title is drawn from
+  PASS  ...and the screen never invokes AbstractContainerScreen#renderLabels (0 calls), which is the only method that draws either of them
+  PASS  ...and it contains no "container.inventory" literal (0 occurrences)
+  PASS  ...and it reads none of playerInventoryTitle/inventoryLabelX/inventoryLabelY/title/titleLabelX/titleLabelY anywhere in the class (0 reads)
+  PASS  ...and the ban is not vacuous: the vanilla AbstractContainerScreen#renderLabels really draws both (2 drawString call(s), reading playerInventoryTitle 1 time(s) and title 1 time(s) out of its own bytecode)
+  PASS  injected: MachineControllerScreen.renderLabels -- which legitimately keeps the label because the original's GuiMachineController:49-50 does call super -- is caught by the same predicate (2 invocations, 4 field reads)
+
+  -- the blit call itself, read out of the bytecode (the 256-default one is the defect)
+  PASS  blitPanel calls the overload that takes the sheet's size (1 call) and never the 256x256 default (0 calls)
+  PASS  ...whose arguments come from panelBlitFull() (1 call)
+  PASS  ...which in turn takes the destination and source from panelBlit() (1 call)
+  PASS  ...and blitPanel itself asks panelTextureSize() for the two size arguments (1 call), rather than typing 256, 256 into the call
+  PASS  ...and renderBg draws the panel through that one method (1 call), so the screen's only blit of the sheet is the checked one
+  PASS  injected: the same scan does find the 256-default blit in MachineControllerScreen.renderBg (1 call), where controller_legacy.png really is 256x256 ?? so the check above is not vacuously true
+  -- fault injection: the predicates above are fed a broken implementation; each
+     check below PASSES only when the predicate REJECTS it
+  PASS  injected: the slots moved by a single panel pixel put 0 of 36 items in their frames, so the predicate rejects a one-pixel origin error
+  PASS  injected: the slots moved by one whole slot pitch (18 panel px) leave the last column frameless: 32 of 36 coincide, so the 'ALL 36' predicate rejects it even though a whole-pitch shift lands most slots on a NEIGHBOUR's hole (32 distinct holes)
+  PASS  injected: 0.24.3's blit -- the 256x256 default against this 280x213 sheet, so the panel is drawn stretched 1.09375x in x and 0.832x in y -- puts 0 of 36 items in their frames: the predicate rejects the shipped defect too
+  PASS  ...and it says by how much: inventory row 0 col 0 at (112,131) is 28.061 panel px off its frame; inventory row 0 col 1 at (130,131) is 28.061 panel px off its frame; inventory row 0 col 2 at (148,131) is 28.061 panel px off its frame
+
+3 CHECK(S) FAILED

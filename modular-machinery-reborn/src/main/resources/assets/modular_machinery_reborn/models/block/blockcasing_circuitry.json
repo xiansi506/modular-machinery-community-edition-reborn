@@ -1,0 +1,4 @@
+{
+  "parent": "minecraft:block/cube_all",
+  "textures": { "all": "modular_machinery_reborn:block/blockcasing_circuitry" }
+}

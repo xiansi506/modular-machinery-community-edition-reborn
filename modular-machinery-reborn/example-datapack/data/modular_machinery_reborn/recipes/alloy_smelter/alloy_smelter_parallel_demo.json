@@ -1,0 +1,30 @@
+{
+    "//": "M6d demonstrator. Deliberately the cheapest possible recipe on the alloy furnace and",
+    "//2": "deliberately NOT sharing an input with the other two alloy-furnace recipes, so that the",
+    "//3": "parallel controller's effect is countable: N cobblestone in, N stone out, in one craft.",
+    "//4": "With no parallel controller the machine runs one copy per craft; with a tier-N controller",
+    "//5": "it settles min(tier, cobblestone, output space, energy) copies at once.",
+    "type": "modular_machinery_reborn:machine",
+    "machine": "alloy_furnace",
+    "registryName": "alloy_furnace_parallel_demo",
+    "recipeTime": 5,
+    "requirements": [
+        {
+            "type": "modularmachinery:energy",
+            "io-type": "input",
+            "energyPerTick": 100
+        },
+        {
+            "type": "modularmachinery:item",
+            "io-type": "input",
+            "item": "minecraft:cobblestone",
+            "amount": 1
+        },
+        {
+            "type": "modularmachinery:item",
+            "io-type": "output",
+            "item": "minecraft:stone",
+            "amount": 1
+        }
+    ]
+}

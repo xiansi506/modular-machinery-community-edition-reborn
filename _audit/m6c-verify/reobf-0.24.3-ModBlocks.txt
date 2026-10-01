@@ -1,0 +1,9 @@
+﻿jar: C:\Users\kk07H\Desktop\模组\modular-machinery-reborn\build\libs\modular_machinery_reborn-0.24.3.jar
+bytes: 566698
+sha256: C7B52AFC65850ED6EF6B1C9454138C9F4EA84470B421EAC352AE0F5EDCE5CCC2
+class extracted: True
+SRG refs (f_<n>_): 1
+official CREATIVE_MODE_TAB refs: 0
+--- verdict ---
+reobfuscated: True
+

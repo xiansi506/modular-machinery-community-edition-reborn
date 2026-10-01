@@ -1,0 +1,1 @@
+745E42FDCD8E9079FD668B555248C684652617560C753CD4DD7AA2B71C6D06E4  modular_machinery_reborn-0.29.0.jar  (the deployed artifact; build product hash equals this)

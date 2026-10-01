@@ -1,0 +1,37 @@
+可用方块 ID = 2538    可用物品 ID = 2538
+
+=== 1. 机器定义 ===
+  registryname = immortal_bloom_assembler   位置数 = 38
+  位置无重复（Origin 已按加载器规则排除）
+  使用方块（均已确认存在）：
+    modular_machinery_reborn:blockcasing
+    modular_machinery_reborn:item_input_hatch
+    modular_machinery_reborn:item_output_hatch
+    modular_machinery_reborn:energy_input_hatch
+    modular_machinery_reborn:fluid_input_hatch
+    botania:manasteel_block
+    botania:gaia_pylon
+    botania:elementium_block
+
+=== 2. 配方 ===
+  machine = 'immortal_bloom_assembler' 与 registryname 一致
+    input  8192 FE/t
+    input  1000 mB minecraft:water
+    input  1x rainbow_lotus:irisotos
+    input  8x botania:terrasteel_ingot
+    input  4x botania:gaia_ingot
+    input  4x botania:life_essence
+    input  8x botania:mana_diamond
+    input  1x avaritia:crystal_matrix_ingot
+    input  1x minecraft:nether_star
+    output  1x rainbow_lotus:immortal_bloom_crown
+    output  1x rainbow_lotus:eternal_petal   ← 25% 概率
+  物品输入 7 项；总能耗 9830400 FE（8192 FE/t × 1200 tick）
+
+=== 3. 仓口槽位是否够用 ===
+  需要同时容纳 7 种物品输入 → 物品输入仓等级容量：tiny1 small4 normal6 reinforced9 big12 huge16 ludicrous32
+  最小可行：reinforced(9) 或 big(12)；也可放多个输入仓（底座 25 格都是可用位置）
+  能源需 ≥ 8192 FE/t → 最低 big（8192 FE/t）
+  流体需 ≥ 1000 mB → 最低 normal（1000 mB）
+
+==== 校验结果：问题数 = 0 ====

@@ -1,0 +1,15 @@
+{
+  "name": "modular_machinery_reborn:example_charge",
+  "localizedname": "Example Charge Upgrade",
+  "level": 3.0,
+  "max-stack": 1,
+  "dynamic": true,
+  "compatible-machines": [
+    "modular_machinery_reborn:alloy_furnace"
+  ],
+  "descriptions": [
+    "A dynamic upgrade: each copy keeps its own NBT on the item,",
+    "the original's DynamicMachineUpgrade.",
+    "The whitelist above means only the alloy smelter accepts it."
+  ]
+}

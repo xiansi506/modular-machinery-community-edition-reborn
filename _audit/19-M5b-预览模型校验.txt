@@ -1,0 +1,29 @@
+=== M5b 结构预览模型校验 ===
+断言：结构位置集合永不含原点；且「包围盒被并入原点扩大」当且仅当原点原本在包围盒之外。
+
+  alloy_furnace   OK
+    结构位置 26 个；原点在位置集合内 = False（期望 False）
+    仅结构  x[-1..1] y[-1..1] z[0..2]  原点在盒内 = True
+    并入后  x[-1..1] y[-1..1] z[0..2]  扩大 = False（期望 False）
+  iron_centrifuge   OK
+    结构位置 26 个；原点在位置集合内 = False（期望 False）
+    仅结构  x[-1..1] y[-1..1] z[0..2]  原点在盒内 = True
+    并入后  x[-1..1] y[-1..1] z[0..2]  扩大 = False（期望 False）
+  transformer   OK
+    结构位置 32 个；原点在位置集合内 = False（期望 False）
+    仅结构  x[-1..1] y[-1..3] z[0..2]  原点在盒内 = True
+    并入后  x[-1..1] y[-1..3] z[0..2]  扩大 = False（期望 False）
+  immortal_bloom_assembler   OK
+    结构位置 38 个；原点在位置集合内 = False（期望 False）
+    仅结构  x[-2..2] y[-1..2] z[-2..2]  原点在盒内 = True
+    并入后  x[-2..2] y[-1..2] z[-2..2]  扩大 = False（期望 False）
+  example_machine   OK
+    结构位置 9 个；原点在位置集合内 = False（期望 False）
+    仅结构  x[-1..1] y[-1..-1] z[-1..1]  原点在盒内 = False
+    并入后  x[-1..1] y[-1..0] z[-1..1]  扩大 = True（期望 True）
+  example_machine   OK
+    结构位置 9 个；原点在位置集合内 = False（期望 False）
+    仅结构  x[-1..1] y[-1..-1] z[-1..1]  原点在盒内 = False
+    并入后  x[-1..1] y[-1..0] z[-1..1]  扩大 = True（期望 True）
+
+==== 问题数 = 0 ====

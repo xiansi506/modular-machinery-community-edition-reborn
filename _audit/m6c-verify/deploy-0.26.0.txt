@@ -1,0 +1,9 @@
+﻿deploy check 0.26.0
+built  : C:\Users\kk07H\Desktop\模组\modular-machinery-reborn\build\libs\modular_machinery_reborn-0.26.0.jar
+deployed: D:\.minecraft\versions\彩虹花园\mods\modular_machinery_reborn-0.26.0.jar
+bytes  : 580941 (both)
+SHA-256: F018AF91FE6D347B64F1555C176F4110DE886B41D4A19F3209EE9B15CE13D6E2 (both)
+SRG javap on deployed com.reborn.modularmachinery.block.ModBlocks:
+  official CREATIVE_MODE_TAB hits: 0
+  SRG f_<n>_ hits               : 1
+removed: modular_machinery_reborn-0.25.0.jar (same directory)

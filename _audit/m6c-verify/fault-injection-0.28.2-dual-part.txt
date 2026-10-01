@@ -1,0 +1,44 @@
+﻿FAULT INJECTION A - 0.28.2: the 0.28.1 dual-part shape put back (part(int,int,int,Object...) AND part(List<List<List,Object...))
+injected into MachineBuilderJS.java; the scalar spelling keeps its name and the list spelling takes 'part' again
+the builder's class file then declares two 'part' methods, which is the ambiguity this release removed
+
+NOTE: filtered out of the Gradle console log (non-ASCII shows as ??); the harness's own tee is UTF-8 and holds the LAST run only.
+
+  PASS  javap read the builder's member list for the overload check (20894 chars)
+  FAIL  part(int,int,int,Object...) is declared ?? the spelling every existing script uses: [public com.reborn.modularmachinery.kubejs.MachineBuilderJS part(int, int, int, java.lang.Object...);, public com.reborn.modularmachinery.kubejs.MachineBuilderJS part(java.util.List<java.lang.Integer>, java.util.List<java.lang.Integer>, java.util.List<java.lang.Integer>, java.lang.Object...);]
+  FAIL  ...and it is the class's only 'part' (0.28.1 declared a second, List-taking 'part' here, so which of the two a script reached was Rhino's business): 'part' declared 2 time(s) [public com.reborn.modularmachinery.kubejs.MachineBuilderJS part(int, int, int, java.lang.Object...);, public com.reborn.modularmachinery.kubejs.MachineBuilderJS part(java.util.List<java.lang.Integer>, java.util.List<java.lang.Integer>, java.util.List<java.lang.Integer>, java.lang.Object...);]
+  FAIL  ...while the list spelling has its own name: 'parts' declared 0 time(s) []
+
+== Z9. 0.28.1 ?? the machine event really reaches a script as a callable event
+  PASS  KubeJS's own classes could be loaded for this check (the deobfuscated build, which pairs with this harness's Mojmap Minecraft): C:\Users\kk07H\Desktop\???\.gradle-home\caches\forge_gradle\deobf_dependencies\libs\kubejs\1.20.1_mapped_official_1.20.1\kubejs-1.20.1_mapped_official_1.20.1.jar
+  PASS  ...and so could the Rhino fork KubeJS runs scripts with: C:\Users\kk07H\Desktop\???\.gradle-home\caches\forge_gradle\deobf_dependencies\libs\rhino\1.20.1_mapped_official_1.20.1\rhino-1.20.1_mapped_official_1.20.1.jar
+  PASS  ...while the production jars this checkout ships are SRG-remapped (libs/kubejs-1.20.1.jar, byte-identical to the instance's), so building on them here would have been a mapping mismatch, not a test
+  PASS  a stand-in for Architectury's Platform was compiled (KubeJS reads the game folder while its own classes initialise, and this harness has no mod loader): C:\Users\kk07H\AppData\Local\Temp\mmverify-kjs-stub\classes
+[17:25:33] [main/INFO] [KubeJS/]: Loaded common.properties
+[17:25:33] [main/INFO] [KubeJS/]: Loaded dev.properties
+  PASS  registerEvents() is what puts the machine event group into KubeJS's own group registry under 'MachineRegistryEvents' ?? without it KubeJS never binds the group, and a binding with no group behind it is another way to ship an event no script can call
+  PASS  ...with exactly one typed event on it ([registry])
+  PASS  registerBindings published 'MachineRegistryEvents' (dev.latvian.mods.kubejs.event.EventGroupWrapper)
+  PASS  ...as a KubeJS EventGroupWrapper rather than the raw group (the 0.28.0 defect)
+  PASS  a script sees 'registry' on the published binding as: expected function, got function
+  PASS  ...and the property is the group's own event handler (dev.latvian.mods.kubejs.event.EventHandler)
+  PASS  ...and calling it reaches that handler instead of failing to find it (stopped at: java.lang.IllegalStateException: Unknown script type!)
+  PASS  the raw group 0.28.0 bound exposes no event: typeof ...registry: expected undefined, got undefined
+  PASS  ...and the script dies with the owner's own TypeError: dev.latvian.mods.rhino.EcmaError: TypeError: Cannot find function registry in object dev.latvian.mods.rhino.NativeJavaObject@162bc9e8. (mmverify-z9.js#1)
+
+== Z10. 0.28.2 ?? the documented .part(x, y, z, ??) resolves to the scalar method, run through Rhino
+  PASS  the deobfuscated KubeJS + Rhino jars were found for Z10 (same pair section Z9 drives): C:\Users\kk07H\Desktop\???\.gradle-home\caches\forge_gradle\deobf_dependencies\libs\kubejs\1.20.1_mapped_official_1.20.1\kubejs-1.20.1_mapped_official_1.20.1.jar / C:\Users\kk07H\Desktop\???\.gradle-home\caches\forge_gradle\deobf_dependencies\libs\rhino\1.20.1_mapped_official_1.20.1\rhino-1.20.1_mapped_official_1.20.1.jar
+  PASS  the Architectury Platform stand-in compiled
+  PASS  the real MachineRegistryEventJS was instantiated (com.reborn.modularmachinery.kubejs.MachineRegistryEventJS) for the script to call machine() on
+  PASS  the documented scalar call, evaluated by KubeJS's own Rhino, builds exactly the definition the data pack would have carried ("x":1 is reachable only through part(int,int,int,Object...), so this is the resolution being read off the result): expected {"registryname":"scripted_smoke","localizedname":"Scripted Smoke","parts":[{"x":1,"y":-1,"z":0,"elements":"minecraft:stone"},{"x":0,"y":1,"z":0,"elements":["modular_machinery_reborn:blockcasing[casing=plain]","modular_machinery_reborn:blockcasing[casing=vent]"]}]}, got {"registryname":"scripted_smoke","localizedname":"Scripted Smoke","parts":[{"x":1,"y":-1,"z":0,"elements":"minecraft:stone"},{"x":0,"y":1,"z":0,"elements":["modular_machinery_reborn:blockcasing[casing=plain]","modular_machinery_reborn:blockcasing[casing=vent]"]}]}
+  FAIL  ...and the array spelling, now `parts(...)`, still expands a list of coordinates into the cartesian product the guide documents: expected {"registryname":"kubejs_wall","parts":[{"x":[-1,0,1],"y":0,"z":[-1,0,1],"elements":"minecraft:iron_block"},{"x":0,"y":1,"z":0,"elements":"minecraft:furnace[facing=north]"}]}, got THREW dev.latvian.mods.rhino.EcmaError: TypeError: Cannot find function parts in object MachineBuilderJS[{"registryname":"kubejs_wall"}]. (mmverify-z10.js#1)
+  FAIL  the 0.28.1 array spelling .part([...], [...], [...], ??) is refused by the scalar signature: java.lang.ClassCastException: class java.lang.Double cannot be cast to class java.lang.Integer (java.lang.Double and java.lang.Integer are in module java.base of loader 'bootstrap')
+  FAIL  a fractional coordinate is refused by name rather than truncated to a different block: dev.latvian.mods.rhino.EcmaError: TypeError: Cannot find function parts in object MachineBuilderJS[{"registryname":"probe_frac"}]. (mmverify-z10.js#1)
+  FAIL  ...while a whole number written with a decimal point is still accepted (1.0 is 1, so the check is wholeness rather than the Java type): expected {"registryname":"probe_whole","parts":[{"x":1,"y":0,"z":0,"elements":"minecraft:stone"}]}, got THREW dev.latvian.mods.rhino.EcmaError: TypeError: Cannot find function parts in object MachineBuilderJS[{"registryname":"probe_whole"}]. (mmverify-z10.js#1)
+  FAIL  the class the script meets declares one 'parts' and no list-taking 'part' ('parts'=0, list-taking 'part'=1)
+  PASS  a script's array arrives at a Java List parameter as: expected [-1.0, 0.0, 1.0], got [-1.0, 0.0, 1.0]
+  PASS  ...so its elements are Double, not Integer ?? which is why parts(??) is declared over Number: expected java.lang.Double, got java.lang.Double
+  PASS  ...and a script's NUMBER has no conversion to List at all (99 is Rhino's "cannot convert"), so the scalar spelling can never fall into a list-shaped method by weight either: expected 99, got 99
+  PASS  ...while the same number converts to Integer at weight 2 ?? the tie 0.28.1 left for the JVM's method order to break, and the reason both spellings now have their own name
+
+SUMMARY: 1031 PASS / 11 FAIL (1042 checks)

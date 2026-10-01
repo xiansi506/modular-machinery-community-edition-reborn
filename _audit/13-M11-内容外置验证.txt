@@ -1,0 +1,24 @@
+=== 1. mod jar 已无内容 ===
+  data/ 下文件数 = 0  (预期 0)
+  blockstates = 8  (预期 8 = 6 仓口 + 1 机箱 + 1 通用控制器)
+  models/item = 59  (预期 59)
+  -> 3 个绑定控制器的 blockstate/item model 已从 jar 删除；作者声明的控制器改由运行时合成资源包提供
+
+=== 2. 语言键（按真实描述 ID 校验） ===
+  物品 59 + 方块额外 8 + UI 10 + 保留键 6 => 去重 82
+  zh_cn.json : 键=82 缺失=0 孤立=0
+  en_us.json : 键=82 缺失=0 孤立=0
+  「保留键」= 3 个控制器回退名 + 3 个机器显示名，供数据包机器被声明时使用（数据包无法提供语言文件）
+
+=== 3. 独立数据包自洽性 ===
+  机器: alloy_furnace, transformer, iron_centrifuge
+  变量: casings_decorative, casings_fluid, casings_energy, casings_all, casings_item
+  所有 elements 均为已命名空间方块 ID 或已定义变量
+  配方 9 份，全部引用包内已定义的机器（mod 不再提供任何机器，故此项必须成立）
+
+=== 4. 控制器声明文件 ===
+  alloy_furnace.json: registryname='alloy_furnace' 含 parts=False -> 判定为声明: True
+  iron_centrifuge.json: registryname='iron_centrifuge' 含 parts=False -> 判定为声明: True
+  transformer.json: registryname='transformer' 含 parts=False -> 判定为声明: True
+
+==== 0.11.0 静态验证：问题数 = 0 ====

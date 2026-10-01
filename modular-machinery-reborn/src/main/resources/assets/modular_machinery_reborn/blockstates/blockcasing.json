@@ -1,0 +1,10 @@
+{
+  "variants": {
+    "casing=plain": { "model": "modular_machinery_reborn:block/blockcasing_plain" },
+    "casing=vent": { "model": "modular_machinery_reborn:block/blockcasing_vent" },
+    "casing=firebox": { "model": "modular_machinery_reborn:block/blockcasing_firebox" },
+    "casing=gearbox": { "model": "modular_machinery_reborn:block/blockcasing_gearbox" },
+    "casing=reinforced": { "model": "modular_machinery_reborn:block/blockcasing_reinforced" },
+    "casing=circuitry": { "model": "modular_machinery_reborn:block/blockcasing_circuitry" }
+  }
+}

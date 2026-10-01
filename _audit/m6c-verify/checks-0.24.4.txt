@@ -1,0 +1,90 @@
+# 0.24.4 — the eight mandatory checks (`modular-machinery-reborn/交接文档.md` 发布必查项)
+
+Counts in this file were read back from the files named, on disk — not from a console and not from the
+volatile Gradle daemon log.
+
+| # | check | result | evidence |
+|---|---|---|---|
+| 1 | jar is SRG-reobfuscated (build product **and** deployed file) | PASS — official `CREATIVE_MODE_TAB` refs = **0**, SRG `f_<n>_` refs = **1**, in both files | `reobf-0.24.4-ModBlocks.txt`, `reobf-0.24.4-deployed.txt` |
+| 2 | order: harness → `clean build` → reobf check → deploy | PASS — the harness ran first and *did* rewrite `build/libs` un-reobfuscated again; `clean build` (`> Task :jar`, `> Task :reobfJar`, BUILD SUCCESSFUL in 20s) and the re-check followed before deploying. Both fault injections were done and reverted **before** the acceptance run, which was itself before `clean build` | `release-build-0.24.4.txt`, `deploy-0.24.4.txt` |
+| 3 | exactly one `registerConfig` per type | PASS — 6 textual mentions of `registerConfig` in `src`, exactly **one** real call: `ModConfig.java:200 .registerConfig(Type.COMMON, SPEC)`; the rest are comments. Exactly one `new ForgeConfigSpec.Builder(` (`ModConfig.java:143`). This release adds no key | grep of `src/**/*.java`, reproduced below |
+| 4 | the harness itself compiles | PASS — `javac` runs inside the `m6cVerify` task; section V (ImageIO pixel derivation + ASM scans) compiles and runs; the run executed **25** sections | `harness-stdout-0.24.4.txt` (25 `^== ` headers) |
+| 5 | config key paths read from the **rendered spec** | PASS — 13/13 rendered keys (section R); section R is also where the 3 environmental FAILs are | `harness-stdout-0.24.4.txt`, section R |
+| 6 | evidence lands in `_audit/` with counts read back from the file | PASS — every count in the table below was read out of the named file's contents | the files themselves |
+| 7 | a new visible-UI version needs a minimal in-game checklist | PASS — 5-item checklist in `releases/modular-machinery-reborn/v0.24.4/README.md` (items centred in their frames incl. the hotbar row; one right border; no 「物品栏」; slot clicks land on the frame; the plain controller keeps its label) | `releases/modular-machinery-reborn/v0.24.4/README.md` |
+| 8 | assertions must be able to fail | PASS — two source-level injections, both reverted and hash-checked: the 6-argument `blit` restored → **646 PASS / 4 FAIL**; `panelTextureSize()` answering 256×256 → **641 PASS / 9 FAIL**, including `ALL 36 player slots are centred in a hole the sheet really draws (0 of 36 coincide exactly)` | `fault-injection-0.24.4-blit-256.txt`, `fault-injection-0.24.4-declared-256.txt` |
+
+## Evidence files, with counts read back from their contents
+
+| file | PASS | FAIL | lines |
+|---|---|---|---|
+| `acceptance-0.24.4-screen-alignment.txt` (full Gradle + harness stdout) | 647 | 3 | 765 |
+| `harness-stdout-0.24.4.txt` (harness stdout only, sections A–V) | 647 | 3 | 718 |
+| `section-V-0.24.4.txt` (section V alone) | 22 | 0 | 31 |
+| `fault-injection-0.24.4-blit-256.txt` | 646 | 4 | 765 |
+| `fault-injection-0.24.4-declared-256.txt` | 641 | 9 | 765 |
+| `deployed-blit-0.24.4.txt` (the fix inside the deployed jar) | — | — | 31 |
+| `release-build-0.24.4.txt` | — | — | 47 |
+| `reobf-0.24.4-ModBlocks.txt` | — | — | 1243 |
+| `reobf-0.24.4-deployed.txt` | — | — | 1243 |
+| `deploy-0.24.4.txt` | — | — | 21 |
+
+> One note on `fault-injection-0.24.4-blit-256.txt`: that capture was taken with section V's final content
+> except that the "the size comes from `panelTextureSize()`" link check then scanned `panelBlitFull` rather than
+> `blitPanel`; the check that caught this injection — `blitPanel calls the overload that takes the sheet's size
+> (0 call) and never the 256x256 default (1 calls)` — is identical in the shipped harness, and the shipped
+> harness's own in-run injection of the same 256 blit (`… puts 0 of 36 items in their frames`) passes in the
+> green run, i.e. it rejects the defect. The declared-size injection (641/9) was run with the shipped harness.
+> The capture of the intermediate revision was deleted rather than left in `_audit/` as stale evidence.
+
+Section V's 22 lines, verbatim from `section-V-0.24.4.txt` (the PASS/FAIL strings, abridged to the first line of
+each report where the report is a listing):
+
+```
+PASS  guifactory.png decoded from its pixels: 280x213
+PASS  the sheet's slot holes, derived from its pixels (...), number 37: they are at (255,8), (112,131), (130,131), ...
+PASS  the screen declares the sheet's real size as its blit's texture size: declared 280x213 against the file's 280x213
+PASS  the blit's source region is the whole sheet and its destination is the whole panel: [0, 0, 0, 0, 280, 213, 280, 213]
+PASS  ...so the mapping texel -> panel pixel is the identity: texel (280, 213) lands on (280, 213)
+PASS  the menu's own slot table has the 36 rectangles of a player inventory (36): 112,131 ... 256,189
+PASS  ALL 36 player slots are centred in a hole the sheet really draws (36 of 36 coincide exactly)
+PASS  the blueprint slot [255, 8] is centred in the sheet's own blueprint hole at (255, 8) (1 of 1)
+PASS  ...and those coincidences are a bijection: 36 slots onto 36 distinct holes (one apiece, no sharing)
+PASS  ...and the converse holds: every hole outside the blueprint's own is a menu slot (0 orphan holes in 37)
+PASS  FactoryControllerScreen.renderLabels draws nothing at all -- no string and no field read (invocations 0, field reads 0); the original's GuiFactoryController:76-80 overrides drawGuiContainerForegroundLayer and never calls super, which is the only place 1.12.2 draws I18n container.inventory
+PASS  injected: MachineControllerScreen.renderLabels -- which keeps the label because the original's GuiMachineController:49-50 does call super -- is caught by that same predicate (invocations 2, field reads 4)
+PASS  blitPanel calls the overload that takes the sheet's size (1 call) and never the 256x256 default (0 calls)
+PASS  ...whose arguments come from panelBlitFull() (1 call)
+PASS  ...which in turn takes the destination and source from panelBlit() (1 call)
+PASS  ...and blitPanel itself asks panelTextureSize() for the two size arguments (1 call), rather than typing 256, 256 into the call
+PASS  ...and renderBg draws the panel through that one method (1 call), so the screen's only blit of the sheet is the checked one
+PASS  injected: the same scan does find the 256-default blit in MachineControllerScreen.renderBg (1 call), where controller_legacy.png really is 256x256 -- so the check above is not vacuously true
+PASS  injected: the slots moved by a single panel pixel put 0 of 36 items in their frames, so the predicate rejects a one-pixel origin error
+PASS  injected: the slots moved by one whole slot pitch (18 panel px) leave the last column frameless: 32 of 36 coincide, so the 'ALL 36' predicate rejects it even though a whole-pitch shift lands most slots on a NEIGHBOUR's hole (32 distinct holes)
+PASS  injected: 0.24.3's blit -- the 256x256 default against this 280x213 sheet, so the panel is drawn stretched 1.09375x in x and 0.832x in y -- puts 0 of 36 items in their frames: the predicate rejects the shipped defect too
+PASS  ...and it says by how much: inventory row 0 col 0 at (112,131) is 28.061 panel px off its frame; ...
+```
+
+## The three FAILs are environmental and were not "fixed"
+
+Section R's config-migration check requires a **pre-0.24.0** config file; the instance's is already migrated
+(1137 chars, `isCorrect() == true`, 0 corrections). The user's config was not touched.
+
+## Red lines
+
+- `client/preview/StructurePreviewRenderer.java` — mtime still **2026-09-30 01:16:55** (unmodified).
+- the four confirmed-working JEI files — unmodified (`ModularMachineryJeiPlugin.java` 12:57:54).
+- zero files under `src/main/resources/data/` (**0** in the source tree and **0** `data/*` entries in the built
+  and deployed jar).
+- language keys **166** in `zh_cn.json` and **166** in `en_us.json`, set difference **0**.
+- exactly one real `.registerConfig(` call, one `new ForgeConfigSpec.Builder(`.
+- no `.md` moved or renamed; `releases/` (except the new `v0.24.4/`), the user's saves and config untouched.
+- this release changed 3 source files (`client/FactoryControllerScreen.java`, `client/ScreenLayout.java`,
+  `menu/FactoryControllerMenu.java`) plus `gradle.properties`' version.
+
+## Deploy
+
+`D:\.minecraft\versions\彩虹花园\mods\modular_machinery_reborn-0.24.4.jar`, 567143 bytes, SHA-256
+`98FE64A15394F3B77322395F45809489A8679E02CD1774581B538558B65A714B`, identical to the build product and to
+`releases/modular-machinery-reborn/v0.24.4/`. The 0.24.3 jar was removed from that directory (it was the only
+older `modular_machinery_reborn-*.jar` there).

@@ -1,0 +1,48 @@
+# 0.24.3 — the eight mandatory checks (`releases/modular-machinery-reborn/README.md` 发布必查项)
+
+Counts in this file were read back from the files named, not from a console or the Gradle daemon log.
+
+| # | check | result | evidence |
+|---|---|---|---|
+| 1 | jar is SRG-reobfuscated (build product **and** deployed file) | PASS — SRG `f_<n>_` refs = 1, official `CREATIVE_MODE_TAB` refs = 0, both files | `reobf-0.24.3-ModBlocks.txt`, `reobf-0.24.3-deployed.txt` |
+| 2 | order: harness → `clean build` → reobf check → deploy | PASS — harness ran first and *did* rewrite `build/libs` un-reobfuscated again; the `clean build` (`> Task :reobfJar`, BUILD SUCCESSFUL) and the re-check followed before deploying | `release-build-0.24.3.txt`, `deploy-0.24.3.txt` |
+| 3 | exactly one `registerConfig` per type | PASS — 6 textual mentions of `registerConfig` in `src`, exactly **one** of them a call: `ModConfig.java:200 .registerConfig(Type.COMMON, SPEC)`; the rest are comments (including the `ModularMachineryReborn.java:40` warning) | grep of `src/**.java`, reproduced in this directory's README |
+| 4 | the harness itself compiles | PASS — `javac` runs inside the `m6cVerify` task; the run executed 24 sections after the harness gained the ASM pose scan | `harness-stdout-0.24.3.txt` (24 `^== ` headers) |
+| 5 | config key paths read from the **rendered spec** | PASS — 13/13 rendered keys (section R; section R is also where the 3 environmental FAILs are) | `harness-stdout-0.24.3.txt`, section R |
+| 6 | evidence lands in `_audit/` with counts read back from the file | PASS — see the table below; `acceptance-0.24.3-screen-layout.txt` contains **625 PASS / 3 FAIL** and 24 section headers, verified by opening it, not by trusting the claim | the files themselves |
+| 7 | a new visible-UI version needs a minimal in-game checklist | PASS — 4-item checklist in `releases/modular-machinery-reborn/v0.24.3/README.md` (controller glyphs whole; 物品栏 on its own row; smart-interface row alignment; factory queue inside the panel) | `releases/modular-machinery-reborn/v0.24.3/README.md` |
+| 8 | assertions must be able to fail | PASS — the 0.24.2 defect (missing `pose().translate`) was put back into the shipped source and the harness went **622 PASS / 6 FAIL**, three of them naming the absent translate; source restored, re-run at 625/3, release built from that state | `fault-injection-0.24.3-missing-translate.txt` |
+
+## Evidence files, with counts read back from their contents
+
+| file | PASS | FAIL | lines |
+|---|---|---|---|
+| `acceptance-0.24.3-screen-layout.txt` (full Gradle + harness stdout) | 625 | 3 | 734 |
+| `harness-stdout-0.24.3.txt` (harness stdout only, sections A–U) | 625 | 3 | 688 |
+| `section-U-0.24.3-layout.txt` (section U alone) | 84 | 0 | 95 |
+| `fault-injection-0.24.3-missing-translate.txt` | 622 | 6 | 734 |
+| `release-build-0.24.3.txt` | — | — | 46 |
+| `reobf-0.24.3-ModBlocks.txt` | — | — | 9 |
+| `reobf-0.24.3-deployed.txt` | — | — | 9 |
+| `deploy-0.24.3.txt` | — | — | 32 |
+
+## The three FAILs are environmental and were not "fixed"
+
+Section R's config-migration check requires a **pre-0.24.0** config file; the instance's is already migrated
+(1137 chars, `isCorrect() == true`, 0 corrections). The user's config was not touched.
+
+## Red lines
+
+- `client/preview/StructurePreviewRenderer.java` — mtime still **2026-09-30 01:16:55** (unmodified).
+- the four confirmed-working JEI recipe files — unmodified (`ModularMachineryJeiPlugin.java` 12:57:54;
+  the JEI texture and service file older still).
+- zero files under `src/main/resources/data/` (**0** in the source tree and **0** `data/*` entries in the
+  built jar).
+- language keys **166** in `zh_cn.json` and **166** in `en_us.json`, set difference **0**.
+- no `.md` moved or renamed; `releases/`, the user's saves and config untouched.
+
+## Deploy
+
+`D:\.minecraft\versions\彩虹花园\mods\modular_machinery_reborn-0.24.3.jar`, 566698 bytes,
+SHA-256 `C7B52AFC65850ED6EF6B1C9454138C9F4EA84470B421EAC352AE0F5EDCE5CCC2`, identical to the build product
+and to `releases/modular-machinery-reborn/v0.24.3/`. The 0.24.2 jar was removed from that directory.

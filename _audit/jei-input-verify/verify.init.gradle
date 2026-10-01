@@ -1,0 +1,31 @@
+allprojects { project ->
+    afterEvaluate {
+        if (project.name == 'modular-machinery-reborn') {
+            def smokeDir = project.rootProject.file('../_audit/jei-input-verify')
+            tasks.register('verifyRealPanel', JavaExec) {
+                dependsOn tasks.named('classes')
+                def src = new File(smokeDir, 'ButtonStateVerify.java')
+                def outDir = project.layout.buildDirectory.dir('real-panel-verify').get().asFile
+                def cp = project.sourceSets.main.output + project.configurations.compileClasspath
+                doFirst {
+                    outDir.mkdirs()
+                    def javaHome = System.getenv('JAVA_HOME').replace('\\', '/')
+                    def pb = new ProcessBuilder("${javaHome}/bin/javac",
+                            '-nowarn', '-proc:none', '-encoding', 'UTF-8',
+                            '-cp', cp.asPath, '-d', outDir.absolutePath, src.absolutePath)
+                    pb.redirectErrorStream(true)
+                    def proc = pb.start()
+                    def text = proc.inputStream.getText('UTF-8')
+                    int code = proc.waitFor()
+                    if (code != 0) {
+                        println "--- javac output ---\n" + text
+                        throw new GradleException('harness javac failed')
+                    }
+                }
+                classpath = project.files(outDir) + cp
+                mainClass = 'ButtonStateVerify'
+            }
+        }
+    }
+}
+
