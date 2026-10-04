@@ -26,9 +26,13 @@ See `docs/使用说明.md` (Chinese) and `docs/KJS-配方指南.md` for the auth
 - Three sources (data pack / config directory / KubeJS); multi-layer and arbitrary shapes; matching rotated to the controller's facing
 - Blueprint binding and `requires-blueprint`
 - Controller-claim mechanism, so data-pack machines can have a dedicated controller too
+- **The two activation paths are kept apart**: a data change (structure, recipe, upgrade, script) takes effect on **`/reload`**;
+  **adding a block** (a dedicated controller, a factory controller) needs a **restart** — the rule and the full table are in [`使用说明.md`](使用说明.md) §六
 
 **Recipe engine**
 - Requirement-list schema; types `item` / `fluid` / `energy` / `interface_number_input` / `ingredient_array_input`
+- Fluid can be consumed or produced **per tick**: add `"perTick": true` to a `fluid` requirement (the original's separate
+  `fluid_pertick` kind returns `null` from `createRequirement` — a dead type with no JSON entry point)
 - Inputs consumed at start, energy drained per tick, outputs rolled independently per completion
 - The original's ore-dictionary syntax (`ore:`) mapped to tags; the original's namespace (`modularmachinery:`) accepted unchanged
 
@@ -37,8 +41,9 @@ See `docs/使用说明.md` (Chinese) and `docs/KJS-配方指南.md` for the auth
 
 **User interface (reproduced from the original)**
 - Machine controller screen (176×213), hatch screens, factory controller screen (280×213)
-- **3D structure preview** — right-click a blueprint; a JEI "machine structure" category; machine info including the parallelism/thread rows
+- **3D structure preview** — right-click a blueprint; the preview panel's **button row is complete** (reset view / layer toggle / per-layer 2D view / layer scrollbar); a JEI "machine structure" category; machine info including the parallelism/thread rows
 - Recipe JEI pages (input quantities, and the blocks a machine is built from)
+- **One JEI category per machine** — every machine gets its own category and catalysts (that machine's controller plus a blueprint bound to it), rather than all controllers sharing one
 
 **Upgrades / parallelism / factory**
 - Upgrade bus in 5 tiers (3/6/9/12/18 slots); upgrade effects declared as data
@@ -82,24 +87,6 @@ See `docs/使用说明.md` (Chinese) and `docs/KJS-配方指南.md` for the auth
 **Scripting**
 - A CraftTweaker-equivalent API
 - AE2 / GregTech / TConstruct and similar compatibility modules (optional, standalone, and excluded from the main-line completion count)
-
----
-
-## ✅ Once listed as "not done", but **actually delivered long ago**
-
-These four sat in the list above for a long time. The code and the archived release notes both show they
-were delivered, so they have been removed from "not done":
-
-- **Per-machine JEI categories** — **done in 0.17.0**: every machine gets its own JEI category and catalysts
-  (that machine's own controller plus a blueprint bound to it). 0.16.2 had concluded that JEI could not bind a
-  catalyst per recipe; **0.17.0 disproved that**.
-- **The preview panel's button row** (reset view / layer toggle / per-layer 2D view / layer scrollbar) —
-  **done in 0.16.0**.
-- **`fluid_pertick`** — **not a gap**: the original's JSON entry point for that type
-  (`RequirementTypeFluidPerTick#createRequirement`) **returns `null`** (the same dead-type shape as
-  `item_durability`) and only CraftTweaker could build it; per-tick fluid is expressed here as
-  **`fluid` + `"perTick": true`**, which **is implemented**.
-- **The `/reload` versus restart difference** — documented in full in [`使用说明.md`](使用说明.md).
 
 ---
 
