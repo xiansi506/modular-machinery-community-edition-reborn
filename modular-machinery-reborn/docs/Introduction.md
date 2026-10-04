@@ -86,7 +86,7 @@ See `docs/使用说明.md` (Chinese) and `docs/KJS-配方指南.md` for the auth
 
 **Scripting**
 - A CraftTweaker-equivalent API
-- AE2 / GregTech / TConstruct and similar compatibility modules (optional, standalone, and excluded from the main-line completion count)
+- AE2 / GregTech / TConstruct and similar compatibility modules (**each optional and standalone**; confirmed to be **in scope**, one module at a time — see the implementation order's wave 5)
 
 ---
 
