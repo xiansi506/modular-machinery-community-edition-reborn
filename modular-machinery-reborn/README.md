@@ -2,8 +2,9 @@
 
 Forge 1.20.1 / Java 17 migration foundation for the archived Modular Machinery: Community Edition source.
 
-**Current version: 0.30.0** — the first public release. It is **functionally 0.29.0**: no behaviour changed in this
-release (see `迁移日志.md`).
+**Current version: 0.30.1** — the first public release. It is **functionally 0.29.0**: no behaviour changed in this
+release (**0.30.0** was the release-collateral version; **0.30.1** only corrected the `license` / `authors` metadata
+in `META-INF/mods.toml`, see `迁移日志.md` and `交接文档.md` §1b).
 
 > 🚀 **New here? Start at [docs/使用说明.md](docs/使用说明.md)** — "from an empty instance to a machine that runs",
 > in Chinese, with complete copy-pasteable machine definitions and recipes.
