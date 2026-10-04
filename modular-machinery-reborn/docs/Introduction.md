@@ -81,8 +81,8 @@ See `docs/使用说明.md` (Chinese) and `docs/KJS-配方指南.md` for the auth
 
 **Tools**
 - The **projector `machine_projector`** (world-space ghost preview) — deliberately not in this release
-- `ItemDebugStruct`
-- A **real "select a region and place the blocks" builder** — the original **has no such feature**. This mod's construct tool is *selection + definition export*, not a placer.
+- A **real "select a region and place the blocks" builder** — the original **has no such feature**. This mod's construct tool is *selection + definition export*, not a placer. **The owner decided not to build one.**
+- `ItemDebugStruct` — **deliberately not ported** (owner's decision, 2026-10-04): the original never registered it and its implementation is broken; see the implementation order's §6.1.
 
 **Scripting**
 - A CraftTweaker-equivalent API

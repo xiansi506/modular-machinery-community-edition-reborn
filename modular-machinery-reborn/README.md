@@ -537,12 +537,16 @@ This is a foundation slice, not a feature-complete migration. Not yet implemente
 - The requirement engine still lacks gas and the recipe adapters; **per-tick fluid is implemented** (`fluid` +
   `"perTick": true`), and `item_durability` / `catalyst` are deliberately absent for the reason given above.
   Chance outputs, min/max amounts and the one-of-a-group input are implemented.
-- **The structure editing tools.** `machine_projector` and `ItemDebugStruct` are registered items without
-  behaviour (the owner deferred the projector; the original itself wrote `TODO: Realize it.` on the debug
-  struct). **`itemconstructtool` is no longer inert** — 0.29.0 gave it the original's selection → machine-JSON
-  export (see the section above). The blueprint is not inert either: it binds a machine and opens the structure
-  preview, **and that preview's button row is reproduced** — layer toggle, reset centre, the per-layer 2D view
-  and the layer scrollbar all shipped in 0.16.0 (`releases/modular-machinery-reborn/v0.16.0/README.md`).
+- **The structure editing tools.** `machine_projector` is a registered item without behaviour (the owner
+  deferred the projector). **`ItemDebugStruct` is deliberately not ported** (owner's decision, 2026-10-04):
+  the original **never registered it** — the whole code base mentions it only in its own class file, and it has
+  no texture, model or language key — and its implementation is broken (it stays silent when the structure
+  actually matches, and its four-orientation loop never rotates the world position, so three of the four
+  reported positions are meaningless). **`itemconstructtool` is no longer inert** — 0.29.0 gave it the
+  original's selection → machine-JSON export (see the section above). The blueprint is not inert either: it
+  binds a machine and opens the structure preview, **and that preview's button row is reproduced** — layer
+  toggle, reset centre, the per-layer 2D view and the layer scrollbar all shipped in 0.16.0
+  (`releases/modular-machinery-reborn/v0.16.0/README.md`).
 - The upgrade bus and factory controller systems. (The **parallel controller** shipped in 0.20.0 — see
   **Parallel controllers** above — and the **smart data interface** in 0.24.0.)
 - All mod integrations (AE2, GregTech, Thaumcraft, TConstruct, Botania, and others — 26 blocks in the original).
