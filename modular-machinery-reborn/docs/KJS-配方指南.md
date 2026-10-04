@@ -78,7 +78,10 @@ modular_machinery_reborn:item     modularmachinery:item     item
 - `interface_number_input`（智能数据接口数值输入，0.24.0 起）
 - `ingredient_array_input`（**组内只消耗其中一个**，0.26.0 起）
 
-**未支持**（写了会**加载即报错**，不会静默跳过）：`gas` / `gas_pertick` / `fluid_pertick`、`catalyst`、`item_durability`。原因见 [已知限制.md](已知限制.md)。
+**逐 tick 的流体**不是单独的类型：在 `fluid` 需求上加 **`"perTick": true`** 即可（开工时一次性扣 vs 每 tick 扣，由这个布尔决定）。
+
+**未支持**（写了会**加载即报错**，不会静默跳过）：`gas` / `gas_pertick`（依赖 Mekanism 气体 API）、`catalyst`、`item_durability`——后两者在原版里**根本不是需求类型**，所以**不是缺口**。原因见 [已知限制.md](已知限制.md)。
+⚠️ `fluid_pertick` **不在此列**：原版那个类型的 JSON 入口 `createRequirement` 返回 `null`（只能 CraftTweaker 构造），逐 tick 流体用上面的 `perTick` 写。
 
 ## 六、用 KubeJS 定义机器（0.28.0 起，核心字段；0.28.2 起列表坐标叫 `.parts`）
 

@@ -504,8 +504,11 @@ original `<tier><type>` order, 微型物品输入仓 / `Tiny Item Input`, `itemm
 
 This is a foundation slice, not a feature-complete migration. Not yet implemented:
 
-- **Not every requirement kind is ported.** Missing: `gas`, `gas_pertick`, `fluid_pertick` (all three need a gas
-  API this port does not have). `ingredient_array_input` was added in 0.26.0. `item_durability` and `catalyst`
+- **Not every requirement kind is ported.** Missing: `gas` / `gas_pertick` (both need the Mekanism gas API this
+  port does not have; the original gates them behind `requiresModid() = "mekanism"`). **`fluid_pertick` is not a
+  gap**: the original's JSON entry point for that kind (`RequirementTypeFluidPerTick#createRequirement`) returns
+  `null`, so only CraftTweaker could build it — per-tick fluid is expressed here as `fluid` + `"perTick": true`,
+  which **is** implemented. `ingredient_array_input` was added in 0.26.0. `item_durability` and `catalyst`
   are **not** missing kinds — neither is a usable requirement type in the original, and re-opening them as one
   would mean inventing a JSON schema; see the section above and D18. An unknown kind is a load
   error rather than a silently skipped requirement. Recipe adapters (`adapter` + `modifiers`) are not
@@ -531,13 +534,15 @@ This is a foundation slice, not a feature-complete migration. Not yet implemente
   machine) are missing. `selector-tag`, `nbt`, `color`, `hide-components-when-formed` and
   `controller-bounding-box` are recognised but not evaluated, and the loader
   warns about them.
-- The requirement engine still lacks gas, per-tick gas/fluid and the recipe adapters; `item_durability` and
-  `catalyst` are deliberately absent for the reason given above. Chance outputs, min/max amounts and the
-  one-of-a-group input are implemented.
-- **The structure editing tools.** `machine_projector`, `itemconstructtool` and `ItemDebugStruct` are
-  registered items without behaviour. The blueprint itself is not inert — it binds a machine and opens the
-  structure preview — but the original's button row inside that preview (layer toggle, reset centre, a 2D
-  per-layer view) is not reproduced.
+- The requirement engine still lacks gas and the recipe adapters; **per-tick fluid is implemented** (`fluid` +
+  `"perTick": true`), and `item_durability` / `catalyst` are deliberately absent for the reason given above.
+  Chance outputs, min/max amounts and the one-of-a-group input are implemented.
+- **The structure editing tools.** `machine_projector` and `ItemDebugStruct` are registered items without
+  behaviour (the owner deferred the projector; the original itself wrote `TODO: Realize it.` on the debug
+  struct). **`itemconstructtool` is no longer inert** — 0.29.0 gave it the original's selection → machine-JSON
+  export (see the section above). The blueprint is not inert either: it binds a machine and opens the structure
+  preview, **and that preview's button row is reproduced** — layer toggle, reset centre, the per-layer 2D view
+  and the layer scrollbar all shipped in 0.16.0 (`releases/modular-machinery-reborn/v0.16.0/README.md`).
 - The upgrade bus and factory controller systems. (The **parallel controller** shipped in 0.20.0 — see
   **Parallel controllers** above — and the **smart data interface** in 0.24.0.)
 - All mod integrations (AE2, GregTech, Thaumcraft, TConstruct, Botania, and others — 26 blocks in the original).

@@ -67,23 +67,39 @@ See `docs/使用说明.md` (Chinese) and `docs/KJS-配方指南.md` for the auth
 - **Variable-size structures (`dynamic-patterns`) are not implemented**, so the built-in **assembly line (`assembly_line`) is missing** — 3 of the original's 4 built-in machines are ported
 
 **Recipes**
-- Gas requirements: `gas` / `gas_pertick` / `fluid_pertick` (need a gas API)
+- Gas requirements: `gas` / `gas_pertick` (need the Mekanism gas API)
 - Recipe adapters (mechanically routing another mod's recipes into one of these machines)
 
 **Interface and presentation**
-- **Per-machine JEI categories** (all controllers currently share one category)
 - `color` tinting
 - The full `craftcheck.failure.*` failure text (a machine waiting for resources still just shows `idle`)
 
 **Tools**
 - The **projector `machine_projector`** (world-space ghost preview) — deliberately not in this release
-- The preview panel's button row (layer toggle / reset view / per-layer 2D view)
 - `ItemDebugStruct`
 - A **real "select a region and place the blocks" builder** — the original **has no such feature**. This mod's construct tool is *selection + definition export*, not a placer.
 
 **Scripting**
 - A CraftTweaker-equivalent API
 - AE2 / GregTech / TConstruct and similar compatibility modules (optional, standalone, and excluded from the main-line completion count)
+
+---
+
+## ✅ Once listed as "not done", but **actually delivered long ago**
+
+These four sat in the list above for a long time. The code and the archived release notes both show they
+were delivered, so they have been removed from "not done":
+
+- **Per-machine JEI categories** — **done in 0.17.0**: every machine gets its own JEI category and catalysts
+  (that machine's own controller plus a blueprint bound to it). 0.16.2 had concluded that JEI could not bind a
+  catalyst per recipe; **0.17.0 disproved that**.
+- **The preview panel's button row** (reset view / layer toggle / per-layer 2D view / layer scrollbar) —
+  **done in 0.16.0**.
+- **`fluid_pertick`** — **not a gap**: the original's JSON entry point for that type
+  (`RequirementTypeFluidPerTick#createRequirement`) **returns `null`** (the same dead-type shape as
+  `item_durability`) and only CraftTweaker could build it; per-tick fluid is expressed here as
+  **`fluid` + `"perTick": true`**, which **is implemented**.
+- **The `/reload` versus restart difference** — documented in full in [`使用说明.md`](使用说明.md).
 
 ---
 
