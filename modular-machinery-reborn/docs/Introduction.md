@@ -85,8 +85,8 @@ See `docs/使用说明.md` (Chinese) and `docs/KJS-配方指南.md` for the auth
 - `ItemDebugStruct` — **deliberately not ported** (owner's decision, 2026-10-04): the original never registered it and its implementation is broken; see the implementation order's §6.1.
 
 **Scripting**
-- A CraftTweaker-equivalent API
 - AE2 / GregTech / TConstruct and similar compatibility modules (**each optional and standalone**; confirmed to be **in scope**, one module at a time — see the implementation order's wave 5)
+- **What the original's CraftTweaker scripts could write is covered here by KubeJS entry points** — the CraftTweaker bridge **itself is not ported**. The machine-definition half is closed by wave 1's eleven extended fields; the recipe and upgrade-declaration half is wave 5.1.
 
 ---
 
