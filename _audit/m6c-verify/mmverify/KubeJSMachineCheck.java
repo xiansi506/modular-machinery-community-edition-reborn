@@ -64,6 +64,15 @@ final class KubeJSMachineCheck {
     private static final String PARTS =
             "\"parts\":[{\"x\":1,\"y\":-1,\"z\":0,\"elements\":\"minecraft:stone\"}]";
 
+    /**
+     * One {@code modifiers} entry, complete — the shape the original's {@code alloy_furnace} used (a vent above
+     * the controller doubling every item output). Shared by the two places that need a modifier: the section
+     * Z3 body below, and the Rhino driving in section Z10, so a change to the documented shape is one edit.
+     */
+    private static final String MODIFIER_ENTRY =
+            "[{\"elements\":\"minecraft:stone\",\"x\":0,\"y\":1,\"z\":0,\"modifier\":"
+                    + "{\"target\":\"item\",\"io\":\"output\",\"operation\":1,\"multiplier\":2.0}}]";
+
     private static final String PLUGIN_CLASS =
             "com/reborn/modularmachinery/kubejs/ModularMachineryKubeJSPlugin";
     private static final String EVENTS_CLASS =
@@ -245,15 +254,94 @@ final class KubeJSMachineCheck {
         report("a \"//\"-note key is accepted",
                 messageOf(() -> scriptPath("{\"registryname\":\"t\"," + PARTS
                         + ",\"//note\":\"a note\"}")) == null);
-        // (3) Every deferred field is refused by name rather than accepted and ignored. This is the check that
-        //     makes "deferred" honest: a script cannot spell a field whose effect would be silently missing.
-        for (String field : MachineSchema.DEFERRED_ROOT_FIELDS) {
-            String message = messageOf(() -> scriptPath(
-                    "{\"registryname\":\"t\"," + PARTS + ",\"" + field + "\":" + deferredValue(field) + "}"));
-            report("the deferred field '" + field + "' is refused by name rather than silently ignored: "
-                            + message,
-                    message != null && message.contains("does not implement yet") && message.contains(field));
-        }
+        // (3) v2b (0.31.0): every extended root field the loader evaluates can now be written by a script. Until
+        //     0.31.0 this block asserted the opposite — that each one was refused by name — and the deferral
+        //     existed so a script could not spell a field whose effect would be silently missing. The fields are
+        //     implemented now, so the assertion is inverted rather than deleted: what has to hold is that a script
+        //     CAN write each one, and that both paths then agree on what it means. The fault injection that
+        //     proves this block can still go red is the field list being narrowed, which is what
+        //     fault-injection-0.31.0-*.txt records.
+        String extended = "{\"registryname\":\"t\"," + PARTS + ","
+                + "\"failure-action\":\"decrease\","
+                + "\"requires-blueprint\":true,"
+                + "\"max-parallelism\":64,"
+                + "\"internal-parallelism\":2,"
+                + "\"parallelizable\":true,"
+                + "\"has-factory\":true,"
+                + "\"factory-only\":false,"
+                + "\"max-threads\":4,"
+                + "\"modifiers\":" + MODIFIER_ENTRY + ","
+                + "\"smart-interfaces\":[{\"type\":\"mode\",\"default\":3.0,\"priority\":7}],"
+                + "\"core-threads\":[{\"name\":\"smelter\"},{\"name\":\"pinned\",\"recipes\":[\"t:one\"]}]}";
+        report("every extended root field is accepted by a script (0.31.0 inverted this from a refusal)",
+                messageOf(() -> scriptPath(extended)) == null);
+
+        // The two paths must agree on the *meaning*, not merely both succeed. Each accessor is compared rather
+        // than the JSON text, so "the script wrote the field" and "the field reached the definition" are the
+        // same statement — a builder that spelled a key the schema does not read would fail here.
+        MachineDefinition extendedScript = scriptPath(extended);
+        MachineDefinition extendedPack = jsonPath(extended);
+        check("...and both paths read 'failure-action' the same way", extendedPack.failureAction().name(),
+                extendedScript.failureAction().name());
+        check("...its value is the one the script wrote", "DECREASE",
+                extendedScript.failureAction().name());
+        // The four boolean fields are compared with report(... == ...) rather than check(...): there is no
+        // check(String, boolean, boolean) overload in this harness, and adding one would be a new helper for
+        // four call sites. (0.23.0 lost a round to exactly that missing overload — see 必查 4.)
+        report("...'requires-blueprint' reads the same on both paths and is the value the script wrote: "
+                        + extendedScript.requiresBlueprint(),
+                extendedPack.requiresBlueprint() == extendedScript.requiresBlueprint()
+                        && extendedScript.requiresBlueprint());
+        check("...'max-parallelism'", extendedPack.maxParallelism(), extendedScript.maxParallelism());
+        // The ceiling is a separate number from the field: it is min(max-parallelism, max(1, internal-parallelism)),
+        // so with internal=2 the ceiling is 2 while the field is 64. Asserting the field is what makes this a
+        // check of "the script's value arrived"; asserting the ceiling here would pass even if max-parallelism had
+        // never been read. (Both are asserted: this one for the value, the next for the interaction.)
+        check("...and it is the written value, not the default", 64, extendedScript.maxParallelism());
+        check("...'internal-parallelism'", extendedPack.internalParallelism(),
+                extendedScript.internalParallelism());
+        check("...and the effective ceiling is the smaller of the two, as the model defines it: "
+                        + extendedScript.effectiveParallelCeiling(), 2,
+                extendedScript.effectiveParallelCeiling());
+        report("...'parallelizable' agrees on both paths, and is the value the script wrote",
+                extendedPack.parallelizable() == extendedScript.parallelizable()
+                        && extendedScript.parallelizable());
+        report("...'has-factory' agrees on both paths, and is the value the script wrote",
+                extendedPack.hasFactory() == extendedScript.hasFactory() && extendedScript.hasFactory());
+        report("...'factory-only' agrees on both paths, and is the value the script wrote (false)",
+                extendedPack.factoryOnly() == extendedScript.factoryOnly() && !extendedScript.factoryOnly());
+        check("...'max-threads'", extendedPack.maxThreads(), extendedScript.maxThreads());
+        check("...and the thread count is the written one, not the config default", 4,
+                extendedScript.maxThreads());
+        check("...'modifiers': one entry, at the same position, contributing the same modifier",
+                extendedPack.modifiers().toString(), extendedScript.modifiers().toString());
+        check("...'smart-interfaces': one type, same name and default",
+                extendedPack.smartInterfaces().get(0).type() + "/"
+                        + extendedPack.smartInterfaces().get(0).defaultValue(),
+                extendedScript.smartInterfaces().get(0).type() + "/"
+                        + extendedScript.smartInterfaces().get(0).defaultValue());
+        report("...its priority survived", extendedScript.smartInterfaces().get(0).priority() == 7);
+        check("...'core-threads': both threads, names and pinned recipes included",
+                extendedPack.coreThreads().toString(), extendedScript.coreThreads().toString());
+        check("...and the pinned thread really carries its recipe", 1,
+                extendedScript.coreThreads().get(1).recipes().size());
+        // A script that says nothing must keep the same defaults a data pack gets — the property the old block
+        // proved from the other side, and the one a narrower field list would still pass while breaking meaning.
+        MachineDefinition bare = scriptPath("{\"registryname\":\"t\"," + PARTS + "}");
+        report("a script that writes none of them still gets a data pack's defaults",
+                bare.failureAction() == MachineDefinition.DEFAULT_FAILURE_ACTION
+                        && !bare.requiresBlueprint()
+                        && bare.maxParallelism() == MachineDefinition.DEFAULT_MAX_PARALLELISM
+                        && bare.internalParallelism() == MachineDefinition.DEFAULT_INTERNAL_PARALLELISM
+                        && bare.parallelizable() == MachineDefinition.DEFAULT_PARALLELIZABLE
+                        && bare.modifiers().isEmpty()
+                        && !bare.hasSmartInterfaces()
+                        && bare.coreThreads().isEmpty());
+        // (3b) The deferral list is empty in 0.31.0, and that is a statement about the *set*, not about a count:
+        //      the schema no longer carries one. If a future slice reintroduces a deferred field, this check is
+        //      the reminder that it also needs the refusal path back.
+        report("no root field is deferred any more — the script API covers everything the loader reads",
+                MachineSchema.KNOWN_ROOT_FIELDS.stream().noneMatch(MachineSchema.DEFERRED_ROOT_FIELDS::contains));
         // (4) The deferred list may not name a field the schema does not know (a refusal that names a
         //     non-existent field is a lie) and may not name a core field (that would break the API).
         List<String> lying = new ArrayList<>();
@@ -796,6 +884,55 @@ final class KubeJSMachineCheck {
                         + " time(s) " + partsDeclarations,
                 partsDeclarations.size() == 1
                         && partsDeclarations.get(0).contains("java.util.List"));
+
+        // 0.31.0 (v2b): the eleven extended fields arrived as new method names. The rule that made `parts`
+        // necessary applies to every one of them, so it is checked for every one of them rather than trusted.
+        //
+        // The check is "no two declarations share a descriptor", not "each name is declared once": `modifier` and
+        // `smartInterface` legitimately carry an optional-tail overload, and an overload of a *different arity* is
+        // not the 0.28.1 defect — Rhino resolves by argument count before it weighs conversions, so there is no
+        // tie for the JVM's method order to break. What would be the defect is two declarations with identical
+        // parameter types, which is what this catches. (The first draft asserted "exactly one and it contains the
+        // prefix", which flagged those two legitimate overloads; section Z10's driving of the real Rhino is what
+        // showed the resolution is unambiguous in practice.)
+        String[][] expected = {
+                {"failureAction", "(java.lang.Object)"},
+                {"requiresBlueprint", "(boolean)"},
+                {"maxParallelism", "(int)"},
+                {"internalParallelism", "(int)"},
+                {"parallelizable", "(boolean)"},
+                {"hasFactory", "(boolean)"},
+                {"factoryOnly", "(boolean)"},
+                {"maxThreads", "(int)"},
+                // A varargs parameter is declared once, so its descriptor is pinned exactly as the scalars' are.
+                {"coreThread", "(java.lang.Object, java.lang.Object...)"},
+        };
+        List<String> wrong = new ArrayList<>();
+        for (String[] pair : expected) {
+            List<String> declared = declarationsOf(disassembly, pair[0]);
+            if (declared.size() != 1 || !declared.get(0).contains(pair[1])) {
+                wrong.add(pair[0] + " declared " + declared.size() + " time(s) as " + declared
+                        + " (wanted exactly one with " + pair[1] + ")");
+            }
+        }
+        report("every single-declaration v2b field has exactly one method, with the documented descriptor: "
+                        + wrong,
+                wrong.isEmpty());
+        // The two optional-tail families: the same name may appear twice, but never twice with the same
+        // descriptor, and the longer form must really be the longer one.
+        String[][] families = {
+                {"modifier", "(int, int, int, java.lang.Object, java.lang.Object)"},
+                {"smartInterface", "(java.lang.Object, double, int)"},
+        };
+        for (String[] family : families) {
+            List<String> declared = declarationsOf(disassembly, family[0]);
+            boolean distinct = new java.util.HashSet<>(declared).size() == declared.size();
+            boolean longest = declared.stream().anyMatch(line -> line.contains(family[1]));
+            report("'" + family[0] + "' declares " + declared.size() + " distinct overloads, one of them the"
+                            + " documented " + family[1] + ": distinct=" + distinct + ", longest-present="
+                            + longest,
+                    declared.size() == 2 && distinct && longest);
+        }
     }
 
     /**
@@ -884,24 +1021,10 @@ final class KubeJSMachineCheck {
         return new ResourceLocation("modular_machinery_reborn", path);
     }
 
-    /** The value a deferred field needs to be syntactically legal — the refusal is about the field, not typing. */
-    private static String deferredValue(String field) {
-        return switch (field) {
-            case "failure-action" -> "\"still\"";
-            case "max-threads" -> "4";
-            case "max-parallelism" -> "64";
-            case "internal-parallelism" -> "2";
-            case "parallelizable", "has-factory", "factory-only", "requires-blueprint" -> "true";
-            case "core-threads" -> "[{\"name\":\"smelter\"}]";
-            case "smart-interfaces" -> "[{\"type\":\"mode\"}]";
-            case "modifiers" -> "[{\"elements\":\"minecraft:stone\",\"x\":0,\"y\":1,\"z\":0,"
-                    + "\"modifier\":{\"target\":\"item\",\"io\":\"output\",\"operation\":1,\"multiplier\":2.0}}]";
-            // A field added to DEFERRED_ROOT_FIELDS without a case here is the mistake this default reports: the
-            // value only has to parse, so "1" is the safest generic guess and an inapplicable one shows up as a
-            // message that does not name the field.
-            default -> "1";
-        };
-    }
+    // 0.31.0 deleted deferredValue(String): it existed to give each deferred field a syntactically legal value so
+    // the refusal could be asserted to be about the field rather than about typing. With nothing deferred there
+    // is no refusal to feed, and the values it carried now live in the v2b fixture in z3, which asserts the
+    // opposite thing about them.
 
     private static String messageOf(Runnable body) {
         try {

@@ -26,6 +26,11 @@ See `docs/使用说明.md` (Chinese) and `docs/KJS-配方指南.md` for the auth
 - Three sources (data pack / config directory / KubeJS); multi-layer and arbitrary shapes; matching rotated to the controller's facing
 - Blueprint binding and `requires-blueprint`
 - Controller-claim mechanism, so data-pack machines can have a dedicated controller too
+- **KubeJS can write a complete definition** (0.31.0): every one of `modifiers` / `smart-interfaces` /
+  `has-factory` / `factory-only` / `max-threads` / `core-threads` / the three parallelism fields /
+  `failure-action` / `requires-blueprint` has a method, nested entries take an object literal or a JSON string,
+  and validation goes through the **same schema** a data pack uses — the sentences are identical. See
+  [`KJS-配方指南.md`](KJS-配方指南.md) §六 for the table
 - **The two activation paths are kept apart**: a data change (structure, recipe, upgrade, script) takes effect on **`/reload`**;
   **adding a block** (a dedicated controller, a factory controller) needs a **restart** — the rule and the full table are in [`使用说明.md`](使用说明.md) §六
 
@@ -63,10 +68,6 @@ See `docs/使用说明.md` (Chinese) and `docs/KJS-配方指南.md` for the auth
 ---
 
 ## ❌ Not done — not usable yet
-
-**KubeJS machine-definition extended fields**
-- `modifiers`, `smart-interfaces`, `has-factory` / `factory-only` / `max-threads` / `core-threads`, the three parallelism fields, `failure-action`, `requires-blueprint`
-- KubeJS can currently define only the **core fields** (pattern/parts, display name); everything above still has to be written in a data pack or the config directory
 
 **Structures**
 - **Variable-size structures (`dynamic-patterns`) are not implemented**, so the built-in **assembly line (`assembly_line`) is missing** — 3 of the original's 4 built-in machines are ported

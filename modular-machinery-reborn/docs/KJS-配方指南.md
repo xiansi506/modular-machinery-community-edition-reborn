@@ -170,21 +170,57 @@ event.machine('kubejs_wall')
 **脚本删掉，机器就没了**：每次 `/reload`（或启动）脚本重新跑一遍，机器层是**这一轮脚本**的产物，
 不是「历史上所有脚本的并集」。所以改脚本 → `/reload`；删脚本 → `/reload` 之后那台机器不再存在。
 
-### 还不能用脚本写的字段（写了会**报错**，不会静默忽略）
+### 扩展字段现在也能用脚本写了（0.31.0 起）
 
-`modifiers`、`smart-interfaces`、`has-factory`、`factory-only`、`max-threads`、`core-threads`、
-`max-parallelism`、`internal-parallelism`、`parallelizable`、`failure-action`、`requires-blueprint`。
+0.31.0 之前这 11 个字段在脚本里写会**按名报错**（数据包不受影响）。现在它们全部有对应的方法：
 
-这些字段在数据包里**照常可用**（本模组一如既往地求值）；只是 0.28.0 的 KubeJS 入口先做**核心字段**。
-脚本里写了其中之一会得到一句明确报错，指出该字段尚未实现、以及去掉它之后这台机器会拿到哪些默认值
-（无修改器、无智能接口、不是工厂、并行数为 1 份、`failure-action` 为 `still`、不需要蓝图）。
-**用脚本定义的机器因此与「这些字段一个都没写的数据包机器」行为一致。**
+| 字段 | 脚本写法 |
+|---|---|
+| `failure-action` | `.failureAction('decrease')` —— `reset` / `still` / `decrease`，名字写错会报错并列出三个取值 |
+| `requires-blueprint` | `.requiresBlueprint(true)` |
+| `max-parallelism` | `.maxParallelism(64)` |
+| `internal-parallelism` | `.internalParallelism(2)` |
+| `parallelizable` | `.parallelizable(true)` |
+| `has-factory` | `.hasFactory(true)` |
+| `factory-only` | `.factoryOnly(false)` |
+| `max-threads` | `.maxThreads(4)` |
+| `modifiers` | `.modifier(x, y, z, 方块, 修改器对象)` |
+| `smart-interfaces` | `.smartInterface(类型, 默认值, 优先级)` + 可选的第 4 个参数 |
+| `core-threads` | `.coreThread('名字')` 或 `.coreThread('名字', '配方 id', …)` |
 
-> **后续计划**：上述字段是 v2b 的内容。勘测结论见 [专项/KJS-勘测.md](专项/KJS-勘测.md) §3b——加载器层面
-> 不需要新机制，时序/合并/共用校验三件事已在 0.28.0 解决（时序：KubeJS 在 `onServerReload` 里、
-> 数据包监听器之前跑完；合并：脚本层由加载器在 reload 时读取；校验：两条路径共用 `MachineSchema`）。
+**带嵌套结构的三个**（`modifier` / `smartInterface` / `coreThread` 的第 4 个参数）**两种写法都收**：
 
-## 七、机器定义部分的实机核对步骤（0.28.0 起；0.28.1 修绑定形状；0.28.2 修 `.part`/`.parts` 重载歧义）
+```js
+MachineRegistryEvents.registry(event => {
+  event.machine('scripted_alloy')
+    .localizedName('Scripted Alloy')
+    // 结构：控制器上方一格放通风机箱 → 物品产出翻倍
+    .modifier(0, 1, 0, 'modular_machinery_reborn:blockcasing[casing=vent]',
+              { target: 'item', io: 'output', operation: 1, multiplier: 2.0 })
+    .smartInterface('mode', 0, 1000)                       // 类型 / 默认值 / 优先级
+    .smartInterface('temp', 20, 0, { header: 'gui.example.temp' })
+    .coreThread('smelter')                                 // 空槽位：什么配方都能跑
+    .coreThread('pinned', 'alloy_smelter_diamond')         // 钉死一条配方
+    .failureAction('still')
+    .maxParallelism(64)
+    .internalParallelism(2)
+    .hasFactory(true)
+    .maxThreads(4)
+    .requiresBlueprint(false)
+    .part(1, -1, 0, 'minecraft:stone')
+    .register()
+})
+```
+
+- 嵌套那三项**也可以写成 JSON 字符串**（`'{"target":"item",…}'`），两种写法产出同一份定义；
+- **校验仍然全部由 schema 做**：`operation` 写 9、`failure-action` 拼错、`core-threads` 重名、
+  并行上限互相矛盾——报的句子与数据包里写错时**逐字相同**；
+- **`modifier` 写在 `(0,0,0)`**（控制器自己那格）会被跳过并打一行告警——旧版行为，写相邻格子。
+
+> `core-threads` 的语义：这条槽位**从成型那一刻就存在、闲置也不回收**（普通槽位闲置 200 tick 回收）。
+> `.coreThread('名字')` 不写配方 = 该槽位可以跑这台机器的任何配方。
+
+## 七、机器定义部分的实机核对步骤（0.28.0 起；0.28.1 修绑定形状；0.28.2 修 `.part`/`.parts` 重载歧义；0.31.0 补扩展字段）
 
 > 按本项目「必查 7」：**在用户确认之前，本版只标记为「已构建、未实机验证」。**
 >
@@ -244,9 +280,11 @@ MachineRegistryEvents.registry(event => {
 - [ ] **未知字段被拒**：写一个不存在的字段——例如用 fluent API 之外的写法把
       `event.machine('x').localyzedName('typo')` 之类塞进去（或直接把 `{"registryname":"x","localyzedname":"y","parts":[…]}`
       交给 `MachineSchema`）→ 报错点名 `localyzedname` 并列出**所有**已知字段，机器**不注册**。
-- [ ] **被推迟的字段被拒**：把 `.part(...)` 之后接一个 `has-factory`（例如用 `.toJson()` 拿到对象后加一个键，
+- [ ] ~~**被推迟的字段被拒**：把 `.part(...)` 之后接一个 `has-factory`（例如用 `.toJson()` 拿到对象后加一个键，
       再走一遍解析）→ 报错说明该字段尚未在 KubeJS 入口实现。**数据包**里写同一个字段则**不报错**
-      （它照常被求值）——这一条正是「推迟只针对脚本入口」的实机面。
+      （它照常被求值）——这一条正是「推迟只针对脚本入口」的实机面。~~
+      ⚠️ **本条自 0.31.0 起作废**：11 个字段现在脚本里也能写。**替代它的检查**见
+      [`../迁移日志.md`](../迁移日志.md) 的 **0.31.0** 一节（那 10 条才是本版要看的）。
 - [ ] **顺序无关的坏味道不存在**：脚本里**不要**用 `ServerEvents.loaded` 去定义机器——定义机器的时机是
       `MachineRegistryEvents.registry`（由 `onServerReload` 触发，刚好在加载器读数据包之前）。
 
@@ -259,14 +297,15 @@ MachineRegistryEvents.registry(event => {
 
 ## 八、机器定义速查（**含一个易漏点，漏了不报错**）
 
-> **状态：已在游戏里确认**（0.28.2；2026-10-01 实测：`posted; 1`、`scripted_smoke -> 4 parts`、结构成型、`/reload` 两次仍在、删脚本后消失）。
+> **状态：已在游戏里确认**（0.28.2 核心字段；2026-10-01 实测：`posted; 1`、`scripted_smoke -> 4 parts`、结构成型、`/reload` 两次仍在、删脚本后消失。
+> **0.31.0 新增的 11 个扩展字段已离机证明**（真实 Rhino 驱动 + 两条路径逐字段比对），**实机清单见 `交接文档.md` 的 0.31.0 一节**）。
 
 ```js
 MachineRegistryEvents.registry(event => {
   event.machine('scripted_smoke')                    // registryname（裸路径补本模组命名空间）
     .localizedName('Scripted Smoke')                 // 显示名
     .part(1, -1, 0, 'minecraft:stone')               // 单坐标：x, y, z, 接受的方块…
-    .part([-1,0,1], [0], [-1,0,1], 'minecraft:stone')// 数组 = 笛卡尔积（此例 9 格）→ 用 .parts(...)
+    .parts([-1,0,1], [0], [-1,0,1], 'minecraft:stone') // ★ 数组写法叫 .parts（不是 .part）
     .register()                                      // ★ 必需
 })
 ```
@@ -294,7 +333,7 @@ KubeJS machine registry event posted; 0 machine definition(s) were staged
 
 - **控制器**：脚本机器**没有专属控制器方块**（方块在模组构造期注册，那时脚本还没跑，D8）。用**通用机器控制器**，日志会明说。
 - **蓝图**：**能拿到**（按 `MachineRegistry` 现做）。
-- **推迟的字段**（脚本写了会**按名报错**，数据包不受影响）：`modifiers`、`smart-interfaces`、`has-factory`、`factory-only`、`max-threads`、`core-threads`、`max-parallelism`、`internal-parallelism`、`parallelizable`、`failure-action`、`requires-blueprint`。不写即取默认，与「这些字段一个都没写的数据包机器」等价。
+- **扩展字段**：0.31.0 起**全部可用脚本写**（11 个，写法见 §六 的表）。**不写即取默认**，与「这些字段一个都没写的数据包机器」等价。写错值时由 schema 报错，句子与数据包侧逐字相同。
 
 ### 一个可照抄的测试机器
 

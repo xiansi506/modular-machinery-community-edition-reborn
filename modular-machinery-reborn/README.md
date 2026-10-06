@@ -2,9 +2,14 @@
 
 Forge 1.20.1 / Java 17 migration foundation for the archived Modular Machinery: Community Edition source.
 
-**Current version: 0.30.1** — the first public release. It is **functionally 0.29.0**: no behaviour changed in this
-release (**0.30.0** was the release-collateral version; **0.30.1** only corrected the `license` / `authors` metadata
-in `META-INF/mods.toml`, see `迁移日志.md` and `交接文档.md` §1b).
+**Current release: 0.30.1** — the first public release; **functionally 0.29.0**, since it only corrected the
+`license` / `authors` metadata in `META-INF/mods.toml`.
+
+**Built, next up: 0.31.0** — the first **feature** release after it, which closes the item the release notes had
+listed as unfinished: **KubeJS can write a complete machine definition** (all eleven extended root fields, see
+**KubeJS** below). ⚠️ **It is built and asserted offline, but not yet verified in game, not deployed and not
+archived** — by this project's 必查 7 that makes it "built, not yet verified in game". Its checklist is in
+`迁移日志.md` (the 0.31.0 section) and its build data is in `交接文档.md` §1b.
 
 > 🚀 **New here? Start at [docs/使用说明.md](docs/使用说明.md)** — "from an empty instance to a machine that runs",
 > in Chinese, with complete copy-pasteable machine definitions and recipes.
@@ -54,12 +59,19 @@ Two entry points, both optional (the mod loads without KubeJS):
 
 - **Recipes** — `event.recipes.modular_machinery_reborn.machine({ … })`, with this mod's own JSON shape.
   Verified in game at 0.27.1. See [docs/KJS-配方指南.md](docs/KJS-配方指南.md).
-- **Machine definitions (0.28.0, core fields)** — `MachineRegistryEvents.registry(event => event.machine('x').part(…))`.
+- **Machine definitions (0.28.0 core fields; 0.31.0 the full set)** —
+  `MachineRegistryEvents.registry(event => event.machine('x').part(…))`.
   A script machine is parsed by the **same schema** a data-pack definition is, so a malformed script machine
   gets the same sentence a malformed JSON one gets. Scripts win over the config directory and over data packs
   for a colliding registry name, and deleting a script deletes its machine on the next `/reload`. Such a machine
   gets the generic `machine_controller` (blocks are registered before any script runs, D8) and a blueprint like
-  any other. **Built and asserted offline; not yet verified in game** — the checklist is in the guide, §七.
+  any other.
+  **0.31.0 added the eleven extended fields** — `modifiers`, `smart-interfaces`, `has-factory`, `factory-only`,
+  `max-threads`, `core-threads`, the three parallelism fields, `failure-action` and `requires-blueprint` — each
+  with a builder method; the three structured ones take an object literal or the same text as a JSON string
+  (routed through KubeJS's own `JsonIO.of`). **No validation moved into the builder**: a malformed entry is still
+  refused by the schema, in the schema's own words. Table: [docs/KJS-配方指南.md](docs/KJS-配方指南.md) §六.
+  **Built and asserted offline; not yet verified in game** — the checklist is in `迁移日志.md` (0.31.0).
   *(0.28.1 fixed the event binding: an event group must reach a script as a KubeJS `EventGroupWrapper`, or the
   binding exists with no events on it and the first line of the script dies with `Cannot find function registry
   in object MachineRegistryEvents`. `onEvent('machineRegistry', …)` is not an alternative — KubeJS 6 removed it.)*

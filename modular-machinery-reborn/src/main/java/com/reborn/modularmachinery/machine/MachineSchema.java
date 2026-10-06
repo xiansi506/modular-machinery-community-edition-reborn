@@ -35,7 +35,7 @@ import java.util.Map;
  * {@code mmverify} asserts that with two stacks: a script-shaped and a data-pack-shaped object with the same
  * defect must produce byte-identical messages.
  *
- * <h2>Two differences between the two paths, both deliberate</h2>
+ * <h2>The two paths, and the one difference left between them</h2>
  *
  * <ol>
  *   <li><b>{@code strict}</b>. A data pack is parsed tolerantly for one reason only: backwards compatibility
@@ -45,10 +45,13 @@ import java.util.Map;
  *       <b>rejects</b> an unknown field instead. That closes the gap the survey named: through the loader the
  *       message for an unknown field is a warning, and through KubeJS the identical mistake can now be an
  *       error that names every field that does exist.</li>
- *   <li><b>{@code deferred}</b>. The v2a slice deliberately implements the core fields only. A field that the
- *       JSON loader accepts but the script API does not implement yet is <b>refused by name</b> rather than
- *       accepted and ignored, so "the script said {@code has-factory} and nothing happened" cannot occur; see
- *       {@link #DEFERRED_ROOT_FIELDS}.</li>
+ *   <li><b>{@code deferred} — gone as of 0.31.0.</b> Through 0.30.1 the script API implemented the core fields
+ *       only, and a field the loader evaluated but the script API did not was <b>refused by name</b> rather than
+ *       accepted and ignored, so "the script said {@code has-factory} and nothing happened" could not occur.
+ *       {@code MachineBuilderJS} now has a method for all eleven, so there is nothing left to defer and the
+ *       refusal path is deleted ({@link #DEFERRED_ROOT_FIELDS} survives as an empty list with a contract on it).
+ *       The two paths therefore read the same set of fields, and the only difference between them is strictness
+ *       about fields <i>neither</i> of them knows.</li>
  * </ol>
  *
  * <p>Nothing here touches a registry, a level or a config file, which is what lets the offline harness drive
@@ -72,29 +75,34 @@ public final class MachineSchema {
             "has-factory", "factory-only", "max-threads", "core-threads", "smart-interfaces");
 
     /**
-     * Root fields the JSON loader <b>does</b> evaluate but the v2a KubeJS machine API does not implement yet.
+     * Root fields the loader evaluates but the script API cannot yet write — <b>empty as of 0.31.0</b>, and kept
+     * as an empty list on purpose.
      *
-     * <p>A script that spells one of these is refused, loudly. The alternative — accepting it and ignoring it —
-     * is the failure mode this project keeps paying for: a definition that looks like it said something and
-     * did nothing. {@code 移植方案-v2.md} §9 records the split; this list is the machine-readable half of it.
+     * <h2>What this list was</h2>
      *
-     * <p>Why this is coherent rather than a hole in the API: every one of these fields has a default that
-     * this project already uses for a definition that omits it — {@code modifiers} empty, no smart interfaces,
-     * {@code has-factory} false, {@code max-threads} the config default, {@code core-threads} empty, parallelism
-     * at one copy, {@code failure-action} {@code still}, {@code requires-blueprint} false. A machine added by a
-     * script therefore behaves like a data-pack machine that wrote none of them; nothing about the core API
-     * depends on any of them.
+     * <p>Through 0.30.1 it named eleven fields — {@code modifiers}, {@code smart-interfaces}, {@code has-factory},
+     * {@code factory-only}, {@code max-threads}, {@code core-threads}, {@code max-parallelism},
+     * {@code internal-parallelism}, {@code parallelizable}, {@code failure-action} and
+     * {@code requires-blueprint} — and a script that spelled one was <b>refused by name</b>. The alternative,
+     * accepting it and ignoring it, is the failure mode this project keeps paying for: a definition that looks
+     * like it said something and did nothing.
      *
-     * <p>{@code requires-blueprint} deserves one sentence of its own, because it is the only entry here that
-     * <b>could</b> have been supported cheaply: blueprints are minted on demand
-     * ({@code BlueprintItem.forMachine} from {@code ModBlocks.TAB}, one per {@link MachineRegistry} entry), so a
-     * script machine would get a working blueprint item. It is deferred anyway because the script's own idiom for
-     * "this machine needs a blueprint" is not settled, and because {@code requires-blueprint} interacts with the
-     * form-search order ({@code MachineRegistry.findMatch}); v2b will add it together with the rest.
+     * <h2>Why it is empty rather than deleted</h2>
+     *
+     * <p>0.31.0 (v2b) gave {@code MachineBuilderJS} a method for every one of them, so the deferral has nothing
+     * left to describe and the refusal path is gone — {@link #read} no longer calls a reject step at all.
+     *
+     * <p>The constant stays because <b>two callers still depend on it as a contract</b>, and deleting it would
+     * remove a test rather than a behaviour: section Z3 of the offline harness asserts that this list never names
+     * a field {@link #KNOWN_ROOT_FIELDS} does not know (a refusal naming a non-existent field would be a lie) and
+     * never names a core field (that would break the API), and it asserts that nothing is deferred any more. A
+     * future slice that defers a field again must therefore re-add the refusal <i>and</i> the {@code rejectDeferred}
+     * call; section Z3 carries the same reminder next to its assertion.
+     *
+     * <p>An empty list is also the honest shape: {@code DEFERRED_ROOT_FIELDS.contains(x)} is {@code false} for
+     * everything, which is exactly the state of the world.
      */
-    public static final List<String> DEFERRED_ROOT_FIELDS = List.of(
-            "modifiers", "smart-interfaces", "has-factory", "factory-only", "max-threads", "core-threads",
-            "max-parallelism", "internal-parallelism", "parallelizable", "failure-action", "requires-blueprint");
+    public static final List<String> DEFERRED_ROOT_FIELDS = List.of();
 
     private MachineSchema() {
     }
@@ -117,8 +125,6 @@ public final class MachineSchema {
     public static MachineDefinition read(JsonElement element, Object where, Map<String, List<String>> variables,
                                          boolean strict) {
         JsonObject root = asObject(element, where);
-
-        rejectDeferred(root, where, strict);
 
         String registryName = requireString(root, "registryname", where);
         ResourceLocation id = registryName.contains(":")
@@ -275,8 +281,7 @@ public final class MachineSchema {
                         + String.join(", ", unknown) + ". Nothing would read them, so the definition is "
                         + "refused rather than accepted with a field that does nothing. Check the spelling "
                         + "against the documented fields (" + String.join(", ", KNOWN_ROOT_FIELDS)
-                        + "); the v2a script API implements the core fields only, and a note can be written "
-                        + "as a \"//...\" key.");
+                        + "); a note can be written as a \"//...\" key.");
             }
             LOGGER.warn("[{}] {} has root field(s) this loader does not know: {}. They are ignored. If they were "
                             + "meant to have an effect, check the spelling against the documented fields "
@@ -290,35 +295,11 @@ public final class MachineSchema {
                 maxThreads, hasFactory, factoryOnly, coreThreads, smartInterfaces);
     }
 
-    /**
-     * Refuses the fields the v2a script API does not implement — but only for a caller that asked for strict
-     * reading.
-     *
-     * <p>A data pack may legitimately carry all of them: the JSON loader evaluates every one. This check is
-     * therefore a property of the <b>script</b> path, where accepting a field the API cannot express would tell
-     * an author their definition does something it does not.
-     */
-    private static void rejectDeferred(JsonObject root, Object where, boolean strict) {
-        if (!strict) {
-            return;
-        }
-        List<String> present = new ArrayList<>();
-        for (String key : DEFERRED_ROOT_FIELDS) {
-            if (root.has(key)) {
-                present.add(key);
-            }
-        }
-        if (present.isEmpty()) {
-            return;
-        }
-        throw new JsonParseException(where + " declares " + String.join(", ", present)
-                + ", which the KubeJS machine API does not implement yet. It is refused rather than accepted "
-                + "and ignored, because a definition that looks like it said something and did nothing is the "
-                + "failure this project keeps paying for. Remove the field to use the same default a data-pack "
-                + "machine gets when it omits it (no modifiers, no smart interfaces, no factory, parallelism "
-                + "of one copy, failure-action 'still', no blueprint requirement); the deferred slice is "
-                + "recorded in 移植方案-v2.md §9.");
-    }
+    // 0.31.0 removed rejectDeferred(JsonObject, Object, boolean) and its call above read()'s body. It existed to
+    // refuse the fields in DEFERRED_ROOT_FIELDS by name on the script path; with the list empty it could only
+    // return, so keeping it would have been a loop over nothing — the same "an assertion that cannot fail is not
+    // evidence" reasoning the harness applies to its own checks. A future slice that defers a field again
+    // re-introduces the call together with the list entry; section Z3 asserts the list's invariants either way.
 
     /**
      * {@code failure-action}: the original's root string, one of {@code reset} / {@code still} /

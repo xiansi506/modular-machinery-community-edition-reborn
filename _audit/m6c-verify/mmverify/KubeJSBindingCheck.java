@@ -441,6 +441,127 @@ final class KubeJSBindingCheck {
                         + weight.invoke(null, context, number, Integer.class) + " — the tie 0.28.1 left for the"
                         + " JVM's method order to break, and the reason both spellings now have their own name",
                 true);
+
+        // (6) 0.31.0 (v2b): the eleven extended fields, driven through the same Rhino. The expected JSON is
+        //     written out by hand — if the builder produced it, the comparison would prove nothing. Key order is
+        //     the chain's order because JsonObject preserves insertion order, so this also pins the field order a
+        //     script produces, which is the order section Z10's sibling (Z3) reads back through the schema.
+        String v2bCall = "event.machine('v2b_smoke')"
+                + ".failureAction('decrease')"
+                + ".requiresBlueprint(true)"
+                + ".maxParallelism(64)"
+                + ".internalParallelism(2)"
+                + ".parallelizable(true)"
+                + ".hasFactory(true)"
+                + ".factoryOnly(false)"
+                + ".maxThreads(4)"
+                + ".modifier(0, 1, 0, 'minecraft:stone',"
+                + " '{\"target\":\"item\",\"io\":\"output\",\"operation\":1,\"multiplier\":2.0}')"
+                + ".smartInterface('mode', 3.0, 7)"
+                + ".coreThread('smelter')"
+                + ".coreThread('pinned', 't:one')"
+                + ".toJson().toString()";
+        String expectedV2b = "{\"registryname\":\"v2b_smoke\""
+                + ",\"failure-action\":\"decrease\""
+                + ",\"requires-blueprint\":true"
+                + ",\"max-parallelism\":64"
+                + ",\"internal-parallelism\":2"
+                + ",\"parallelizable\":true"
+                + ",\"has-factory\":true"
+                + ",\"factory-only\":false"
+                + ",\"max-threads\":4"
+                + ",\"modifiers\":[{\"x\":0,\"y\":1,\"z\":0,\"elements\":\"minecraft:stone\""
+                + ",\"modifier\":{\"target\":\"item\",\"io\":\"output\",\"operation\":1,\"multiplier\":2.0}}]"
+                + ",\"smart-interfaces\":[{\"type\":\"mode\",\"default\":3.0,\"priority\":7}]"
+                + ",\"core-threads\":[{\"name\":\"smelter\"},{\"name\":\"pinned\",\"recipes\":[\"t:one\"]}]}";
+        check("all eleven v2b fields, written in one script chain and run through KubeJS's own Rhino, build"
+                        + " exactly the definition a data pack would have carried", expectedV2b,
+                evalText(loader, rhinoContext, context, scope, scriptableObject, scriptable, v2bCall));
+
+        // (7) The structured fields take a script OBJECT LITERAL as well as a JSON string, and this is the
+        //     measurement that decides it rather than a claim. requireObject(…) routes the literal through
+        //     JsonIO.of — KubeJS's own converter — and the assertion is that both spellings end up as the same
+        //     modifier once the schema has read it, so a script may write whichever it finds readable.
+        String literalCall = "event.machine('v2b_literal')"
+                + ".modifier(0, 1, 0, 'minecraft:stone',"
+                + " { target: 'item', io: 'output', operation: 1, multiplier: 2.0 })"
+                + ".smartInterface('mode', 3.0, 7, { header: 'gui.h' })"
+                + ".toJson().toString()";
+        String literalResult = evalText(loader, rhinoContext, context, scope, scriptableObject, scriptable,
+                literalCall);
+        String stringCall = "event.machine('v2b_literal')"
+                + ".modifier(0, 1, 0, 'minecraft:stone',"
+                + " '{\"target\":\"item\",\"io\":\"output\",\"operation\":1,\"multiplier\":2.0}')"
+                + ".smartInterface('mode', 3.0, 7, '{\"header\":\"gui.h\"}')"
+                + ".toJson().toString()";
+        String stringResult = evalText(loader, rhinoContext, context, scope, scriptableObject, scriptable,
+                stringCall);
+        // The two spellings do NOT produce identical bytes, and the measurement below says why: `multiplier: 2.0`
+        // written as a script literal is a Rhino Double, which JsonIO renders as `2.0`, while the same number
+        // inside a JSON string is parsed by Gson and *printed back* as `2`. Both are the float the schema reads
+        // (RecipeModifier.parse uses getAsFloat), so the definition is the same object either way and asserting on
+        // the text would pin a cosmetic difference. The claim this block makes is the stronger one: a script can
+        // write either spelling and get the same craft.
+        // The slice carries a `parts` array because a definition without one is refused ("Expected a JSON array
+        // in machine '…' 'parts'"), which the first run of this block printed — the schema doing its job on a
+        // fixture that was not a definition yet.
+        String v2bParts = ".part(1, -1, 0, 'minecraft:iron_block')";
+        // The assertions read the registered definition's modifier LIST, and stringify it, rather than indexing
+        // into it from the script: calling a method on a script list crosses into java.util and Rhino's
+        // MemberBox then hits the module boundary on List.of's private implementation (observed:
+        // IllegalAccessException on java.util.ImmutableCollections$List12). The list's own toString crosses no
+        // boundary and is what check(...) compares anyway.
+        String literalRegistered = evalText(loader, rhinoContext, context, scope, scriptableObject, scriptable,
+                "event.machine('v2b_literal_object')" + v2bParts
+                        + ".modifier(0, 1, 0, 'minecraft:stone',"
+                        + " { target: 'item', io: 'output', operation: 1, multiplier: 2.0 })"
+                        + ".smartInterface('mode', 3.0, 7, { header: 'gui.h' })"
+                        + ".register().modifiers().toString()");
+        String stringRegistered = evalText(loader, rhinoContext, context, scope, scriptableObject, scriptable,
+                "event.machine('v2b_literal_string')" + v2bParts
+                        + ".modifier(0, 1, 0, 'minecraft:stone',"
+                        + " '{\"target\":\"item\",\"io\":\"output\",\"operation\":1,\"multiplier\":2.0}')"
+                        + ".smartInterface('mode', 3.0, 7, '{\"header\":\"gui.h\"}')"
+                        + ".register().modifiers().toString()");
+        // A thrown script is NOT a passing comparison: both sides throwing the same exception would satisfy
+        // check(…, expected, got) and prove nothing. The first run of this block did exactly that and is why the
+        // guard is here.
+        boolean bothEvaluated = !literalRegistered.startsWith("THREW") && !stringRegistered.startsWith("THREW");
+        report("both spellings produced a definition for the comparison to read (a thrown script would make the"
+                        + " next assertion vacuous): object=" + literalRegistered + ", string=" + stringRegistered,
+                bothEvaluated);
+        check("a script object literal and its JSON-string spelling build the same modifier once parsed (the"
+                        + " object-literal path measured rather than assumed)", stringRegistered,
+                literalRegistered);
+        report("...and both are the doubling the guide documents, at the position the script gave: "
+                        + literalRegistered,
+                bothEvaluated
+                        // Read off the record's own toString: RecipeModifier[target=ITEM, ioTarget=OUTPUT,
+                        // value=2.0, operation=MULTIPLY, affectsChance=false]. The JSON key is `multiplier` but
+                        // the Java component is `value`, so a literal "multiplier=2.0" never appears — the first
+                        // draft asserted that spelling and failed on a working build.
+                        && literalRegistered.contains("value=2.0")
+                        && literalRegistered.contains("operation=MULTIPLY")
+                        && literalRegistered.contains("target=ITEM") && literalRegistered.contains("OUTPUT")
+                        // The position, read off BlockPos's own toString: "BlockPos{x=0, y=1, z=0}". The commas
+                        // carry a space, so "y=1" alone would not match "y=1," — hence the delimiter in each.
+                        && literalRegistered.contains("x=0,") && literalRegistered.contains("y=1,")
+                        && literalRegistered.contains("z=0}"));
+        report("...while the raw JSON text differs only in how the number is spelled, which is why this"
+                        + " assertion reads the parsed modifier instead of the string (literal=" + literalResult
+                        + ")", literalResult.contains("\"multiplier\":2")
+                        && stringResult.contains("\"multiplier\":2"));
+
+        // (8) The malformed structured entry is refused by the SCHEMA, not by the builder — the division of
+        //     labour this class documents. `operation` 9 is outside the original's 0/1, and the sentence has to
+        //     be the schema's own ("the original only defines 0 (add) and 1 (multiply)").
+        String badOperation = evalThrew(loader, rhinoContext, context, scope, scriptableObject, scriptable,
+                "event.machine('v2b_bad').modifier(0, 1, 0, 'minecraft:stone',"
+                        + " '{\"target\":\"item\",\"io\":\"output\",\"operation\":9,\"multiplier\":2.0}')"
+                        + ".register()");
+        report("a malformed modifier entry reaches the schema and is refused in the schema's own words: "
+                        + badOperation,
+                badOperation != null && badOperation.contains("only defines 0 (add) and 1 (multiply)"));
     }
 
     /**

@@ -277,6 +277,19 @@ public final class ParallelCraftCheck {
             // must never swallow a failure.
             System.exit(1);
         }
+        // 0.31.0: exit explicitly on the success path too, after closeEvidence() has flushed the transcript.
+        //
+        // Why this became necessary: the harness reaches a full green run only now and then, and until 0.31.0 a
+        // green run simply returned from main and let the JVM wait for every non-daemon thread. Section Z10's new
+        // v2b driving enters Rhino contexts (Context.enter) that are never left, and at least one of them leaves a
+        // thread alive, so a *green* run hung after printing its summary while a *failing* run exited promptly —
+        // the failure path was the only one with a System.exit. That is a nasty shape: the better the build, the
+        // longer the task takes, and a hang looks like a slow build rather than a defect.
+        //
+        // The evidence file is complete before this line runs (closeEvidence() writes the summary first), and the
+        // counts above are the same counters the file carries, so exiting here changes nothing about what is
+        // proven — only about how long the JVM waits afterwards.
+        System.exit(0);
     }
 
     // =================================================================== M6e: the factory
