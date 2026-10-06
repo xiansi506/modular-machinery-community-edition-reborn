@@ -21,16 +21,35 @@
 //  ①–④ 每格**接受石头、也接受仓口**。所以：
 //     - 先全放石头 → 机器成型但不会加工（没有仓口）；
 //     - 做 A–D 时按下面点名把某格换成仓口 → 同一台机器立刻能加工。
-//  方块 id：
-//     物品输入仓  modular_machinery_reborn:item_input_hatch[size=<等级>]
-//     物品输出仓  modular_machinery_reborn:item_output_hatch[size=<等级>]
-//     能源输入仓  modular_machinery_reborn:energy_input_hatch[size=<等级>]
-//     等级：tiny / small / normal / reinforced / big / huge / ludicrous（能源另有 ultimate）
-//     例：item_input_hatch[size=normal]
+//
+//  方块（**在结构定义里只写家族名，不要写 [size=…]**，原因见下面 .parts 处的注释）：
+//     物品输入仓  modular_machinery_reborn:item_input_hatch
+//     物品输出仓  modular_machinery_reborn:item_output_hatch
+//     能源输入仓  modular_machinery_reborn:energy_input_hatch
+//     （等级由你**手上那个仓口物品**决定：tiny / small / normal / reinforced / big / huge /
+//       ludicrous，能源另有 ultimate。结构定义不限制等级。）
 //
 //  ⚠️ 这一台**不要**把 y+1 那格换成别的方块 —— .modifier 与 .part 都只接受通风机箱，
 //     换掉就不成型。这正是 D 项要用的性质。
 //  ------------------------------------------------------------------------------------------
+
+//  ============================================================================================
+//  ★ 先看这一条（0.31.0 实机时踩到的坑，已修正）
+//
+//    「把石头换成仓口之后机器就不成型了」—— 原因不在模组，在结构定义写得**过紧**：
+//
+//      仓口的模型是「**一家族一个方块 + `size` 属性**」，放置时由**物品**把等级盖上去
+//      （`PropertyBlockItem#getPlacementState`）。所以定义里写
+//          modular_machinery_reborn:item_input_hatch[size=normal]
+//      就**要求那一格正好是「中型」**；放小型/强化/大型都不匹配 → 不成型。
+//
+//    本脚本已改成**只写家族名**：
+//          modular_machinery_reborn:item_input_hatch
+//      未列出的属性不参与约束（BlockMatcher 的语义），于是**任意等级**都接受。
+//
+//    ⚠️ 反过来也值得记住：想**强制**某一档（例如「这台机器必须用强化仓」），
+//       写 `[size=reinforced]` 就是那个意思，是你**有意**的约束，不是 bug。
+//  ============================================================================================
 
 MachineRegistryEvents.registry(event => {
   event.machine('v2b_phase2')
@@ -63,19 +82,24 @@ MachineRegistryEvents.registry(event => {
     .requiresBlueprint(false)
 
     // --- 结构：上方通风机箱（也可放石头做对照实验，见 E2）
-    .part(0, 1, 0, 'modular_machinery_reborn:blockcasing[casing=vent]',
-                    'minecraft:stone')
+    .part(0, 1, 0, 'modular_machinery_reborn:blockcasing[casing=vent]')
     // --- 下层十字：每一格都接受石头或三种仓口
+    //
+    //     ⚠️ 仓口**只写家族名，不写 [size=…]** —— 这是刻意的一个修正：
+    //        仓口的模型是「一家族一个方块 + size 属性」，放置时物品把自己那一档盖上去
+    //        （PropertyBlockItem#getPlacementState）。所以若这里写死了 [size=normal]，
+    //        你放**小型/强化/大型**仓就都不匹配 → 机器不成型。
+    //        只写家族名 = 该家族的**任意等级**都接受（未列出的属性不参与约束）。
     .parts([-2, -1, 1, 2], [-1], [0],
            'minecraft:stone',
-           'modular_machinery_reborn:item_input_hatch[size=normal]',
-           'modular_machinery_reborn:item_output_hatch[size=normal]',
-           'modular_machinery_reborn:energy_input_hatch[size=normal]')
+           'modular_machinery_reborn:item_input_hatch',
+           'modular_machinery_reborn:item_output_hatch',
+           'modular_machinery_reborn:energy_input_hatch')
     .parts([0], [-1], [-2, -1, 1, 2],
            'minecraft:stone',
-           'modular_machinery_reborn:item_input_hatch[size=normal]',
-           'modular_machinery_reborn:item_output_hatch[size=normal]',
-           'modular_machinery_reborn:energy_input_hatch[size=normal]')
+           'modular_machinery_reborn:item_input_hatch',
+           'modular_machinery_reborn:item_output_hatch',
+           'modular_machinery_reborn:energy_input_hatch')
     .register()
 })
 
@@ -125,8 +149,8 @@ ServerEvents.recipes(event => {
 //  A. 并行是不是真的结算 N 份
 //
 //     搭好：①②③④ 全放石头 → 机器成型（无加工）。
-//     把 ① 换成 item_input_hatch[size=normal]、② 换成 energy_input_hatch[size=normal]、
-//     ③ 换成 item_output_hatch[size=normal]。
+//     把 ① 换成**物品输入仓**、② 换成**能源输入仓**、③ 换成**物品输出仓**
+//     （等级随意 —— 结构定义只写家族名，不限等级）。
 //     ① 里放 3 块石头；② 里用「能源输入仓界面」充电到 ≥1200 FE（创造模式直接拿 FE 充源最快）。
 //
 //     看控制器界面（右键 C）：
@@ -145,7 +169,7 @@ ServerEvents.recipes(event => {
 //
 //     用上面同一套仓口，但 ① 里放石头、② 充满 FE 后，改用**能源配方**（v2b_p2_energy，
 //     每 tick 200、总额 12000 > 一仓 8192）——它一定在途中耗尽。
-//     更方便的做法：把 ② 换成 energy_input_hatch[size=tiny]（容量 2048），
+//     更方便的做法：把 ② 换成 **tiny（微型）能源输入仓**（容量 2048），
 //     配方会很快开始、很快断电，于是你只需要盯进度条。
 //
 //     观察控制器界面的进度：

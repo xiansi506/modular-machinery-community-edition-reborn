@@ -2,7 +2,7 @@ evidence file: C:\mmwork\_audit\m6c-verify\harness-run-0.31.0.txt
   PASS  injected: the evidence tee's counters (control check that must pass)
   FAIL  injected: the evidence tee's counters (control check that must fail)
   PASS  injected: the evidence tee counts every check (2 observed) and every failure (1 observed), so the summary line below is the harness's own arithmetic
-2026-10-06 12:53:30,648 main WARN Advanced terminal features are not available in this environment
+2026-10-07 00:32:56,089 main WARN Advanced terminal features are not available in this environment
 
 == A. no modifiers, machine ceiling 8
   PASS  parallelism limit from 128 coal / 8 per copy: expected 8, got 8
@@ -53,7 +53,7 @@ evidence file: C:\mmwork\_audit\m6c-verify\harness-run-0.31.0.txt
 
 == K. the machine loader's field rules and validation messages
   PASS  loaded {"registryname":"t","localizedname":"T","parts":[{"x":1,"y":-1,"z":0,"elements":"minecraft:stone"}]} -> max=2048 internal=0 parallelizable=true modifiers=0
-[12:53:33] [main/WARN] [co.re.mo.ma.MachineSchema/]: [modular_machinery_reborn] mmverify:test sets parallelizable=false while internal-parallelism is 4; the machine will still not run in parallel. Set "parallelizable": true, or remove 'internal-parallelism'.
+[00:32:59] [main/WARN] [co.re.mo.ma.MachineSchema/]: [modular_machinery_reborn] mmverify:test sets parallelizable=false while internal-parallelism is 4; the machine will still not run in parallel. Set "parallelizable": true, or remove 'internal-parallelism'.
   PASS  loaded {"registryname":"t","max-parallelism":64,"internal-parallelism":4,"parallelizable":false,"parts":[{"x":1,"y":-1,"z":0,"elements":"minecraft:stone"}]} -> max=64 internal=4 parallelizable=false modifiers=0
   PASS  loaded {"registryname":"t","modifiers":[{"elements":"minecraft:stone","x":0,"y":1,"z":0,"modifier":{"target":"item","io":"output","operation":1,"multiplier":2.0}}],"parts":[{"x":1,"y":-1,"z":0,"elements":"minecraft:stone"}]} -> max=2048 internal=0 parallelizable=true modifiers=1
   PASS  rejected: 'max-parallelism' of mmverify:test is -1, but a parallelism cannot be negative. The original floored it at 0 (a machine with no parallel controller still runs exactly one copy), so write 0 for "no built-in parallelism".
@@ -895,38 +895,38 @@ evidence file: C:\mmwork\_audit\m6c-verify\harness-run-0.31.0.txt
   PASS  with no config handed to the spec — the state Forge is in while RegisterEvent fires — SPEC.isLoaded() is false (on entry it was true, which is section R's leftover, not a game fact)
   PASS  ...and in that state ModConfig.mocCompatibleMode() answers its pre-config fallback, false, whatever the file says (false)
   PASS  ...and disableMocDeprecatedTip() answers its fallback too (false)
-[12:53:34] [main/WARN] [ne.mi.co.ForgeConfigSpec/CORE]: Configuration file SimpleCommentedConfig:{general=SimpleCommentedConfig:{disable-moc-deprecated-tip=true, modular-controller-compatible-mode=true}} is not correct. Correcting
-[12:53:34] [main/WARN] [ne.mi.co.ForgeConfigSpec/CORE]: Incorrect key parallel-controller was corrected from null to its default, SimpleCommentedConfig:{}. 
-[12:53:34] [main/WARN] [ne.mi.co.ForgeConfigSpec/CORE]: Incorrect key parallel-controller.normal was corrected from null to its default, SimpleCommentedConfig:{}. 
-[12:53:34] [main/WARN] [ne.mi.co.ForgeConfigSpec/CORE]: Incorrect key parallel-controller.normal.max-parallelism was corrected from null to its default, 4. 
-[12:53:34] [main/WARN] [ne.mi.co.ForgeConfigSpec/CORE]: Incorrect key parallel-controller.reinforced was corrected from null to its default, SimpleCommentedConfig:{}. 
-[12:53:34] [main/WARN] [ne.mi.co.ForgeConfigSpec/CORE]: Incorrect key parallel-controller.reinforced.max-parallelism was corrected from null to its default, 16. 
-[12:53:34] [main/WARN] [ne.mi.co.ForgeConfigSpec/CORE]: Incorrect key parallel-controller.elite was corrected from null to its default, SimpleCommentedConfig:{}. 
-[12:53:34] [main/WARN] [ne.mi.co.ForgeConfigSpec/CORE]: Incorrect key parallel-controller.elite.max-parallelism was corrected from null to its default, 64. 
-[12:53:34] [main/WARN] [ne.mi.co.ForgeConfigSpec/CORE]: Incorrect key parallel-controller.super was corrected from null to its default, SimpleCommentedConfig:{}. 
-[12:53:34] [main/WARN] [ne.mi.co.ForgeConfigSpec/CORE]: Incorrect key parallel-controller.super.max-parallelism was corrected from null to its default, 256. 
-[12:53:34] [main/WARN] [ne.mi.co.ForgeConfigSpec/CORE]: Incorrect key parallel-controller.ultimate was corrected from null to its default, SimpleCommentedConfig:{}. 
-[12:53:34] [main/WARN] [ne.mi.co.ForgeConfigSpec/CORE]: Incorrect key parallel-controller.ultimate.max-parallelism was corrected from null to its default, 512. 
-[12:53:34] [main/WARN] [ne.mi.co.ForgeConfigSpec/CORE]: Incorrect key upgrade-bus was corrected from null to its default, SimpleCommentedConfig:{}. 
-[12:53:34] [main/WARN] [ne.mi.co.ForgeConfigSpec/CORE]: Incorrect key upgrade-bus.normal was corrected from null to its default, SimpleCommentedConfig:{}. 
-[12:53:34] [main/WARN] [ne.mi.co.ForgeConfigSpec/CORE]: Incorrect key upgrade-bus.normal.max-upgrade_slot was corrected from null to its default, 3. 
-[12:53:34] [main/WARN] [ne.mi.co.ForgeConfigSpec/CORE]: Incorrect key upgrade-bus.reinforced was corrected from null to its default, SimpleCommentedConfig:{}. 
-[12:53:34] [main/WARN] [ne.mi.co.ForgeConfigSpec/CORE]: Incorrect key upgrade-bus.reinforced.max-upgrade_slot was corrected from null to its default, 6. 
-[12:53:34] [main/WARN] [ne.mi.co.ForgeConfigSpec/CORE]: Incorrect key upgrade-bus.elite was corrected from null to its default, SimpleCommentedConfig:{}. 
-[12:53:34] [main/WARN] [ne.mi.co.ForgeConfigSpec/CORE]: Incorrect key upgrade-bus.elite.max-upgrade_slot was corrected from null to its default, 9. 
-[12:53:34] [main/WARN] [ne.mi.co.ForgeConfigSpec/CORE]: Incorrect key upgrade-bus.super was corrected from null to its default, SimpleCommentedConfig:{}. 
-[12:53:34] [main/WARN] [ne.mi.co.ForgeConfigSpec/CORE]: Incorrect key upgrade-bus.super.max-upgrade_slot was corrected from null to its default, 12. 
-[12:53:34] [main/WARN] [ne.mi.co.ForgeConfigSpec/CORE]: Incorrect key upgrade-bus.ultimate was corrected from null to its default, SimpleCommentedConfig:{}. 
-[12:53:34] [main/WARN] [ne.mi.co.ForgeConfigSpec/CORE]: Incorrect key upgrade-bus.ultimate.max-upgrade_slot was corrected from null to its default, 18. 
-[12:53:34] [main/WARN] [ne.mi.co.ForgeConfigSpec/CORE]: Incorrect key factory-system was corrected from null to its default, SimpleCommentedConfig:{}. 
-[12:53:34] [main/WARN] [ne.mi.co.ForgeConfigSpec/CORE]: Incorrect key factory-system.default-factory-max-thread was corrected from null to its default, 10. 
-[12:53:34] [main/WARN] [ne.mi.co.ForgeConfigSpec/CORE]: Incorrect key factory-system.enable-factory-controller-bydefault was corrected from null to its default, false. 
-[12:53:34] [main/WARN] [ne.mi.co.ForgeConfigSpec/CORE]: Incorrect key smart-interface was corrected from null to its default, SimpleCommentedConfig:{}. 
-[12:53:34] [main/WARN] [ne.mi.co.ForgeConfigSpec/CORE]: Incorrect key smart-interface.enable-smart-interface-bydefault was corrected from null to its default, false. 
+[00:32:59] [main/WARN] [ne.mi.co.ForgeConfigSpec/CORE]: Configuration file SimpleCommentedConfig:{general=SimpleCommentedConfig:{disable-moc-deprecated-tip=true, modular-controller-compatible-mode=true}} is not correct. Correcting
+[00:32:59] [main/WARN] [ne.mi.co.ForgeConfigSpec/CORE]: Incorrect key parallel-controller was corrected from null to its default, SimpleCommentedConfig:{}. 
+[00:32:59] [main/WARN] [ne.mi.co.ForgeConfigSpec/CORE]: Incorrect key parallel-controller.normal was corrected from null to its default, SimpleCommentedConfig:{}. 
+[00:32:59] [main/WARN] [ne.mi.co.ForgeConfigSpec/CORE]: Incorrect key parallel-controller.normal.max-parallelism was corrected from null to its default, 4. 
+[00:32:59] [main/WARN] [ne.mi.co.ForgeConfigSpec/CORE]: Incorrect key parallel-controller.reinforced was corrected from null to its default, SimpleCommentedConfig:{}. 
+[00:32:59] [main/WARN] [ne.mi.co.ForgeConfigSpec/CORE]: Incorrect key parallel-controller.reinforced.max-parallelism was corrected from null to its default, 16. 
+[00:32:59] [main/WARN] [ne.mi.co.ForgeConfigSpec/CORE]: Incorrect key parallel-controller.elite was corrected from null to its default, SimpleCommentedConfig:{}. 
+[00:32:59] [main/WARN] [ne.mi.co.ForgeConfigSpec/CORE]: Incorrect key parallel-controller.elite.max-parallelism was corrected from null to its default, 64. 
+[00:32:59] [main/WARN] [ne.mi.co.ForgeConfigSpec/CORE]: Incorrect key parallel-controller.super was corrected from null to its default, SimpleCommentedConfig:{}. 
+[00:32:59] [main/WARN] [ne.mi.co.ForgeConfigSpec/CORE]: Incorrect key parallel-controller.super.max-parallelism was corrected from null to its default, 256. 
+[00:32:59] [main/WARN] [ne.mi.co.ForgeConfigSpec/CORE]: Incorrect key parallel-controller.ultimate was corrected from null to its default, SimpleCommentedConfig:{}. 
+[00:32:59] [main/WARN] [ne.mi.co.ForgeConfigSpec/CORE]: Incorrect key parallel-controller.ultimate.max-parallelism was corrected from null to its default, 512. 
+[00:32:59] [main/WARN] [ne.mi.co.ForgeConfigSpec/CORE]: Incorrect key upgrade-bus was corrected from null to its default, SimpleCommentedConfig:{}. 
+[00:32:59] [main/WARN] [ne.mi.co.ForgeConfigSpec/CORE]: Incorrect key upgrade-bus.normal was corrected from null to its default, SimpleCommentedConfig:{}. 
+[00:32:59] [main/WARN] [ne.mi.co.ForgeConfigSpec/CORE]: Incorrect key upgrade-bus.normal.max-upgrade_slot was corrected from null to its default, 3. 
+[00:32:59] [main/WARN] [ne.mi.co.ForgeConfigSpec/CORE]: Incorrect key upgrade-bus.reinforced was corrected from null to its default, SimpleCommentedConfig:{}. 
+[00:32:59] [main/WARN] [ne.mi.co.ForgeConfigSpec/CORE]: Incorrect key upgrade-bus.reinforced.max-upgrade_slot was corrected from null to its default, 6. 
+[00:32:59] [main/WARN] [ne.mi.co.ForgeConfigSpec/CORE]: Incorrect key upgrade-bus.elite was corrected from null to its default, SimpleCommentedConfig:{}. 
+[00:32:59] [main/WARN] [ne.mi.co.ForgeConfigSpec/CORE]: Incorrect key upgrade-bus.elite.max-upgrade_slot was corrected from null to its default, 9. 
+[00:32:59] [main/WARN] [ne.mi.co.ForgeConfigSpec/CORE]: Incorrect key upgrade-bus.super was corrected from null to its default, SimpleCommentedConfig:{}. 
+[00:32:59] [main/WARN] [ne.mi.co.ForgeConfigSpec/CORE]: Incorrect key upgrade-bus.super.max-upgrade_slot was corrected from null to its default, 12. 
+[00:32:59] [main/WARN] [ne.mi.co.ForgeConfigSpec/CORE]: Incorrect key upgrade-bus.ultimate was corrected from null to its default, SimpleCommentedConfig:{}. 
+[00:32:59] [main/WARN] [ne.mi.co.ForgeConfigSpec/CORE]: Incorrect key upgrade-bus.ultimate.max-upgrade_slot was corrected from null to its default, 18. 
+[00:32:59] [main/WARN] [ne.mi.co.ForgeConfigSpec/CORE]: Incorrect key factory-system was corrected from null to its default, SimpleCommentedConfig:{}. 
+[00:32:59] [main/WARN] [ne.mi.co.ForgeConfigSpec/CORE]: Incorrect key factory-system.default-factory-max-thread was corrected from null to its default, 10. 
+[00:32:59] [main/WARN] [ne.mi.co.ForgeConfigSpec/CORE]: Incorrect key factory-system.enable-factory-controller-bydefault was corrected from null to its default, false. 
+[00:32:59] [main/WARN] [ne.mi.co.ForgeConfigSpec/CORE]: Incorrect key smart-interface was corrected from null to its default, SimpleCommentedConfig:{}. 
+[00:32:59] [main/WARN] [ne.mi.co.ForgeConfigSpec/CORE]: Incorrect key smart-interface.enable-smart-interface-bydefault was corrected from null to its default, false. 
   PASS  control: with a config setting both keys true, the accessors read it (so the two answers above are about WHEN the config is available, not about dead accessors)
 
   -- (2) the registry names the original used, and which machines get one
-[12:53:34] [main/WARN] [co.re.mo.ma.MachineDirectory/]: [modular_machinery_reborn] C:\mmwork\.tmp-m6c-verify\moc-fixture\machinery\not_a_machine.json has no 'registryname', so it gets no controller block
+[00:32:59] [main/WARN] [co.re.mo.ma.MachineDirectory/]: [modular_machinery_reborn] C:\mmwork\.tmp-m6c-verify\moc-fixture\machinery\not_a_machine.json has no 'registryname', so it gets no controller block
   PASS  declarations that get an MOC controller (4 files, 3 name a machine, 1 is factory-only): expected 2, got 2
   PASS  alloy_furnace is claimed: expected modular_machinery_reborn:alloy_furnace, got modular_machinery_reborn:alloy_furnace
   PASS  the declaration file 'renamed_declaration.json' claims modular_machinery_reborn:transformer: expected modular_machinery_reborn:transformer, got modular_machinery_reborn:transformer
@@ -1088,27 +1088,27 @@ evidence file: C:\mmwork\_audit\m6c-verify\harness-run-0.31.0.txt
   PASS  ...and 'failure-action'
   PASS  ...and 'requires-blueprint'
   PASS  strict reading rejects an unknown root field
-[12:53:34] [main/WARN] [co.re.mo.ma.MachineSchema/]: [modular_machinery_reborn] machine 't' has root field(s) this loader does not know: registrynam. They are ignored. If they were meant to have an effect, check the spelling against the documented fields (registryname, localizedname, parts, failure-action, requires-blueprint, max-parallelism, internal-parallelism, parallelizable, modifiers, has-factory, factory-only, max-threads, core-threads, smart-interfaces); a note can be written as a "//..." key.
+[00:32:59] [main/WARN] [co.re.mo.ma.MachineSchema/]: [modular_machinery_reborn] machine 't' has root field(s) this loader does not know: registrynam. They are ignored. If they were meant to have an effect, check the spelling against the documented fields (registryname, localizedname, parts, failure-action, requires-blueprint, max-parallelism, internal-parallelism, parallelizable, modifiers, has-factory, factory-only, max-threads, core-threads, smart-interfaces); a note can be written as a "//..." key.
   PASS  tolerant reading accepts the same field (the original's behaviour, kept for data packs)
-[12:53:34] [main/WARN] [co.re.mo.ma.MachineSchema/]: [modular_machinery_reborn] mmverify:z_json has root field(s) this loader does not know: registrynam. They are ignored. If they were meant to have an effect, check the spelling against the documented fields (registryname, localizedname, parts, failure-action, requires-blueprint, max-parallelism, internal-parallelism, parallelizable, modifiers, has-factory, factory-only, max-threads, core-threads, smart-interfaces); a note can be written as a "//..." key.
+[00:32:59] [main/WARN] [co.re.mo.ma.MachineSchema/]: [modular_machinery_reborn] mmverify:z_json has root field(s) this loader does not know: registrynam. They are ignored. If they were meant to have an effect, check the spelling against the documented fields (registryname, localizedname, parts, failure-action, requires-blueprint, max-parallelism, internal-parallelism, parallelizable, modifiers, has-factory, factory-only, max-threads, core-threads, smart-interfaces); a note can be written as a "//..." key.
   PASS  the loader's own readMachine stays tolerant
   PASS  ...and both readings accept a valid definition
-[12:53:34] [main/WARN] [co.re.mo.ma.MachineSchema/]: [modular_machinery_reborn] machine 't' has root field(s) this loader does not know: a, b. They are ignored. If they were meant to have an effect, check the spelling against the documented fields (registryname, localizedname, parts, failure-action, requires-blueprint, max-parallelism, internal-parallelism, parallelizable, modifiers, has-factory, factory-only, max-threads, core-threads, smart-interfaces); a note can be written as a "//..." key.
+[00:32:59] [main/WARN] [co.re.mo.ma.MachineSchema/]: [modular_machinery_reborn] machine 't' has root field(s) this loader does not know: a, b. They are ignored. If they were meant to have an effect, check the spelling against the documented fields (registryname, localizedname, parts, failure-action, requires-blueprint, max-parallelism, internal-parallelism, parallelizable, modifiers, has-factory, factory-only, max-threads, core-threads, smart-interfaces); a note can be written as a "//..." key.
   PASS  tolerant mode does not become strict when several unknown fields are present
   PASS  ...while strict mode refuses them all at once
   PASS  the script layer staged two definitions in cycle 1: expected 2, got 2
-[12:53:34] [main/WARN] [co.re.mo.ma.MachineDefinitions/]: [modular_machinery_reborn] The KubeJS script layer defines 'modular_machinery_reborn:from_pack_shadowed', which a data pack or the config directory also defines; the script wins for this server. Script definitions take precedence over the machine definition directory (config/<modid>/machinery) and over the data pack — remove it from one of the two, or give the machine a different registryname.
-[12:53:34] [main/INFO] [co.re.mo.ma.MachineDefinitions/]: [modular_machinery_reborn] 2 machine definition(s) came from the KubeJS script layer and shadowed 1 other definition(s)
+[00:32:59] [main/WARN] [co.re.mo.ma.MachineDefinitions/]: [modular_machinery_reborn] The KubeJS script layer defines 'modular_machinery_reborn:from_pack_shadowed', which a data pack or the config directory also defines; the script wins for this server. Script definitions take precedence over the machine definition directory (config/<modid>/machinery) and over the data pack — remove it from one of the two, or give the machine a different registryname.
+[00:32:59] [main/INFO] [co.re.mo.ma.MachineDefinitions/]: [modular_machinery_reborn] 2 machine definition(s) came from the KubeJS script layer and shadowed 1 other definition(s)
   PASS  after reload 1 there are three machines (2 data pack + 1 new, one shadowed): expected 3, got 3
   PASS  the data pack's untouched machine survives
   PASS  the script-only machine is present
   PASS  the script's definition won the collision
   PASS  the shadowed id was reported: expected [modular_machinery_reborn:from_pack_shadowed], got [modular_machinery_reborn:from_pack_shadowed]
-[12:53:34] [main/WARN] [co.re.mo.ma.MachineDefinitions/]: [modular_machinery_reborn] The KubeJS script layer defines 'modular_machinery_reborn:from_pack_shadowed', which a data pack or the config directory also defines; the script wins for this server. Script definitions take precedence over the machine definition directory (config/<modid>/machinery) and over the data pack — remove it from one of the two, or give the machine a different registryname.
-[12:53:34] [main/INFO] [co.re.mo.ma.MachineDefinitions/]: [modular_machinery_reborn] 2 machine definition(s) came from the KubeJS script layer and shadowed 1 other definition(s)
+[00:32:59] [main/WARN] [co.re.mo.ma.MachineDefinitions/]: [modular_machinery_reborn] The KubeJS script layer defines 'modular_machinery_reborn:from_pack_shadowed', which a data pack or the config directory also defines; the script wins for this server. Script definitions take precedence over the machine definition directory (config/<modid>/machinery) and over the data pack — remove it from one of the two, or give the machine a different registryname.
+[00:32:59] [main/INFO] [co.re.mo.ma.MachineDefinitions/]: [modular_machinery_reborn] 2 machine definition(s) came from the KubeJS script layer and shadowed 1 other definition(s)
   PASS  ...and applyScriptLayer returns the same ids: expected [modular_machinery_reborn:from_pack_shadowed], got [modular_machinery_reborn:from_pack_shadowed]
-[12:53:34] [main/WARN] [co.re.mo.ma.MachineDefinitions/]: [modular_machinery_reborn] The KubeJS script layer defines 'modular_machinery_reborn:from_pack_shadowed', which a data pack or the config directory also defines; the script wins for this server. Script definitions take precedence over the machine definition directory (config/<modid>/machinery) and over the data pack — remove it from one of the two, or give the machine a different registryname.
-[12:53:34] [main/INFO] [co.re.mo.ma.MachineDefinitions/]: [modular_machinery_reborn] 2 machine definition(s) came from the KubeJS script layer and shadowed 1 other definition(s)
+[00:32:59] [main/WARN] [co.re.mo.ma.MachineDefinitions/]: [modular_machinery_reborn] The KubeJS script layer defines 'modular_machinery_reborn:from_pack_shadowed', which a data pack or the config directory also defines; the script wins for this server. Script definitions take precedence over the machine definition directory (config/<modid>/machinery) and over the data pack — remove it from one of the two, or give the machine a different registryname.
+[00:32:59] [main/INFO] [co.re.mo.ma.MachineDefinitions/]: [modular_machinery_reborn] 2 machine definition(s) came from the KubeJS script layer and shadowed 1 other definition(s)
   PASS  the script machine is still there after a second reload (same ids, same order): expected [modular_machinery_reborn:from_pack_kept, modular_machinery_reborn:from_pack_shadowed, modular_machinery_reborn:from_script_only], got [modular_machinery_reborn:from_pack_kept, modular_machinery_reborn:from_pack_shadowed, modular_machinery_reborn:from_script_only]
   PASS  ...and it is still the script's definition, not the data pack's
   PASS  ...and the script-only machine did not displace anything
@@ -1116,17 +1116,17 @@ evidence file: C:\mmwork\_audit\m6c-verify\harness-run-0.31.0.txt
   PASS  the baseline really is the two data-pack machines: expected 2, got 2
   PASS  ...and the shadowing machine is one of them
   PASS  a copy of the baseline still has two machines: expected 2, got 2
-[12:53:34] [main/INFO] [co.re.mo.ma.MachineDefinitions/]: [modular_machinery_reborn] 1 machine definition(s) came from the KubeJS script layer
+[00:32:59] [main/INFO] [co.re.mo.ma.MachineDefinitions/]: [modular_machinery_reborn] 1 machine definition(s) came from the KubeJS script layer
   PASS  ...applying a layer that no longer mentions the shadowed id neither restores nor removes anything: the data pack's two plus the surviving script's one: expected 3, got 3
   PASS  ...and the data pack's own definition of the shadowed id is the one in the table: expected from the data pack, got from the data pack
-[12:53:34] [main/INFO] [co.re.mo.ma.MachineDefinitions/]: [modular_machinery_reborn] 1 machine definition(s) came from the KubeJS script layer
+[00:32:59] [main/INFO] [co.re.mo.ma.MachineDefinitions/]: [modular_machinery_reborn] 1 machine definition(s) came from the KubeJS script layer
   PASS  the shadowing script's definition is gone
   PASS  ...and the data pack's definition of that id is back, unshadowed
   PASS  ...and the surviving script's machine is untouched
   PASS  ...so the table is the two data-pack machines plus one: expected 3, got 3
-[12:53:34] [main/INFO] [co.re.mo.ma.MachineDefinitions/]: [modular_machinery_reborn] 1 machine definition(s) came from the KubeJS script layer
+[00:32:59] [main/INFO] [co.re.mo.ma.MachineDefinitions/]: [modular_machinery_reborn] 1 machine definition(s) came from the KubeJS script layer
   PASS  a machine no script defined is not in the table (the control)
-[12:53:34] [main/INFO] [co.re.mo.ma.MachineDefinitions/]: [modular_machinery_reborn] 1 machine definition(s) came from the KubeJS script layer
+[00:32:59] [main/INFO] [co.re.mo.ma.MachineDefinitions/]: [modular_machinery_reborn] 1 machine definition(s) came from the KubeJS script layer
   PASS  ...it is staged
   PASS  ...and with the script deleted it is not in the table at all
   PASS  ...while every data-pack machine is untouched
@@ -1186,8 +1186,8 @@ evidence file: C:\mmwork\_audit\m6c-verify\harness-run-0.31.0.txt
   PASS  ...and so could the Rhino fork KubeJS runs scripts with: C:\Users\kk07H\Desktop\模组\.gradle-home\caches\forge_gradle\deobf_dependencies\libs\rhino\1.20.1_mapped_official_1.20.1\rhino-1.20.1_mapped_official_1.20.1.jar
   PASS  ...while the production jars this checkout ships are SRG-remapped (libs/kubejs-1.20.1.jar, byte-identical to the instance's), so building on them here would have been a mapping mismatch, not a test
   PASS  a stand-in for Architectury's Platform was compiled (KubeJS reads the game folder while its own classes initialise, and this harness has no mod loader): C:\Users\kk07H\AppData\Local\Temp\mmverify-kjs-stub\classes
-[12:53:37] [main/INFO] [KubeJS/]: Loaded common.properties
-[12:53:37] [main/INFO] [KubeJS/]: Loaded dev.properties
+[00:33:02] [main/INFO] [KubeJS/]: Loaded common.properties
+[00:33:02] [main/INFO] [KubeJS/]: Loaded dev.properties
   PASS  registerEvents() is what puts the machine event group into KubeJS's own group registry under 'MachineRegistryEvents' — without it KubeJS never binds the group, and a binding with no group behind it is another way to ship an event no script can call
   PASS  ...with exactly one typed event on it ([registry])
   PASS  registerBindings published 'MachineRegistryEvents' (dev.latvian.mods.kubejs.event.EventGroupWrapper)
@@ -1213,12 +1213,14 @@ evidence file: C:\mmwork\_audit\m6c-verify\harness-run-0.31.0.txt
   PASS  ...and a script's NUMBER has no conversion to List at all (99 is Rhino's "cannot convert"), so the scalar spelling can never fall into a list-shaped method by weight either: expected 99, got 99
   PASS  ...while the same number converts to Integer at weight 2 — the tie 0.28.1 left for the JVM's method order to break, and the reason both spellings now have their own name
   PASS  all eleven v2b fields, written in one script chain and run through KubeJS's own Rhino, build exactly the definition a data pack would have carried: expected {"registryname":"v2b_smoke","failure-action":"decrease","requires-blueprint":true,"max-parallelism":64,"internal-parallelism":2,"parallelizable":true,"has-factory":true,"factory-only":false,"max-threads":4,"modifiers":[{"x":0,"y":1,"z":0,"elements":"minecraft:stone","modifier":{"target":"item","io":"output","operation":1,"multiplier":2.0}}],"smart-interfaces":[{"type":"mode","default":3.0,"priority":7}],"core-threads":[{"name":"smelter"},{"name":"pinned","recipes":["t:one"]}]}, got {"registryname":"v2b_smoke","failure-action":"decrease","requires-blueprint":true,"max-parallelism":64,"internal-parallelism":2,"parallelizable":true,"has-factory":true,"factory-only":false,"max-threads":4,"modifiers":[{"x":0,"y":1,"z":0,"elements":"minecraft:stone","modifier":{"target":"item","io":"output","operation":1,"multiplier":2.0}}],"smart-interfaces":[{"type":"mode","default":3.0,"priority":7}],"core-threads":[{"name":"smelter"},{"name":"pinned","recipes":["t:one"]}]}
-[12:53:39] [main/INFO] [co.re.mo.ModularMachineryReborn/]: [modular_machinery_reborn] KubeJS defined machine 'modular_machinery_reborn:v2b_literal_object' (1 part(s))
-[12:53:39] [main/INFO] [co.re.mo.ModularMachineryReborn/]: [modular_machinery_reborn] KubeJS defined machine 'modular_machinery_reborn:v2b_literal_string' (1 part(s))
+[00:33:04] [main/INFO] [co.re.mo.ModularMachineryReborn/]: [modular_machinery_reborn] KubeJS defined machine 'modular_machinery_reborn:v2b_literal_object' (1 part(s))
+[00:33:04] [main/INFO] [co.re.mo.ModularMachineryReborn/]: [modular_machinery_reborn] KubeJS defined machine 'modular_machinery_reborn:v2b_literal_string' (1 part(s))
   PASS  both spellings produced a definition for the comparison to read (a thrown script would make the next assertion vacuous): object=[MachineModifier[offset=BlockPos{x=0, y=1, z=0}, accepted=[minecraft:stone], modifiers=[RecipeModifier[target=ITEM, ioTarget=OUTPUT, value=2.0, operation=MULTIPLY, affectsChance=false]], description=]], string=[MachineModifier[offset=BlockPos{x=0, y=1, z=0}, accepted=[minecraft:stone], modifiers=[RecipeModifier[target=ITEM, ioTarget=OUTPUT, value=2.0, operation=MULTIPLY, affectsChance=false]], description=]]
   PASS  a script object literal and its JSON-string spelling build the same modifier once parsed (the object-literal path measured rather than assumed): expected [MachineModifier[offset=BlockPos{x=0, y=1, z=0}, accepted=[minecraft:stone], modifiers=[RecipeModifier[target=ITEM, ioTarget=OUTPUT, value=2.0, operation=MULTIPLY, affectsChance=false]], description=]], got [MachineModifier[offset=BlockPos{x=0, y=1, z=0}, accepted=[minecraft:stone], modifiers=[RecipeModifier[target=ITEM, ioTarget=OUTPUT, value=2.0, operation=MULTIPLY, affectsChance=false]], description=]]
   PASS  ...and both are the doubling the guide documents, at the position the script gave: [MachineModifier[offset=BlockPos{x=0, y=1, z=0}, accepted=[minecraft:stone], modifiers=[RecipeModifier[target=ITEM, ioTarget=OUTPUT, value=2.0, operation=MULTIPLY, affectsChance=false]], description=]]
   PASS  ...while the raw JSON text differs only in how the number is spelled, which is why this assertion reads the parsed modifier instead of the string (literal={"registryname":"v2b_literal","modifiers":[{"x":0,"y":1,"z":0,"elements":"minecraft:stone","modifier":{"target":"item","io":"output","operation":1,"multiplier":2}}],"smart-interfaces":[{"header":"gui.h","type":"mode","default":3.0,"priority":7}]})
+  PASS  a scalar coordinate mixed with coordinate arrays in one .parts(…) call is written through verbatim — the arrays reach the schema unexpanded, because expanding them is the schema's job (section Z1 asserts that product): expected {"registryname":"v2b_parts","parts":[{"x":[-2,-1,1,2],"y":-1,"z":0,"elements":"minecraft:stone"},{"x":0,"y":-1,"z":[-2,-1,1,2],"elements":"minecraft:stone"},{"x":0,"y":1,"z":0,"elements":"modular_machinery_reborn:blockcasing[casing=vent]"}]}, got {"registryname":"v2b_parts","parts":[{"x":[-2,-1,1,2],"y":-1,"z":0,"elements":"minecraft:stone"},{"x":0,"y":-1,"z":[-2,-1,1,2],"elements":"minecraft:stone"},{"x":0,"y":1,"z":0,"elements":"modular_machinery_reborn:blockcasing[casing=vent]"}]}
+  PASS  a hatch descriptor without a property is written as the bare block id (so every tier is accepted), and one with [size=…] keeps that property verbatim (so the tier is pinned): {"registryname":"v2b_hatch","parts":[{"x":[-2,-1,1,2],"y":-1,"z":0,"elements":["minecraft:stone","modular_machinery_reborn:item_input_hatch","modular_machinery_reborn:item_output_hatch[size=normal]"]}]}
   PASS  a malformed modifier entry reaches the schema and is refused in the schema's own words: com.google.gson.JsonParseException: 'operation' in machine 'v2b_bad' is 9; the original only defines 0 (add) and 1 (multiply). Write "operation": 0 or "operation": 1.
 
 == AA. the construct tool: selection arithmetic, the export fragment, and the gate
@@ -1389,7 +1391,7 @@ evidence file: C:\mmwork\_audit\m6c-verify\harness-run-0.31.0.txt
   "note": "机器"
 }
   PASS  the third as ' (1)': expected machine-Alice-2026-10-02_03.04.05 (1).json, got machine-Alice-2026-10-02_03.04.05 (1).json
-  PASS  a missing directory is created (C:\Users\kk07H\AppData\Local\Temp\mmverify-construct233903282265803149\machinery\deeper\machine-Alice-2026-10-02_03.04.05.json)
+  PASS  a missing directory is created (C:\Users\kk07H\AppData\Local\Temp\mmverify-construct18382270205084255846\machinery\deeper\machine-Alice-2026-10-02_03.04.05.json)
   PASS  ...and the returned path is inside the directory it was given
 
 == AA8. the gate: server side, creative, and allowed to use commands
@@ -1430,5 +1432,5 @@ evidence file: C:\mmwork\_audit\m6c-verify\harness-run-0.31.0.txt
   PASS  ...and it never calls fillBlocks
   PASS  ...while it does override useOn (the click that the original handled in onItemUse)
 
-SUMMARY: 1186 PASS / 3 FAIL (1189 checks)
+SUMMARY: 1188 PASS / 3 FAIL (1191 checks)
 3 CHECK(S) FAILED

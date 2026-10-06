@@ -552,6 +552,59 @@ final class KubeJSBindingCheck {
                         + ")", literalResult.contains("\"multiplier\":2")
                         && stringResult.contains("\"multiplier\":2"));
 
+        // (8) The parts shape a real pack author hit: a scalar coordinate mixed with coordinate arrays in the
+        //     SAME .parts(...) call, which is how the 0.31.0 phase-2 verification script spells the stone cross
+        //     (`.parts([-2,-1,1,2], [-1], [0], …)`). The report that prompted this assertion is "replacing the
+        //     stones with hatches stops the machine forming".
+        //
+        //     What this pinned down: the builder writes the coordinate LIST through unchanged and lets the
+        //     schema expand it into the cartesian product. The first draft of this assertion expected eight
+        //     expanded entries and went red on a working build — the expansion belongs to MachineSchema, and
+        //     duplicating it here would put the same rule in two places. So the assertion is written the way the
+        //     builder really behaves, and the schema's own expansion is covered by section Z1's
+        //     cartesian-product check.
+        String mixedParts = "event.machine('v2b_parts')."
+                + "parts([-2, -1, 1, 2], [-1], [0], 'minecraft:stone')"
+                + ".parts([0], [-1], [-2, -1, 1, 2], 'minecraft:stone')"
+                + ".part(0, 1, 0, 'modular_machinery_reborn:blockcasing[casing=vent]')"
+                + ".toJson().toString()";
+        String expectedMixedParts = "{\"registryname\":\"v2b_parts\",\"parts\":["
+                + "{\"x\":[-2,-1,1,2],\"y\":-1,\"z\":0,\"elements\":\"minecraft:stone\"},"
+                + "{\"x\":0,\"y\":-1,\"z\":[-2,-1,1,2],\"elements\":\"minecraft:stone\"},"
+                + "{\"x\":0,\"y\":1,\"z\":0,"
+                + "\"elements\":\"modular_machinery_reborn:blockcasing[casing=vent]\"}]}";
+        check("a scalar coordinate mixed with coordinate arrays in one .parts(…) call is written through"
+                        + " verbatim — the arrays reach the schema unexpanded, because expanding them is the"
+                        + " schema's job (section Z1 asserts that product)", expectedMixedParts,
+                evalText(loader, rhinoContext, context, scope, scriptableObject, scriptable, mixedParts));
+
+        // (9) The same call with the hatch descriptors. This decides whether "the machine stops forming once a
+        //     hatch is placed" can be a builder problem at all — and it cannot: the builder only puts those
+        //     strings into an accepted-elements array. What is asserted is that each descriptor survives
+        //     verbatim, INCLUDING its [size=…] property, and that the property-less spelling is written without
+        //     one. Both spellings matter to an author: the property-less form accepts every tier (which is what
+        //     the corrected phase-2 script uses), while [size=normal] pins the tier and is the reason a machine
+        //     built from the first draft of that script refused to form when any other tier was placed —
+        //     hatches are one block per family with a `size` property stamped on by the placing item
+        //     (PropertyBlockItem#getPlacementState), so a pinned tier is a deliberate constraint, not a default.
+        String hatchParts = "event.machine('v2b_hatch')."
+                + "parts([-2, -1, 1, 2], [-1], [0],"
+                + " 'minecraft:stone',"
+                + " 'modular_machinery_reborn:item_input_hatch',"
+                + " 'modular_machinery_reborn:item_output_hatch[size=normal]')"
+                + ".toJson().toString()";
+        String hatchResult = evalText(loader, rhinoContext, context, scope, scriptableObject, scriptable,
+                hatchParts);
+        // report(...) with an explicit equality rather than check(...): there is no
+        // check(String, boolean, boolean) overload in this harness (asked twice now — see 必查 4's note about
+        // the same missing overload).
+        report("a hatch descriptor without a property is written as the bare block id (so every tier is"
+                        + " accepted), and one with [size=…] keeps that property verbatim (so the tier is"
+                        + " pinned): " + hatchResult,
+                hatchResult.contains("\"elements\":[\"minecraft:stone\","
+                        + "\"modular_machinery_reborn:item_input_hatch\","
+                        + "\"modular_machinery_reborn:item_output_hatch[size=normal]\"]"));
+
         // (8) The malformed structured entry is refused by the SCHEMA, not by the builder — the division of
         //     labour this class documents. `operation` 9 is outside the original's 0/1, and the sentence has to
         //     be the schema's own ("the original only defines 0 (add) and 1 (multiply)").
