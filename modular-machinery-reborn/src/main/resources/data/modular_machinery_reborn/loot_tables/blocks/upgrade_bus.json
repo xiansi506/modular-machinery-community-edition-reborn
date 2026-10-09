@@ -3,8 +3,52 @@
   "pools": [
     {
       "bonus_rolls": 0.0,
-      "conditions": [ { "condition": "minecraft:survives_explosion" } ],
-      "entries": [ { "type": "minecraft:item", "name": "modular_machinery_reborn:upgrade_bus" } ],
+      "conditions": [
+        { "condition": "minecraft:survives_explosion" },
+        { "condition": "minecraft:block_state_property",
+          "block": "modular_machinery_reborn:upgrade_bus", "properties": { "type": "normal" } }
+      ],
+      "entries": [ { "type": "minecraft:item", "name": "modular_machinery_reborn:upgrade_bus_normal" } ],
+      "rolls": 1.0
+    },
+    {
+      "bonus_rolls": 0.0,
+      "conditions": [
+        { "condition": "minecraft:survives_explosion" },
+        { "condition": "minecraft:block_state_property",
+          "block": "modular_machinery_reborn:upgrade_bus", "properties": { "type": "reinforced" } }
+      ],
+      "entries": [ { "type": "minecraft:item", "name": "modular_machinery_reborn:upgrade_bus_reinforced" } ],
+      "rolls": 1.0
+    },
+    {
+      "bonus_rolls": 0.0,
+      "conditions": [
+        { "condition": "minecraft:survives_explosion" },
+        { "condition": "minecraft:block_state_property",
+          "block": "modular_machinery_reborn:upgrade_bus", "properties": { "type": "elite" } }
+      ],
+      "entries": [ { "type": "minecraft:item", "name": "modular_machinery_reborn:upgrade_bus_elite" } ],
+      "rolls": 1.0
+    },
+    {
+      "bonus_rolls": 0.0,
+      "conditions": [
+        { "condition": "minecraft:survives_explosion" },
+        { "condition": "minecraft:block_state_property",
+          "block": "modular_machinery_reborn:upgrade_bus", "properties": { "type": "super" } }
+      ],
+      "entries": [ { "type": "minecraft:item", "name": "modular_machinery_reborn:upgrade_bus_super" } ],
+      "rolls": 1.0
+    },
+    {
+      "bonus_rolls": 0.0,
+      "conditions": [
+        { "condition": "minecraft:survives_explosion" },
+        { "condition": "minecraft:block_state_property",
+          "block": "modular_machinery_reborn:upgrade_bus", "properties": { "type": "ultimate" } }
+      ],
+      "entries": [ { "type": "minecraft:item", "name": "modular_machinery_reborn:upgrade_bus_ultimate" } ],
       "rolls": 1.0
     }
   ]

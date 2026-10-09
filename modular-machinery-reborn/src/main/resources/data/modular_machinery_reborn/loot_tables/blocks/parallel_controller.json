@@ -3,8 +3,52 @@
   "pools": [
     {
       "bonus_rolls": 0.0,
-      "conditions": [ { "condition": "minecraft:survives_explosion" } ],
-      "entries": [ { "type": "minecraft:item", "name": "modular_machinery_reborn:parallel_controller" } ],
+      "conditions": [
+        { "condition": "minecraft:survives_explosion" },
+        { "condition": "minecraft:block_state_property",
+          "block": "modular_machinery_reborn:parallel_controller", "properties": { "type": "normal" } }
+      ],
+      "entries": [ { "type": "minecraft:item", "name": "modular_machinery_reborn:parallel_controller_normal" } ],
+      "rolls": 1.0
+    },
+    {
+      "bonus_rolls": 0.0,
+      "conditions": [
+        { "condition": "minecraft:survives_explosion" },
+        { "condition": "minecraft:block_state_property",
+          "block": "modular_machinery_reborn:parallel_controller", "properties": { "type": "reinforced" } }
+      ],
+      "entries": [ { "type": "minecraft:item", "name": "modular_machinery_reborn:parallel_controller_reinforced" } ],
+      "rolls": 1.0
+    },
+    {
+      "bonus_rolls": 0.0,
+      "conditions": [
+        { "condition": "minecraft:survives_explosion" },
+        { "condition": "minecraft:block_state_property",
+          "block": "modular_machinery_reborn:parallel_controller", "properties": { "type": "elite" } }
+      ],
+      "entries": [ { "type": "minecraft:item", "name": "modular_machinery_reborn:parallel_controller_elite" } ],
+      "rolls": 1.0
+    },
+    {
+      "bonus_rolls": 0.0,
+      "conditions": [
+        { "condition": "minecraft:survives_explosion" },
+        { "condition": "minecraft:block_state_property",
+          "block": "modular_machinery_reborn:parallel_controller", "properties": { "type": "super" } }
+      ],
+      "entries": [ { "type": "minecraft:item", "name": "modular_machinery_reborn:parallel_controller_super" } ],
+      "rolls": 1.0
+    },
+    {
+      "bonus_rolls": 0.0,
+      "conditions": [
+        { "condition": "minecraft:survives_explosion" },
+        { "condition": "minecraft:block_state_property",
+          "block": "modular_machinery_reborn:parallel_controller", "properties": { "type": "ultimate" } }
+      ],
+      "entries": [ { "type": "minecraft:item", "name": "modular_machinery_reborn:parallel_controller_ultimate" } ],
       "rolls": 1.0
     }
   ]
