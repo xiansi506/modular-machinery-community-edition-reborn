@@ -2,7 +2,7 @@
 
 > ## ⚠️ WORK IN PROGRESS — **not finished**
 >
-> Current version **0.30.1**. Everything under "Done" below has been **verified in game**. Everything under "Not done" is **not usable yet**. Please **keep this status banner** wherever you repost this text.
+> Current version **0.31.0**. Everything under "Done" below has been **verified in game**. Everything under "Not done" is **not usable yet**. Please **keep this status banner** wherever you repost this text.
 
 ---
 

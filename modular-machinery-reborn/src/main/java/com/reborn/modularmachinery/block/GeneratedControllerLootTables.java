@@ -48,9 +48,21 @@ public final class GeneratedControllerLootTables {
             + "\"entries\":[{\"type\":\"minecraft:item\",\"name\":\"%s:%s\"}],"
             + "\"rolls\":1.0}]}";
 
-    /** Loot table id for a controller block id. The data-pack path is {@code loot_tables/blocks/<path>.json}. */
+    /**
+     * Loot table id for a controller block id.
+     *
+     * <p><b>The {@code .json} suffix is part of the id here</b> — the game asks for
+     * {@code <namespace>:loot_tables/blocks/<path>_controller.json}, with the type directory, the {@code blocks/}
+     * subfolder and the extension all present. That is vanilla {@code PathPackResources}'s own convention: it
+     * builds a location's disk path by <i>removing</i> {@code <type directory>/<namespace>/} from the front and
+     * keeping the rest, extension included. Inverting that rule gives the id a caller must be handed.
+     *
+     * <p>Getting this wrong is invisible: the pack lists nothing, so the game never asks, so nothing is ever read
+     * and no error is reported anywhere. It cost several rounds on the declared controllers.
+     */
     public static ResourceLocation tableIdFor(ResourceLocation blockId) {
-        return new ResourceLocation(blockId.getNamespace(), "blocks/" + blockId.getPath());
+        return new ResourceLocation(blockId.getNamespace(),
+                "loot_tables/blocks/" + blockId.getPath() + ".json");
     }
 
     /** The block id of a controller in {@code namespace}, from its machine path. */

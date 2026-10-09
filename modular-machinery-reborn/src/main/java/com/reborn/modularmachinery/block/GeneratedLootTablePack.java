@@ -107,14 +107,43 @@ public final class GeneratedLootTablePack extends AbstractPackResources {
         return data == null ? null : () -> new ByteArrayInputStream(data);
     }
 
+    /**
+     * Lists what this pack has under {@code path} for {@code namespace}.
+     *
+     * <p><b>The prefix has to be stripped before matching, and getting that wrong made every generated loot table
+     * invisible.</b> The two sides are not the same string:
+     *
+     * <ul>
+     *   <li>{@code path} is the <b>folder on disk</b> — {@code "loot_tables"}, {@code "tags/blocks"};</li>
+     *   <li>a {@link ResourceLocation}'s path is <b>relative to {@code data/<namespace>/} and omits the registry
+     *       folder</b> — a file at {@code data/ns/loot_tables/blocks/foo.json} is {@code ns:blocks/foo}.</li>
+     * </ul>
+     *
+     * <p>So {@code "blocks/foo".startsWith("loot_tables")} is false for every loot table, and the listing handed
+     * over nothing while looking perfectly healthy. Tags hid the bug: {@code tags/} <i>is</i> part of a tag's
+     * resource path ({@code ns:tags/blocks/mineable/pickaxe}), so the tag listing matched by accident and the
+     * generated tags worked. That asymmetry — tags fine, loot tables not — is what pointed here.
+     *
+     * <p>Vanilla compares against the path with the folder removed ({@code PathPackResources.m_8031_}), which is
+     * the rule applied below.
+     */
     @Override
     public void listResources(PackType type, String namespace, String path, ResourceOutput output) {
         if (type != PackType.SERVER_DATA) {
             return;
         }
+        String relativePrefix = path.endsWith("/") ? path : path + "/";
         for (Map.Entry<ResourceLocation, byte[]> entry : this.files.entrySet()) {
             ResourceLocation location = entry.getKey();
-            if (!location.getNamespace().equals(namespace) || !location.getPath().startsWith(path)) {
+            if (!location.getNamespace().equals(namespace)) {
+                continue;
+            }
+            String locationPath = location.getPath();
+            // The listing prefix is the <b>disk folder</b> ("loot_tables", "tags/blocks"), while a location's path
+            // is what sits under data/<namespace>/ — which for a loot table means "loot_tables/blocks/x.json" (the
+            // extension included, because that is the id the game hands back to getResource) and for a tag means
+            // "tags/blocks/mineable/pickaxe.json". Match on the folder plus what follows it.
+            if (!locationPath.startsWith(relativePrefix)) {
                 continue;
             }
             byte[] data = entry.getValue();
@@ -140,7 +169,7 @@ public final class GeneratedLootTablePack extends AbstractPackResources {
         return SERVED_NAMESPACES;
     }
 
-    /** Both namespaces, because the pack carries tables for both. */
+    /** Every namespace this pack serves, for both pack types that reach it. */
     @Override
     public Set<String> getNamespaces(PackType type) {
         return type == PackType.SERVER_DATA ? SERVED_NAMESPACES : Set.of();

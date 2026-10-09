@@ -1,0 +1,1 @@
+C61825E7DEBD2CBCCA33C4F9C5EF59EFF69D3AA7C25F600FDBADB51A61943C21  modular_machinery_reborn-0.31.0.jar  (the deployed artifact; the archive copy and the mods/ copy are byte-identical)

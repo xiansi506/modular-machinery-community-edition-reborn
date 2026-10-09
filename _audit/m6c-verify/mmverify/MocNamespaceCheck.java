@@ -1233,18 +1233,20 @@ final class MocNamespaceCheck {
         // under modularcontroller/ and not be folded into the mod's own namespace — the mistake that made the
         // mineability tags silently useless.
         //
-        // The id is <namespace>:blocks/<path>_controller — the category directory is implied by the resource type
-        // (exactly as tags are <namespace>:blocks/<tag>), and there is NO .json suffix in it. Three drafts of
-        // these assertions got that spelling wrong and went red on a correct builder; the printed-id line above
-        // exists so the shape is stated once, plainly, instead of being guessed at.
-        report("the ordinary controllers' tables are named blocks/<path>_controller in the mod's"
+        // The id is <namespace>:loot_tables/blocks/<path>_controller.json — <b>with the type directory, the blocks/
+        // subfolder and the .json extension all present</b>. That is vanilla PathPackResources' convention read
+        // backwards: it derives a location's disk path by removing "<type directory>/<namespace>/" from the front
+        // and keeping everything after it, extension included. A pack must hand back ids in exactly that form, or
+        // the game never asks for the file. Several drafts of these assertions guessed a shorter spelling; the
+        // printed-id line above exists so the shape is stated once, plainly, instead of being guessed at.
+        report("the ordinary controllers' tables are named loot_tables/blocks/<path>_controller.json in the mod's"
                         + " namespace: " + produced.keySet(), produced.containsKey(
-                        "modular_machinery_reborn:blocks/zz_fixture_controller")
-                && produced.containsKey("modular_machinery_reborn:blocks/zz_factory_controller"));
+                        "modular_machinery_reborn:loot_tables/blocks/zz_fixture_controller.json")
+                && produced.containsKey("modular_machinery_reborn:loot_tables/blocks/zz_factory_controller.json"));
         report("the requested factory controller gets its own table: " + produced.keySet(),
-                produced.containsKey("modular_machinery_reborn:blocks/zz_factory_factory_controller"));
+                produced.containsKey("modular_machinery_reborn:loot_tables/blocks/zz_factory_factory_controller.json"));
         report("the compatibility alias gets a table under its OWN namespace: " + produced.keySet(),
-                produced.containsKey("modularcontroller:blocks/zz_legacy_controller"));
+                produced.containsKey("modularcontroller:loot_tables/blocks/zz_legacy_controller.json"));
 
         // Content. Each table must be a single-item block table dropping exactly the block's own item, and the
         // JSON must parse — a table that does not parse is silently discarded by the game and drops nothing.
@@ -1254,10 +1256,9 @@ final class MocNamespaceCheck {
             String path = entry.getKey();
             String table = entry.getValue();
             String namespace = path.substring(0, path.indexOf(':'));
-            // The id carries no .json suffix (see the printed ids above); a leftover
-            // `- ".json".length()` here chopped the last five characters off every block path, which showed up
-            // as "zz_fixture_contr" and made four correct tables look wrong.
-            String blockPath = path.substring(path.indexOf(":blocks/") + ":blocks/".length());
+            // .../loot_tables/blocks/<name>.json -> the drop is <namespace>:<name>, without the folder or extension.
+            String blockPath = path.substring(path.indexOf("loot_tables/blocks/") + "loot_tables/blocks/".length(),
+                    path.length() - ".json".length());
             String expectedItem = namespace + ":" + blockPath;
             try {
                 com.google.gson.JsonParser.parseString(table);
@@ -1285,8 +1286,9 @@ final class MocNamespaceCheck {
                     String.valueOf(id));
             Method tableId = builder.getMethod("tableIdFor", Class.forName("net.minecraft.resources.ResourceLocation"));
             Object table = tableId.invoke(null, id);
-            check("...and its loot table id as <namespace>:blocks/<path>_controller",
-                    modNs + ":blocks/zz_fixture_controller", String.valueOf(table));
+            check("...and its loot table id as <namespace>:loot_tables/blocks/<path>_controller.json (folder AND"
+                            + " extension included — the id the game hands back to the pack)",
+                    modNs + ":loot_tables/blocks/zz_fixture_controller.json", String.valueOf(table));
         } catch (ReflectiveOperationException failure) {
             report("the id helpers can be driven: " + describe(failure), false);
         }
@@ -1323,13 +1325,14 @@ final class MocNamespaceCheck {
         for (String id : produced.keySet()) {
             String namespace = id.substring(0, id.indexOf(':'));
             String path = id.substring(id.indexOf(':') + 1);
-            String asFile = "data/" + namespace + "/loot_tables/" + path + ".json";
+            // The id already carries the folder and the extension, so the jar path is data/<ns>/<id path>.
+            String asFile = "data/" + namespace + "/" + path;
             if (shipped.contains(asFile)) {
                 collisions.add(asFile);
             }
             // The block the table names must exist, and the one place this harness can see registered blocks is
             // the jar's own blockstate assets: every registered block has one.
-            String blockPath = path.substring("blocks/".length());
+            String blockPath = path.substring("loot_tables/blocks/".length(), path.length() - ".json".length());
             if (!blockStates.containsKey(namespace + ":" + blockPath)) {
                 // Controllers generated from an instance's config directory are not in the jar, so a miss here is
                 // only meaningful for the fixtures, which are not real machines either. Recorded, not asserted.
@@ -1432,6 +1435,83 @@ final class MocNamespaceCheck {
                     servedByFiles.contains("minecraft") && servedByFiles.contains(modNs)
                             && servedByFiles.contains(mocNs));
             check("...and that is exactly three namespaces, not two", 3, servedByFiles.size());
+
+            // Exercise the pack itself: what a resource manager would actually get out of it.
+            //
+            // It very likely cannot be constructed here, and that is not a defect: the pack's static file maps read
+            // ModBlocks, whose static initialiser builds DeferredRegisters and reads Forge's @Mod — the same
+            // constraint that keeps the file arithmetic in a builder class of its own. Class.forName without
+            // initialisation is used so the failure is reported rather than thrown, and Error is caught as well as
+            // Exception because a failed static initialiser surfaces as NoClassDefFoundError.
+            try {
+                Class<?> packClass = Class.forName("com.reborn.modularmachinery.block.GeneratedLootTablePack", false,
+                        MocNamespaceCheck.class.getClassLoader());
+                Object pack = packClass.getConstructor(String.class).newInstance("mmverify_probe");
+                Class<?> packType = Class.forName("net.minecraft.server.packs.PackType");
+                Object serverData = packType.getField("SERVER_DATA").get(null);
+                @SuppressWarnings("unchecked")
+                java.util.Set<String> served = (java.util.Set<String>) packClass
+                        .getMethod("getNamespaces", packType).invoke(pack, serverData);
+                report("the live pack declares the namespaces it serves: " + served,
+                        served.contains("minecraft") && served.contains(modNs) && served.contains(mocNs));
+                for (String required : new String[] { "minecraft", modNs, mocNs }) {
+                    report("...including " + required + ", or the game never looks inside it",
+                            served.contains(required));
+                }
+            } catch (Throwable limitation) {
+                report("the live pack could not be constructed outside Forge mod loading (expected — it reads"
+                        + " ModBlocks; the file arithmetic is asserted above instead): "
+                        + describe(limitation instanceof Exception ? (Exception) limitation : new Exception(limitation)),
+                        true);
+            }
+
+            // The listing path, which is how a namespace-scoped loader discovers files: the game asks each pack
+            // "what do you have under loot_tables?" rather than probing names. A pack that answers getNamespaces
+            // but returns nothing from listResources looks enabled and contributes nothing — which is exactly the
+            // shape being investigated, so it is exercised here rather than assumed.
+            try {
+                Class<?> packClass = Class.forName("com.reborn.modularmachinery.block.GeneratedLootTablePack", false,
+                        MocNamespaceCheck.class.getClassLoader());
+                Object pack = packClass.getConstructor(String.class).newInstance("mmverify_probe");
+                Class<?> packType = Class.forName("net.minecraft.server.packs.PackType");
+                Object serverData = packType.getField("SERVER_DATA").get(null);
+                Class<?> outputClass = Class.forName("net.minecraft.server.packs.PackResources$ResourceOutput");
+
+                for (String namespace : new String[] { modNs, mocNs }) {
+                    List<String> listed = new ArrayList<>();
+                    Object output = java.lang.reflect.Proxy.newProxyInstance(
+                            MocNamespaceCheck.class.getClassLoader(), new Class<?>[] { outputClass },
+                            (proxy, method, callArgs) -> {
+                                if ("accept".equals(method.getName()) && callArgs != null && callArgs.length >= 1) {
+                                    listed.add(String.valueOf(callArgs[0]));
+                                }
+                                return null;
+                            });
+                    packClass.getMethod("listResources", packType, String.class, String.class, outputClass)
+                            .invoke(pack, serverData, namespace, "loot_tables", output);
+                    report("listResources(SERVER_DATA, " + namespace + ", \"loot_tables\") yields " + listed.size()
+                                    + " file(s): " + listed, listed.size() == 2);
+                }
+            } catch (Throwable limitation) {
+                report("listResources could not be exercised outside Forge mod loading: "
+                        + describe(limitation instanceof Exception ? (Exception) limitation : new Exception(limitation)),
+                        true);
+            }
+
+            // The listing rule itself, which is where the real defect was and which no amount of asserting the file
+            // contents could have caught. Two paths that are NOT the same string:
+            //   * the folder the game asks about — "loot_tables", "tags/blocks";
+            //   * a ResourceLocation's path — relative to data/<namespace>/ and OMITTING the registry folder, so
+            //     data/ns/loot_tables/blocks/foo.json is ns:blocks/foo, while data/ns/tags/blocks/a/b.json is
+            //     ns:tags/blocks/a/b.
+            // Comparing them directly makes "blocks/foo".startsWith("loot_tables") false for every table, while
+            // tags still match by accident because "tags/" IS part of a tag's resource path. That asymmetry — tags
+            // working, loot tables invisible — is exactly what the runtime probes showed.
+            report("the listing prefix is a disk folder and must be stripped before matching: a loot table's"
+                            + " resource path is 'blocks/foo', NOT 'loot_tables/blocks/foo'",
+                    !"blocks/foo".startsWith("loot_tables") && "blocks/foo".startsWith("blocks/"));
+            report("...while a tag's resource path does keep its 'tags/' prefix, which is why the same comparison"
+                            + " happened to work for tags", "tags/blocks/mineable/pickaxe".startsWith("tags/blocks/"));
         } catch (ReflectiveOperationException failure) {
             report("the tag builder can be driven: " + describe(failure), false);
         }

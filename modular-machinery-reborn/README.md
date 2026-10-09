@@ -2,14 +2,16 @@
 
 Forge 1.20.1 / Java 17 migration foundation for the archived Modular Machinery: Community Edition source.
 
-**Current release: 0.30.1** — the first public release; **functionally 0.29.0**, since it only corrected the
-`license` / `authors` metadata in `META-INF/mods.toml`.
-
-**Built, next up: 0.31.0** — the first **feature** release after it, which closes the item the release notes had
-listed as unfinished: **KubeJS can write a complete machine definition** (all eleven extended root fields, see
-**KubeJS** below). ⚠️ **It is built and asserted offline, but not yet verified in game, not deployed and not
-archived** — by this project's 必查 7 that makes it "built, not yet verified in game". Its checklist is in
+**Current release: 0.31.0** — the first **feature** release after the launch. It closes the item the 0.30.1 notes
+had listed as unfinished: **KubeJS can write a complete machine definition** (all eleven extended root fields, see
+**KubeJS** below). It also fixes the community-reported "every block takes forever to mine and drops nothing" —
+four silent defects behind one symptom (tag namespace, no loot tables at all, per-variant tables, and the generated
+data pack's namespace declaration and resource-id shape). **Verified in game** (mining speed and drops, by runtime
+probes), deployed, and archived under `releases/modular-machinery-reborn/v0.31.0/`. Its record is in
 `迁移日志.md` (the 0.31.0 section) and its build data is in `交接文档.md` §1b.
+
+> **0.31.0 supersedes 0.30.1**, which had corrected only the `license` / `authors` metadata in
+> `META-INF/mods.toml` and was otherwise functionally 0.29.0.
 
 > 🚀 **New here? Start at [docs/使用说明.md](docs/使用说明.md)** — "from an empty instance to a machine that runs",
 > in Chinese, with complete copy-pasteable machine definitions and recipes.
@@ -17,8 +19,9 @@ archived** — by this project's 必查 7 that makes it "built, not yet verified
 > **This mod ships no machines and no recipes.** The jar carries none of either on purpose (M10), and **no
 > example data pack is shipped either** — the documentation *is* the distribution for content. You supply
 > machines (data pack / config directory / KubeJS) and recipes (JSON / KubeJS) yourself.
-> *(Since 0.31.0 the jar's `data/` holds three block tags — the mineable/`needs_stone_tool` metadata that makes
-> its blocks drop anything at all. That is mod metadata, not content; see `迁移日志.md`, 0.31.0.)*
+> *(Since 0.31.0 the jar's `data/` holds 13 files — two block tags (`mineable/pickaxe`, `needs_stone_tool`) and
+> eleven block loot tables — the metadata that makes its blocks mineable and make them drop anything at all. That
+> is mod metadata, not content; see `迁移日志.md`, 0.31.0.)*
 >
 > 📚 **文档导航见 [docs/README.md](docs/README.md)** —— 一屏看懂该读哪份（总纲 / 专项 / 历史）。
 
@@ -73,7 +76,7 @@ Two entry points, both optional (the mod loads without KubeJS):
   with a builder method; the three structured ones take an object literal or the same text as a JSON string
   (routed through KubeJS's own `JsonIO.of`). **No validation moved into the builder**: a malformed entry is still
   refused by the schema, in the schema's own words. Table: [docs/KJS-配方指南.md](docs/KJS-配方指南.md) §六.
-  **Built and asserted offline; not yet verified in game** — the checklist is in `迁移日志.md` (0.31.0).
+  **Verified in game and released** — the checklist and its results are in `迁移日志.md` (0.31.0).
   *(0.28.1 fixed the event binding: an event group must reach a script as a KubeJS `EventGroupWrapper`, or the
   binding exists with no events on it and the first line of the script dies with `Cannot find function registry
   in object MachineRegistryEvents`. `onEvent('machineRegistry', …)` is not an alternative — KubeJS 6 removed it.)*
