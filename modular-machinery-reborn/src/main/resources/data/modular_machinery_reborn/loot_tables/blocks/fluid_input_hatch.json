@@ -1,0 +1,85 @@
+{
+  "type": "minecraft:block",
+  "pools": [
+    {
+      "bonus_rolls": 0.0,
+      "conditions": [
+        { "condition": "minecraft:survives_explosion" },
+        { "condition": "minecraft:block_state_property",
+          "block": "modular_machinery_reborn:fluid_input_hatch", "properties": { "size": "tiny" } }
+      ],
+      "entries": [ { "type": "minecraft:item", "name": "modular_machinery_reborn:fluid_input_hatch_tiny" } ],
+      "rolls": 1.0
+    },
+    {
+      "bonus_rolls": 0.0,
+      "conditions": [
+        { "condition": "minecraft:survives_explosion" },
+        { "condition": "minecraft:block_state_property",
+          "block": "modular_machinery_reborn:fluid_input_hatch", "properties": { "size": "small" } }
+      ],
+      "entries": [ { "type": "minecraft:item", "name": "modular_machinery_reborn:fluid_input_hatch_small" } ],
+      "rolls": 1.0
+    },
+    {
+      "bonus_rolls": 0.0,
+      "conditions": [
+        { "condition": "minecraft:survives_explosion" },
+        { "condition": "minecraft:block_state_property",
+          "block": "modular_machinery_reborn:fluid_input_hatch", "properties": { "size": "normal" } }
+      ],
+      "entries": [ { "type": "minecraft:item", "name": "modular_machinery_reborn:fluid_input_hatch_normal" } ],
+      "rolls": 1.0
+    },
+    {
+      "bonus_rolls": 0.0,
+      "conditions": [
+        { "condition": "minecraft:survives_explosion" },
+        { "condition": "minecraft:block_state_property",
+          "block": "modular_machinery_reborn:fluid_input_hatch", "properties": { "size": "reinforced" } }
+      ],
+      "entries": [ { "type": "minecraft:item", "name": "modular_machinery_reborn:fluid_input_hatch_reinforced" } ],
+      "rolls": 1.0
+    },
+    {
+      "bonus_rolls": 0.0,
+      "conditions": [
+        { "condition": "minecraft:survives_explosion" },
+        { "condition": "minecraft:block_state_property",
+          "block": "modular_machinery_reborn:fluid_input_hatch", "properties": { "size": "big" } }
+      ],
+      "entries": [ { "type": "minecraft:item", "name": "modular_machinery_reborn:fluid_input_hatch_big" } ],
+      "rolls": 1.0
+    },
+    {
+      "bonus_rolls": 0.0,
+      "conditions": [
+        { "condition": "minecraft:survives_explosion" },
+        { "condition": "minecraft:block_state_property",
+          "block": "modular_machinery_reborn:fluid_input_hatch", "properties": { "size": "huge" } }
+      ],
+      "entries": [ { "type": "minecraft:item", "name": "modular_machinery_reborn:fluid_input_hatch_huge" } ],
+      "rolls": 1.0
+    },
+    {
+      "bonus_rolls": 0.0,
+      "conditions": [
+        { "condition": "minecraft:survives_explosion" },
+        { "condition": "minecraft:block_state_property",
+          "block": "modular_machinery_reborn:fluid_input_hatch", "properties": { "size": "ludicrous" } }
+      ],
+      "entries": [ { "type": "minecraft:item", "name": "modular_machinery_reborn:fluid_input_hatch_ludicrous" } ],
+      "rolls": 1.0
+    },
+    {
+      "bonus_rolls": 0.0,
+      "conditions": [
+        { "condition": "minecraft:survives_explosion" },
+        { "condition": "minecraft:block_state_property",
+          "block": "modular_machinery_reborn:fluid_input_hatch", "properties": { "size": "vacuum" } }
+      ],
+      "entries": [ { "type": "minecraft:item", "name": "modular_machinery_reborn:fluid_input_hatch_vacuum" } ],
+      "rolls": 1.0
+    }
+  ]
+}

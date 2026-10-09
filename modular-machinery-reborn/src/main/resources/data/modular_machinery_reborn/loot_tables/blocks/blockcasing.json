@@ -1,0 +1,65 @@
+{
+  "type": "minecraft:block",
+  "pools": [
+    {
+      "bonus_rolls": 0.0,
+      "conditions": [
+        { "condition": "minecraft:survives_explosion" },
+        { "condition": "minecraft:block_state_property",
+          "block": "modular_machinery_reborn:blockcasing", "properties": { "casing": "plain" } }
+      ],
+      "entries": [ { "type": "minecraft:item", "name": "modular_machinery_reborn:blockcasing_plain" } ],
+      "rolls": 1.0
+    },
+    {
+      "bonus_rolls": 0.0,
+      "conditions": [
+        { "condition": "minecraft:survives_explosion" },
+        { "condition": "minecraft:block_state_property",
+          "block": "modular_machinery_reborn:blockcasing", "properties": { "casing": "vent" } }
+      ],
+      "entries": [ { "type": "minecraft:item", "name": "modular_machinery_reborn:blockcasing_vent" } ],
+      "rolls": 1.0
+    },
+    {
+      "bonus_rolls": 0.0,
+      "conditions": [
+        { "condition": "minecraft:survives_explosion" },
+        { "condition": "minecraft:block_state_property",
+          "block": "modular_machinery_reborn:blockcasing", "properties": { "casing": "firebox" } }
+      ],
+      "entries": [ { "type": "minecraft:item", "name": "modular_machinery_reborn:blockcasing_firebox" } ],
+      "rolls": 1.0
+    },
+    {
+      "bonus_rolls": 0.0,
+      "conditions": [
+        { "condition": "minecraft:survives_explosion" },
+        { "condition": "minecraft:block_state_property",
+          "block": "modular_machinery_reborn:blockcasing", "properties": { "casing": "gearbox" } }
+      ],
+      "entries": [ { "type": "minecraft:item", "name": "modular_machinery_reborn:blockcasing_gearbox" } ],
+      "rolls": 1.0
+    },
+    {
+      "bonus_rolls": 0.0,
+      "conditions": [
+        { "condition": "minecraft:survives_explosion" },
+        { "condition": "minecraft:block_state_property",
+          "block": "modular_machinery_reborn:blockcasing", "properties": { "casing": "reinforced" } }
+      ],
+      "entries": [ { "type": "minecraft:item", "name": "modular_machinery_reborn:blockcasing_reinforced" } ],
+      "rolls": 1.0
+    },
+    {
+      "bonus_rolls": 0.0,
+      "conditions": [
+        { "condition": "minecraft:survives_explosion" },
+        { "condition": "minecraft:block_state_property",
+          "block": "modular_machinery_reborn:blockcasing", "properties": { "casing": "circuitry" } }
+      ],
+      "entries": [ { "type": "minecraft:item", "name": "modular_machinery_reborn:blockcasing_circuitry" } ],
+      "rolls": 1.0
+    }
+  ]
+}
