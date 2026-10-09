@@ -1,5 +1,8 @@
 package com.reborn.modularmachinery.client.jei;
 
+import com.reborn.modularmachinery.config.DisplayNumbers;
+import com.reborn.modularmachinery.config.EnergyDisplay;
+import com.reborn.modularmachinery.config.ModConfig;
 import com.reborn.modularmachinery.recipe.EnergyRequirement;
 import com.reborn.modularmachinery.recipe.IOType;
 import com.reborn.modularmachinery.recipe.InterfaceNumberInputRequirement;
@@ -133,12 +136,17 @@ final class MachineRecipeText {
         if (perTick <= 0L) {
             return List.of();
         }
-        String unit = Component.translatable(KEY_ENERGY_TYPE).getString();
+        // The display unit, and the original's own order of operations for it: scale the number, then abbreviate,
+        // then name the unit (`TooltipEnergyInput.java:56-57`: `formatEnergyForDisplay` first, `formatNumber`
+        // after). Scaling is display-only — nothing about the recipe's real draw changes.
+        EnergyDisplay display = ModConfig.energyDisplay();
+        String unit = display.label();
         String label = Component.translatable(ioType == IOType.INPUT ? KEY_ENERGY_IN : KEY_ENERGY_OUT).getString();
         return List.of(
-                label + Component.translatable(KEY_ENERGY_TICK, formatNumber(perTick), unit).getString(),
+                label + Component.translatable(KEY_ENERGY_TICK,
+                        DisplayNumbers.abbreviated(display.display(perTick)), unit).getString(),
                 Component.translatable(KEY_ENERGY_TOTAL,
-                        formatNumber(perTick * recipe.recipeTime()), unit).getString());
+                        DisplayNumbers.abbreviated(display.display(perTick * recipe.recipeTime())), unit).getString());
     }
 
     /**
@@ -210,22 +218,15 @@ final class MachineRecipeText {
         tooltip.add(Component.translatable(KEY_INGREDIENT_ARRAY_INPUT));
     }
 
-    /** {@code MiscUtils#formatNumber}: the abbreviation printed next to the energy rate. */
+    /**
+     * {@code MiscUtils#formatNumber}: the abbreviation printed next to the energy rate.
+     *
+     * <p>Kept as a named alias because the harness and this class's own callers refer to it by the original's name;
+     * the arithmetic lives in {@link DisplayNumbers#abbreviated} so the hatch GUI and the toolbar cannot drift
+     * apart.
+     */
     static String formatNumber(long value) {
-        if (value < 1_000L) {
-            return String.valueOf(value);
-        } else if (value < 1_000_000L) {
-            return (double) Math.round((double) value) / 1000.0 + "K";
-        } else if (value < 1_000_000_000L) {
-            return (double) Math.round((double) (value / 1_000L)) / 1000.0 + "M";
-        } else if (value < 1_000_000_000_000L) {
-            return (double) Math.round((double) (value / 1_000_000L)) / 1000.0 + "G";
-        } else if (value < 1_000_000_000_000_000L) {
-            return (double) Math.round((double) (value / 1_000_000_000L)) / 1000.0 + "T";
-        } else if (value < 1_000_000_000_000_000_000L) {
-            return (double) Math.round((double) (value / 1_000_000_000_000L)) / 1000.0 + "P";
-        }
-        return (double) Math.round((double) (value / 1_000_000_000_000_000L)) / 1000.0 + "E";
+        return DisplayNumbers.abbreviated(value);
     }
 
     /** {@code MiscUtils#formatFloat}, as used for the chance percentage. */

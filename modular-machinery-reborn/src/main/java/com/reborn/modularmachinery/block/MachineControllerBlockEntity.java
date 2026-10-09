@@ -224,7 +224,49 @@ public final class MachineControllerBlockEntity extends BlockEntity implements M
     private final FactoryEngine factoryEngine;
 
     /** Whether the last structure check concluded "factory": a factory block plus a {@code has-factory} machine. */
+    /** The original's {@code IMachineController#getExtraThreadCount} ({@code IMachineController.java:109-110}). */
+    public int extraThreadCount() {
+        return this.extraThreadCount;
+    }
+
+    /**
+     * The original's {@code IMachineController#setExtraThreadCount} ({@code IMachineController.java:115-116}).
+     *
+     * <p>Clamped at zero from below: the original's setter stored whatever it was handed, and a negative count
+     * would subtract from a machine's ceiling — turning "give this controller more threads" into a way to make it
+     * unable to run anything. The upper bound is the same one the schema enforces on a declared {@code max-threads}
+     * ({@code MachineSchema}: a thread count cannot be negative), applied here for the same reason.
+     *
+     * <p><b>No in-tree caller yet.</b> The original reached this from its controller GUI and from scripts; this port
+     * has neither wired to it, so the value only ever arrives from a save file today. It is public and documented
+     * because the KubeJS entry point is where it will be called from, and a setter nobody can see is worse than one
+     * that says out loud that nothing calls it.
+     */
+    public void setExtraThreadCount(int value) {
+        this.extraThreadCount = Math.max(0, value);
+        setChanged();
+    }
+
     private boolean factoryEnabled;
+
+    /**
+     * The original's {@code extraThreadCount} ({@code TileFactoryController.java:51}): a delta added on top of the
+     * machine definition's {@code max-threads}, not a replacement for it.
+     *
+     * <p>Its own arithmetic is {@code getMaxThreads() == extraThreadCount + foundMachine.getMaxThreads()}
+     * ({@code TileFactoryController.java:455-457}), and the original persisted it under {@code "extraThreadCount"}
+     * as a <b>short</b> ({@code :591} / {@code :659}) — kept here, because a save's value should survive a round
+     * trip through either build.
+     *
+     * <p><b>Why the field is here at all, given nothing raises it yet.</b> The original reached it two ways and
+     * neither exists in this port today: it exposed it to scripts as {@code IMachineController}'s
+     * {@code extraThreadCount} ZenGetter/ZenSetter ({@code IMachineController.java:109-116}), and it carried an NBT
+     * value across loads. The first is the KubeJS entry point's business (a later wave), but the second is a
+     * <b>persistence contract</b>: a save written by the original holds this number, and a port that dropped it
+     * would silently lower a machine's thread ceiling on load. So the storage, the round trip and the arithmetic
+     * land now; the setter has no in-tree caller yet and is documented as such rather than left to look used.
+     */
+    private int extraThreadCount;
 
     /** Last working status the factory reported, so a client update is sent only when it flips. */
     private boolean factoryWasWorking;
@@ -633,7 +675,11 @@ public final class MachineControllerBlockEntity extends BlockEntity implements M
         public int maxThreads() {
             return MachineRegistry.byId(MachineControllerBlockEntity.this.machineId)
                     .map(FactoryThreadModel::maxThreads)
-                    .orElse(FactoryThreadModel.DEFAULT_MAX_THREADS);
+                    .orElse(FactoryThreadModel.DEFAULT_MAX_THREADS)
+                    // The original added its extra count here, not inside the machine definition: the definition's
+                    // `max-threads` is what the pack author declared, and the extra count is what a controller
+                    // added at runtime (`TileFactoryController.java:455-457`).
+                    + MachineControllerBlockEntity.this.extraThreadCount;
         }
 
         @Override
@@ -1319,6 +1365,9 @@ public final class MachineControllerBlockEntity extends BlockEntity implements M
         }
         // M6e: the factory's threads, under the original's own keys.
         saveFactoryThreads(tag);
+        // The original's extra thread count, under the original's own key and its own width — see
+        // extraThreadCount() for why it is a short there and an int here.
+        tag.putShort("extraThreadCount", (short) this.extraThreadCount);
         // M6d-b: the smart-interface values. The original stored them as a list under `boundData`
         // (`TileSmartInterface#writeCustomNBT`), one compound per binding; with the block gone the binding *is*
         // this controller, so the compound is a plain type -> value map. The key is the original's, so a
@@ -1349,6 +1398,10 @@ public final class MachineControllerBlockEntity extends BlockEntity implements M
         this.factoryEnabled = FactoryThreadModel.factoryEnabled(this.factoryBlock,
                 MachineRegistry.byId(this.machineId).orElse(null));
         loadFactoryThreads(tag);
+        // Read back with `getShort`, matching the width the original wrote it in. A save written by this build
+        // therefore reads identically to one written by the original, and a value from a malformed tag falls back
+        // to 0 — which is also the original's own field default.
+        this.extraThreadCount = tag.getShort("extraThreadCount");
         // M6d-b. Unlike the structure-derived state above, the values are the player's own input and must
         // survive a reload verbatim — the original persisted them for the same reason.
         smartInterfaces.load(tag);

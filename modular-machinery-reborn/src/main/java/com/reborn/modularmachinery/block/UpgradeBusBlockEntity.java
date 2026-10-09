@@ -95,6 +95,17 @@ public final class UpgradeBusBlockEntity extends BlockEntity implements MenuProv
     /** Controller position to machine name — the original's {@code boundedMachine}. */
     private final Map<BlockPos, ResourceLocation> boundMachines = new LinkedHashMap<>();
 
+    /**
+     * The original's per-declaration custom NBT, held by the bus and saved with it
+     * ({@code TileUpgradeBus.java:50}, key {@code "upgradeCustomData"}).
+     *
+     * <p>Distinct from the tag a dynamic upgrade's carrier <b>item</b> carries
+     * ({@link com.reborn.modularmachinery.upgrade.UpgradeItemNbt}): a slot's item can be taken out, and the
+     * declaration's data must survive that. See {@link com.reborn.modularmachinery.upgrade.BusUpgradeData}.
+     */
+    private final com.reborn.modularmachinery.upgrade.BusUpgradeData upgradeCustomData =
+            new com.reborn.modularmachinery.upgrade.BusUpgradeData();
+
     private int reconcileCountdown = RECONCILE_INTERVAL;
 
     public UpgradeBusBlockEntity(BlockPos pos, BlockState state) {
@@ -119,6 +130,40 @@ public final class UpgradeBusBlockEntity extends BlockEntity implements MenuProv
     /** The bus's upgrade slots, as the menu and the block's own reader see them. */
     public ItemStackHandler items() {
         return this.items;
+    }
+
+    /**
+     * The tag this bus keeps for {@code upgrade}'s declaration, or an empty tag when it holds none.
+     *
+     * <p>The original's {@code UpgradeBusProvider#getUpgradeCustomData} ({@code TileUpgradeBus.java:275-277}),
+     * which answered an empty compound for a name it did not hold.
+     */
+    public CompoundTag upgradeCustomData(ResourceLocation upgrade) {
+        return this.upgradeCustomData.get(upgrade);
+    }
+
+    /**
+     * Stores {@code data} for {@code upgrade}'s declaration, or clears that entry when {@code data} is empty.
+     *
+     * <p>The original's {@code setUpgradeCustomData} ({@code TileUpgradeBus.java:279-282}), which ended in
+     * {@code markNoUpdateSync()} — i.e. "this changed what the bus would show, but nothing about it needs a block
+     * update". {@link #setChanged()} is that call's counterpart here; {@code syncToClient} is deliberately not
+     * taken, because the original did not send one either and the bus's own GUI is rebuilt from the menu.
+     *
+     * <p><b>No in-tree caller yet</b>, exactly like
+     * {@link MachineControllerBlockEntity#setExtraThreadCount(int)}: the original reached it from CraftTweaker
+     * event handlers, which this port deliberately does not have. It exists so the store, its save format and its
+     * accessors are in place — and so a reader is not left guessing whether the data has anywhere to live.
+     */
+    public void setUpgradeCustomData(ResourceLocation upgrade, CompoundTag data) {
+        if (this.upgradeCustomData.set(upgrade, data)) {
+            setChanged();
+        }
+    }
+
+    /** Every upgrade declaration this bus holds data for — for diagnostics and for the acceptance harness. */
+    public java.util.Set<ResourceLocation> upgradesWithCustomData() {
+        return this.upgradeCustomData.names();
     }
 
     /** How many slots this bus has; the screen places one 18×18 frame per slot. */
@@ -246,6 +291,9 @@ public final class UpgradeBusBlockEntity extends BlockEntity implements MenuProv
         super.saveAdditional(tag);
         tag.put(TAG_INVENTORY, this.items.serializeNBT());
         saveBoundMachines(tag);
+        // The bus's own per-declaration data, under the original's own key (TileUpgradeBus.java:217). Written as
+        // one compound keyed by upgrade name, which is the shape the original saved and read.
+        this.upgradeCustomData.save(tag);
     }
 
     @Override
@@ -254,6 +302,8 @@ public final class UpgradeBusBlockEntity extends BlockEntity implements MenuProv
         if (tag.contains(TAG_INVENTORY)) {
             this.items.deserializeNBT(tag.getCompound(TAG_INVENTORY));
         }
+        // Read back through the same type, so a save written by the original loads here unchanged.
+        this.upgradeCustomData.load(tag);
         this.boundMachines.clear();
         if (tag.contains(TAG_BOUNDED_MACHINE, Tag.TAG_LIST)) {
             ListTag list = tag.getList(TAG_BOUNDED_MACHINE, Tag.TAG_COMPOUND);

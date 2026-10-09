@@ -4,6 +4,8 @@ import com.reborn.modularmachinery.machine.HatchCollection;
 import net.minecraft.util.RandomSource;
 import net.minecraftforge.fluids.FluidStack;
 
+import javax.annotation.Nullable;
+
 import java.util.Locale;
 
 /**
@@ -20,6 +22,10 @@ import java.util.Locale;
  * as it was there.
  */
 public final class FluidRequirement extends MachineRequirement {
+
+    /** The original's own two messages ({@code RequirementFluid.java:168-176}), key for key. */
+    public static final String FAILURE_FLUID_INPUT = "craftcheck.failure.fluid.input";
+    public static final String FAILURE_FLUID_OUTPUT_SPACE = "craftcheck.failure.fluid.output.space";
 
     private final FluidStack fluid;
     private final int amount;
@@ -80,6 +86,17 @@ public final class FluidRequirement extends MachineRequirement {
             return total <= 0 || IngredientIo.countFluid(ports.fluidInputs(), this.fluid) >= total;
         }
         return total <= 0 || IngredientIo.canFillFluid(ports.fluidOutputs(), this.fluid, total);
+    }
+
+    /**
+     * The original's two fluid messages ({@code RequirementFluid.java:168-176}), split by direction: a missing
+     * input and a tank with no room are different problems with different fixes. Only asked after
+     * {@link #canSatisfy} has already answered {@code false}.
+     */
+    @javax.annotation.Nullable
+    @Override
+    public String startFailure(HatchCollection ports) {
+        return this.ioType() == IOType.INPUT ? FAILURE_FLUID_INPUT : FAILURE_FLUID_OUTPUT_SPACE;
     }
 
     @Override

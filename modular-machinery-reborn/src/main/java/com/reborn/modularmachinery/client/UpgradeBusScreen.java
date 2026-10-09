@@ -237,10 +237,14 @@ public final class UpgradeBusScreen extends AbstractContainerScreen<UpgradeBusMe
      * declarations reload on both sides), so the list is rebuilt here rather than mirrored through a packet, and
      * the two sides cannot drift.
      *
-     * <p><b>Honest limitation:</b> a <i>dynamic</i> upgrade keeps per-copy NBT on the item, and this listing
-     * shows only the declaration. The original resolved that NBT through {@code CapabilityUpgrade}, a layer this
-     * project has not built (M6a §3.5 records the deferral). Nothing that <i>affects a craft</i> depends on it:
-     * a declared modifier is the whole effect.
+     * <p><b>Per-copy NBT:</b> a <i>dynamic</i> upgrade's tag travels with its carrier item and is now carried
+     * through {@link com.reborn.modularmachinery.upgrade.UpgradeStack#customData()} — the arithmetic behind it is
+     * in {@code UpgradeEffects.read}, and {@code UpgradeItemNbt} is the single place the tag is read from and
+     * written to an item. What this listing still does is show <b>the declaration</b>: the tag is opaque by design
+     * (the original's own {@code readItemNBT} was a bare assignment, because the data belonged to whoever wrote
+     * it), so there is nothing truthful to render from it here. Nothing that <i>affects a craft</i> depends on it
+     * either — a declared modifier is the whole effect, which is why the handler layer that used to read this data
+     * was not ported.
      */
     private UpgradeStack.Bag held() {
         return this.menu.bus().upgrades();

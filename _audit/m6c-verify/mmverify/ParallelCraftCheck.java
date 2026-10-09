@@ -4,6 +4,7 @@ import com.reborn.modularmachinery.machine.HatchCollection;
 import com.reborn.modularmachinery.recipe.EnergyRequirement;
 import com.reborn.modularmachinery.recipe.IOType;
 import com.reborn.modularmachinery.recipe.InterfaceNumberInputRequirement;
+import com.reborn.modularmachinery.recipe.FluidRequirement;
 import com.reborn.modularmachinery.recipe.ItemRequirement;
 import com.reborn.modularmachinery.recipe.MachineRecipe;
 import com.reborn.modularmachinery.recipe.RecipeModifier;
@@ -13,6 +14,7 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.Bootstrap;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.item.Item;
+import net.minecraft.nbt.CompoundTag;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.item.crafting.Ingredient;
@@ -29,10 +31,14 @@ import com.reborn.modularmachinery.machine.ParallelismLimit;
 import com.reborn.modularmachinery.block.ParallelControllerBlockEntity;
 import com.reborn.modularmachinery.block.ParallelControllerTier;
 import com.reborn.modularmachinery.block.UpgradeBusTier;
+import com.reborn.modularmachinery.config.DisplayNumbers;
+import com.reborn.modularmachinery.config.EnergyDisplay;
 import com.reborn.modularmachinery.config.ModConfig;
 import com.reborn.modularmachinery.network.ParallelControllerUpdatePacket;
 import com.reborn.modularmachinery.upgrade.UpgradeBusUtility;
+import com.reborn.modularmachinery.upgrade.BusUpgradeData;
 import com.reborn.modularmachinery.upgrade.UpgradeEffects;
+import com.reborn.modularmachinery.upgrade.UpgradeItemNbt;
 import com.reborn.modularmachinery.upgrade.UpgradeStack;
 import com.reborn.modularmachinery.upgrade.UpgradeTarget;
 import com.reborn.modularmachinery.upgrade.UpgradeType;
@@ -786,8 +792,8 @@ public final class ParallelCraftCheck {
             return;
         }
         // 13 through 0.26.0; 0.27.0's MOC namespace adds general.modular-controller-compatible-mode and
-        // general.disable-moc-deprecated-tip.
-        check("the config spec defines this many keys", 15, rendered.size());
+        // general.disable-moc-deprecated-tip; the display.energy unit key is the sixteenth.
+        check("the config spec defines this many keys", 16, rendered.size());
 
         String[][] expected = {
                 {"parallel-controller.normal.max-parallelism", "4"},
@@ -803,6 +809,10 @@ public final class ParallelCraftCheck {
                 {"factory-system.default-factory-max-thread", "10"},
                 {"factory-system.enable-factory-controller-bydefault", "false"},
                 {"smart-interface.enable-smart-interface-bydefault", "false"},
+                // The original's own category and key spelling (`display.energy.Display_Energy_Type`), and its own
+                // default. Written in the original's casing on purpose: a pack author's existing
+                // modularmachinery.cfg line is expected to be understood as written.
+                {"display.energy.Display_Energy_Type", "FE"},
         };
         for (String[] pair : expected) {
             String actual = rendered.get(pair[0]);
@@ -826,6 +836,57 @@ public final class ParallelCraftCheck {
                 readDefinition("{\"registryname\":\"t\","
                         + "\"parts\":[{\"x\":1,\"y\":-1,\"z\":0,\"elements\":\"minecraft:stone\"}]}")
                         .maxThreads());
+
+        // ---- (1b) the display energy unit, and the two number formats ----------------------------------
+        //
+        // The original's `EnergyDisplayUtil.EnergyType` was FE(1), RF(1), IC2_EU(0.25), GT_EU(0.25) plus
+        // `formatEnergyForDisplay` = multiply-and-floor. All four facts are asserted, because every one of them is
+        // a place a "reasonable" rewrite would differ: RF is one-to-one (a label, not a conversion), the two EU
+        // flavours are a quarter, and the result is floored rather than rounded.
+        report("EnergyDisplay.FE is 1:1", EnergyDisplay.FE.multiplier() == 1.0D);
+        report("EnergyDisplay.RF is 1:1 too — it is a label, not a conversion, which is what the original did",
+                EnergyDisplay.RF.multiplier() == 1.0D);
+        report("EnergyDisplay.IC2_EU scales by a quarter", EnergyDisplay.IC2_EU.multiplier() == 0.25D);
+        report("EnergyDisplay.GT_EU scales by a quarter as well", EnergyDisplay.GT_EU.multiplier() == 0.25D);
+        report("...and both EU flavours print the same label, 'EU', as the original's language file did",
+                "EU".equals(EnergyDisplay.IC2_EU.label()) && "EU".equals(EnergyDisplay.GT_EU.label()));
+        report("the labels are reached through per-type translation keys, so the unit is translatable: "
+                        + EnergyDisplay.IC2_EU.labelKey(),
+                EnergyDisplay.IC2_EU.labelKey()
+                        .equals("tooltip.modular_machinery_reborn.machine.energy.type.ic2_eu"));
+
+        // Scaling is display-only, and floored: an 8192 FE hatch reads 2048 EU, and 100 FE/t reads 25 EU/t.
+        check("8192 stored FE displays as 2048 under IC2_EU", 2048L, EnergyDisplay.IC2_EU.display(8192L));
+        check("...and is unchanged under FE", 8192L, EnergyDisplay.FE.display(8192L));
+        check("...and unchanged under RF", 8192L, EnergyDisplay.RF.display(8192L));
+        check("an odd value floors rather than rounds: 99 FE displays as 24 under IC2_EU", 24L,
+                EnergyDisplay.IC2_EU.display(99L));
+        check("the stored value itself is never touched: 8192 FE still reads 8192 through FE", 8192L,
+                EnergyDisplay.FE.display(8192L));
+
+        // The tolerant read, matching the original's `getType` (which swallowed the failure and returned FE) —
+        // plus the part this port adds: an invalid value is *reportable* rather than silent.
+        report("a config value is matched exactly, in any case: 'ic2_eu' and 'IC2_EU' both parse",
+                EnergyDisplay.parse("ic2_eu") == EnergyDisplay.IC2_EU
+                        && EnergyDisplay.parse("IC2_EU") == EnergyDisplay.IC2_EU);
+        report("surrounding whitespace is tolerated, as Forge's own TOML reader would leave none but an edited "
+                        + "file might", EnergyDisplay.parse(" rf ") == EnergyDisplay.RF);
+        report("an unknown value falls back to FE rather than refusing to start (the original's tolerance)",
+                EnergyDisplay.parse("nonsense") == EnergyDisplay.FE);
+        report("...and is recognisable as invalid, so the loader can say so out loud",
+                !EnergyDisplay.isValid("nonsense") && EnergyDisplay.isValid("GT_EU"));
+
+        // The two formats, both from `MiscUtils`, kept apart on purpose: the hatch GUI and the JEI preview
+        // abbreviate, the block tooltip groups. The abbreviation's arithmetic is the original's, quirk included.
+        report("DisplayNumbers.abbreviated leaves anything under a thousand alone",
+                "999".equals(DisplayNumbers.abbreviated(999L)));
+        report("...and abbreviates at a thousand: 1500 -> 1.5K",
+                "1.5K".equals(DisplayNumbers.abbreviated(1500L)));
+        report("...reproducing the original's own quirk at the next step: 5_000_000 -> 5.0M, because every branch"
+                        + " above K divides by the prefix below it and then by 1000 again",
+                "5.0M".equals(DisplayNumbers.abbreviated(5_000_000L)));
+        report("DisplayNumbers.grouped is the tooltip's format: a thousands separator and no suffix",
+                "16,384".equals(DisplayNumbers.grouped(16384L)));
 
         // The user's existing file must survive: read it through Forge's own path. It is round-tripped on a
         // COPY, because this harness must not touch the instance's config — what is being asserted is that the
@@ -1304,8 +1365,24 @@ public final class ParallelCraftCheck {
             // the MOC namespace added the original's two tile.modularmachinery.machinecontroller.deprecated.tip
             // keys verbatim; 176 in 0.29.0, when the construct tool gained the original's own tooltip plus its
             // six message.structurebuild.* lines — all seven under the ORIGINAL's key names, so section AA1 can
-            // diff them against _mmce-src's .lang files key for key.
-            check("the language files' key count", 176, zhMap.size());
+            // diff them against _mmce-src's .lang files key for key. 186 now: the four energy unit labels plus the six craftcheck.failure.* lines
+            // (`…energy.type` plus `.fe` / `.rf` / `.ic2_eu` / `.gt_eu`), which are the original's
+            // `tooltip.energy.type.*` keys carried under this mod's namespace.
+            check("the language files' key count", 186, zhMap.size());
+
+            // The four unit labels, asserted by value rather than by count: the two that the original's own
+            // language file gives the SAME text (`ic2_eu` and `gt_eu` both read `EU`) are the pair most likely to
+            // be "helpfully" differentiated by a later edit, and that would change what the player sees.
+            String[][] energyTypes = {
+                    {"tooltip.modular_machinery_reborn.machine.energy.type.fe", "FE"},
+                    {"tooltip.modular_machinery_reborn.machine.energy.type.rf", "RF"},
+                    {"tooltip.modular_machinery_reborn.machine.energy.type.ic2_eu", "EU"},
+                    {"tooltip.modular_machinery_reborn.machine.energy.type.gt_eu", "EU"},
+            };
+            for (String[] pair : energyTypes) {
+                check("zh " + pair[0], pair[1], zhMap.get(pair[0]));
+                check("en " + pair[0], pair[1], enMap.get(pair[0]));
+            }
 
             Map<String, String> sourceZh = flatLang(sourceLang.resolve("zh_CN.lang"));
             Map<String, String> sourceEn = flatLang(sourceLang.resolve("en_US.lang"));
@@ -2147,6 +2224,121 @@ public final class ParallelCraftCheck {
         check("the block entity's reader is the registry-backed overload", 0,
                 UpgradeEffects.read(busInventory).size());
 
+        // ---- (8b) per-copy NBT on a dynamic upgrade's carrier -------------------------------------------
+        //
+        // The original kept this in a Forge item capability (`CapabilityUpgrade`) and its dynamic flavour's
+        // read/write were a bare assignment and return — the tag was opaque to the mod and belonged to whoever
+        // wrote it (`SimpleDynamicMachineUpgrade.java:110-116`). The handler layer that read it around a machine
+        // event is deliberately not ported, so what has to be true here is only that the data is *carried* and
+        // never lost: a save from a pack that used dynamic upgrades holds it.
+        CompoundTag marker = new CompoundTag();
+        marker.putString("mmverify:who", "slot-zero");
+        ItemStack taggedCarrier = new ItemStack(Items.IRON_INGOT, 1);
+        UpgradeItemNbt.write(taggedCarrier, marker);
+
+        report("a written tag reads back equal", marker.equals(UpgradeItemNbt.read(taggedCarrier)));
+        report("...and the item reports that it carries one", UpgradeItemNbt.has(taggedCarrier));
+
+        // Writing nothing must leave NO key behind: a leftover empty compound keeps an untouched copy and a
+        // written-then-cleared copy from stacking with each other, which is a bug the player would see as items
+        // that refuse to merge for no visible reason.
+        ItemStack cleared = new ItemStack(Items.IRON_INGOT, 1);
+        UpgradeItemNbt.write(cleared, new CompoundTag());
+        report("writing an empty tag leaves the item without a tag at all, so carriers still stack",
+                cleared.getTag() == null && !UpgradeItemNbt.has(cleared));
+
+        // The original's own per-upgrade layout, so a carried-over world still yields its data.
+        CompoundTag legacy = UpgradeItemNbt.writeLegacy("example_speed", marker);
+        report("the original's one-entry layout round-trips by upgrade name",
+                marker.equals(UpgradeItemNbt.readLegacy(legacy, "example_speed")));
+        report("...and asking for a name it does not hold yields an empty tag rather than null",
+                UpgradeItemNbt.readLegacy(legacy, "not_this_one").isEmpty());
+
+        // The reader has to carry the tag through the merge. The first contributing slot wins, which is what the
+        // original did by keeping the machine-upgrade instance that arrived first while summing the counts.
+        busInventory.setStackInSlot(0, taggedCarrier);
+        busInventory.setStackInSlot(1, new ItemStack(Items.IRON_INGOT, 1));
+        busInventory.setStackInSlot(2, new ItemStack(Items.COBBLESTONE, 5));
+        UpgradeStack.Bag carried = UpgradeEffects.read(busInventory, lookup);
+        check("the merged upgrade is still one entry", 1, carried.size());
+        check("...with both carriers counted", 2, carried.itemCount());
+        report("...and the per-copy tag survives the merge: " + carried.stacks().get(0).customData(),
+                carried.stacks().get(0).hasCustomData());
+        check("...and it is the FIRST contributing slot's tag, as the original's first-wins merge was",
+                "slot-zero", carried.stacks().get(0).customData().getString("mmverify:who"));
+
+        // ...and an untagged carrier must not invent one.
+        UpgradeStack.Bag untagged = UpgradeEffects.read(new net.minecraftforge.items.ItemStackHandler(1) {{
+            setStackInSlot(0, new ItemStack(Items.IRON_INGOT, 1));
+        }}, lookup);
+        report("a carrier with no tag yields a stack with no per-copy data",
+                !untagged.stacks().get(0).hasCustomData());
+
+        // ---- (8c) the bus's own per-declaration data, and its save format -------------------------------
+        //
+        // A different store from the item's tag above, and the original had both: this one is the bus's
+        // (`TileUpgradeBus.upgradeCustomData`, `:50`), keyed by upgrade name, saved under the literal key
+        // "upgradeCustomData" (`:193/217`). That key is a save-format name, so agreeing on the string is the whole
+        // point — a world written by the original has to load here.
+        BusUpgradeData busData = new BusUpgradeData();
+        report("a fresh bus holds nothing", busData.isEmpty() && busData.names().isEmpty());
+
+        CompoundTag declarationData = new CompoundTag();
+        declarationData.putInt("mmverify:count", 7);
+        report("setting a declaration's data reports a change", busData.set(speed.id(), declarationData));
+        report("...reading it back gives the same tag", declarationData.equals(busData.get(speed.id())));
+        report("...and it is not empty any more", !busData.isEmpty() && busData.names().contains(speed.id()));
+
+        report("setting the SAME data again reports no change, so a caller can skip a sync",
+                !busData.set(speed.id(), declarationData));
+        report("setting an empty tag REMOVES the entry, so an empty section cannot linger in a save",
+                busData.set(speed.id(), new CompoundTag()) && busData.isEmpty());
+        report("...and a name it never held reads as an empty tag rather than null",
+                busData.get(speed.id()).isEmpty());
+
+        // "Empty compound" and "no compound" have to serialise the same way, or a save round trip would invent a
+        // section that then reads as "this declaration has data".
+        CompoundTag emptySave = new CompoundTag();
+        busData.save(emptySave);
+        report("an empty store writes NO key at all, rather than an empty one",
+                !emptySave.contains(BusUpgradeData.TAG));
+
+        busData.set(speed.id(), declarationData);
+        CompoundTag saved = new CompoundTag();
+        busData.save(saved);
+        report("a non-empty store writes the original's own key: " + saved.getAllKeys(),
+                saved.getAllKeys().contains(BusUpgradeData.TAG));
+        report("...and that key holds a compound, which is the shape the original wrote",
+                saved.contains(BusUpgradeData.TAG, CompoundTag.TAG_COMPOUND));
+
+        BusUpgradeData reloaded = new BusUpgradeData();
+        reloaded.load(saved);
+        report("a save round trip preserves the declaration's data",
+                declarationData.equals(reloaded.get(speed.id())) && reloaded.names().contains(speed.id()));
+
+        // A malformed entry must not make a chunk unloadable: the name is skipped and the rest still loads.
+        CompoundTag malformed = new CompoundTag();
+        CompoundTag store = new CompoundTag();
+        store.put("not a resource location", declarationData.copy());
+        store.put(speed.id().toString(), declarationData.copy());
+        malformed.put(BusUpgradeData.TAG, store);
+        BusUpgradeData tolerant = new BusUpgradeData();
+        tolerant.load(malformed);
+        report("a malformed upgrade name in a save is skipped, and the valid entry still loads",
+                tolerant.names().size() == 1 && tolerant.names().contains(speed.id()));
+
+        // The two stores are genuinely independent, which is the property that makes keeping both worthwhile.
+        ItemStack independentCarrier = new ItemStack(Items.IRON_INGOT, 1);
+        UpgradeItemNbt.write(independentCarrier, declarationData);
+        BusUpgradeData other = new BusUpgradeData();
+        report("the item's tag and the bus's declaration data are separate stores: an item tag alone leaves the "
+                        + "bus empty",
+                !UpgradeItemNbt.read(independentCarrier).isEmpty() && other.isEmpty());
+        other.set(speed.id(), declarationData);
+        ItemStack bareCarrier = new ItemStack(Items.IRON_INGOT, 1);
+        report("...and a pristine item beside a populated bus stays pristine",
+                !UpgradeItemNbt.has(bareCarrier) && !other.isEmpty());
+
         // (9) The controller's own join, driven directly: structural modifiers and bus modifiers meet in one set.
         // Two independent x2 output modifiers multiply to x4, which is countable in stone.
         RecipeModifiers structural = RecipeModifiers.of(List.of(
@@ -2626,6 +2818,37 @@ public final class ParallelCraftCheck {
                         .startFailure(interfacePorts)));
         check("a satisfied requirement reports no failure", "null",
                 String.valueOf(inRange.startFailure(interfacePorts)));
+
+        // ---- the other requirement types' messages (0.31.0) --------------------------------------------
+        //
+        // The original's `canStartCrafting` returned a `CraftCheck` carrying one of these keys and the controller
+        // printed it (`RequirementItem.java:288-292`, `RequirementFluid.java:168-176`,
+        // `RequirementEnergy.java:138-146`). Before this, only `interface_number_input` had anything to say, so a
+        // machine missing stone said a bare `idle` — the vocabulary is what makes the status line useful.
+        //
+        // Each message is asserted on the requirement type AND on the direction, because the original split them:
+        // "missing input" and "not enough room for the output" are different problems with different fixes, and a
+        // port that answered one key for both would be strictly less useful than the original.
+        HatchCollection emptyPorts = HatchCollection.builder().build();
+        ItemRequirement fixtureItemIn = ItemRequirement.input(Ingredient.of(Items.COBBLESTONE), 1);
+        ItemRequirement fixtureItemOut = ItemRequirement.output(new ItemStack(Items.COBBLESTONE, 1), 1, 1, 1.0F);
+        check("an item input that is short reports the original's item-input key",
+                ItemRequirement.FAILURE_ITEM_INPUT, String.valueOf(fixtureItemIn.startFailure(emptyPorts)));
+        check("an item output that will not fit reports the original's item-output-space key",
+                ItemRequirement.FAILURE_ITEM_OUTPUT_SPACE, String.valueOf(fixtureItemOut.startFailure(emptyPorts)));
+        report("...and the two are different keys, not one key for both directions",
+                !ItemRequirement.FAILURE_ITEM_INPUT.equals(ItemRequirement.FAILURE_ITEM_OUTPUT_SPACE));
+
+        // The keys are the original's own spellings, which is the part a pack author's notes and the original's
+        // own language files depend on.
+        check("the item keys are the original's spellings", "craftcheck.failure.item.input",
+                ItemRequirement.FAILURE_ITEM_INPUT);
+        check("...and so is the fluid pair", "craftcheck.failure.fluid.input",
+                FluidRequirement.FAILURE_FLUID_INPUT);
+        check("...and the energy pair", "craftcheck.failure.energy.input",
+                EnergyRequirement.FAILURE_ENERGY_INPUT);
+        check("the energy output message is the original's, typo included ('hatch are full')",
+                "craftcheck.failure.energy.output.space", EnergyRequirement.FAILURE_ENERGY_OUTPUT_SPACE);
 
         // The ends are inclusive, exactly as the original compared them (`value >= min && value <= max`).
         report("min == the stored value satisfies",

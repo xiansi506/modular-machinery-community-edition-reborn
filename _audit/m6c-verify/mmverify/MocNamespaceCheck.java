@@ -606,8 +606,9 @@ final class MocNamespaceCheck {
             report("the config spec could not be rendered", false);
             return;
         }
-        // 13 before this release, 15 with the two MOC keys.
-        check("the config spec defines this many keys", 15, rendered.size());
+        // 13 before this release, 15 with the two MOC keys, 16 once display.energy.Display_Energy_Type landed
+        // (the same fact ParallelCraftCheck's section R asserts from its own angle).
+        check("the config spec defines this many keys", 16, rendered.size());
 
         String[][] expected = {
                 {"general.modular-controller-compatible-mode", "false"},
@@ -727,9 +728,10 @@ final class MocNamespaceCheck {
             return;
         }
         // 169 at 0.27.0; 176 from 0.29.0, when the construct tool added the original's own tooltip plus its six
-        // message.structurebuild.* lines (section AA1 diffs all seven against _mmce-src's .lang).
-        check("en_us.json key count", 176, en.size());
-        check("zh_cn.json key count", 176, zh.size());
+        // message.structurebuild.* lines (section AA1 diffs all seven against _mmce-src's .lang); 180 with the four
+        // energy unit labels, whose values ParallelCraftCheck's section R asserts one by one.
+        check("en_us.json key count", 186, en.size());
+        check("zh_cn.json key count", 186, zh.size());
         Set<String> enKeys = new TreeSet<>(en.keySet());
         Set<String> zhKeys = new TreeSet<>(zh.keySet());
         report("the two files carry identical key sets (" + enKeys.size() + " keys each)", enKeys.equals(zhKeys));

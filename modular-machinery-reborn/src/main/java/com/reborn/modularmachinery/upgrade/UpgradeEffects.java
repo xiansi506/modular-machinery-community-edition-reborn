@@ -131,6 +131,13 @@ public final class UpgradeEffects {
     public static UpgradeStack.Bag read(IItemHandler inventory, Function<ItemStack, UpgradeTarget.Targets> lookup) {
         Map<UpgradeType, Integer> merged = new LinkedHashMap<>();
         Map<UpgradeType, UpgradeTarget> targets = new LinkedHashMap<>();
+        // The per-copy tag of the FIRST slot that contributed each declaration, which is the closest counterpart of
+        // what the original kept. It merged same-type slots by summing their sizes (`TileUpgradeBus#updateUpgrades`,
+        // `:146-148`) and kept the machine-upgrade instance that arrived first, so a second slot holding the same
+        // declaration never overwrote the first one's data either. Two copies with *different* tags therefore
+        // resolve to the first's — the original had the same property, and inventing a merge here would be this
+        // port deciding something upstream never decided.
+        Map<UpgradeType, net.minecraft.nbt.CompoundTag> customData = new LinkedHashMap<>();
         for (int slot = 0; slot < inventory.getSlots(); slot++) {
             ItemStack stack = inventory.getStackInSlot(slot);
             if (stack.isEmpty()) {
@@ -146,6 +153,7 @@ public final class UpgradeEffects {
                 if (total == null) {
                     merged.put(type, stack.getCount());
                     targets.put(type, target);
+                    customData.put(type, UpgradeItemNbt.read(stack));
                 } else {
                     // The original summed the stack sizes of same-type slots rather than letting the second
                     // slot overwrite the first (TileUpgradeBus#updateUpgrades, :146-148).
@@ -158,7 +166,8 @@ public final class UpgradeEffects {
         }
         List<UpgradeStack> stacks = new ArrayList<>(merged.size());
         for (Map.Entry<UpgradeType, Integer> entry : merged.entrySet()) {
-            stacks.add(new UpgradeStack(targets.get(entry.getKey()), entry.getValue()));
+            stacks.add(new UpgradeStack(targets.get(entry.getKey()), entry.getValue(),
+                    customData.get(entry.getKey())));
         }
         return new UpgradeStack.Bag(stacks);
     }

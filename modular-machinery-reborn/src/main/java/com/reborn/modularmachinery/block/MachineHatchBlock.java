@@ -75,8 +75,15 @@ public abstract class MachineHatchBlock extends Block implements EntityBlock {
         return switch (kind.family()) {
             case ITEM -> Component.translatable("tooltip.modular_machinery_reborn.hatch.slots", tier.itemSlots());
             case FLUID -> Component.translatable("tooltip.modular_machinery_reborn.hatch.tank", tier.fluidCapacity());
+            // The original printed these two with `MiscUtils.formatDecimal` (a thousands separator) in the branch
+            // that is always taken — `BlockEnergyInputHatch.java:55-56` — and left the unit hard-coded as `FE`
+            // there, using the configurable unit only in its IC2 and GregTech branches. The unit is configurable
+            // here instead, because those two branches do not exist on 1.20.1 and a hard-coded `FE` sitting beside
+            // a configurable unit is a contradiction the player can see. The grouping is the original's.
             case ENERGY -> Component.translatable("tooltip.modular_machinery_reborn.hatch.energy",
-                    tier.energyCapacity(), tier.energyTransfer());
+                    com.reborn.modularmachinery.config.DisplayNumbers.grouped(tier.energyCapacity()),
+                    com.reborn.modularmachinery.config.DisplayNumbers.grouped(tier.energyTransfer()),
+                    com.reborn.modularmachinery.config.ModConfig.energyDisplay().labelComponent());
         };
     }
 

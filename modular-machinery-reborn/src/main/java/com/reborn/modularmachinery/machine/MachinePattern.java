@@ -74,17 +74,6 @@ public final class MachinePattern {
         return true;
     }
 
-    /** The first relative position that does not match, or {@code null} when the structure is complete. */
-    public BlockPos firstMismatch(Level level, BlockPos controller) {
-        for (Map.Entry<BlockPos, List<BlockMatcher>> entry : this.positions.entrySet()) {
-            BlockPos at = controller.offset(entry.getKey());
-            if (!level.isLoaded(at) || !anyMatches(level.getBlockState(at), entry.getValue())) {
-                return entry.getKey();
-            }
-        }
-        return null;
-    }
-
     private static boolean anyMatches(BlockState state, List<BlockMatcher> accepted) {
         for (BlockMatcher matcher : accepted) {
             if (matcher.matches(state)) {

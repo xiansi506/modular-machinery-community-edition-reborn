@@ -1,5 +1,6 @@
 package com.reborn.modularmachinery.upgrade;
 
+import net.minecraft.nbt.CompoundTag;
 import net.minecraft.resources.ResourceLocation;
 
 import java.util.List;
@@ -11,19 +12,48 @@ import java.util.List;
  * {@code TileUpgradeBus}, where the {@code MachineUpgrade} instance carried the stack size and lived on the bus
  * so that custom NBT could be read and written around every handler call
  * ({@code UpgradeMachineEventHandler.java:38-50}). This project has no handler layer and no per-instance state:
- * what the recipe engine needs is the upgrade's declaration plus its count, which is exactly this pair.
+ * what the recipe engine needs is the upgrade's declaration plus its count, which is exactly this pair — plus,
+ * for a <b>dynamic</b> upgrade, the opaque tag its carrier item holds.
  *
- * @param target the declaration the carrier item resolved to
- * @param count  how many carrier items share this upgrade; at least 1
+ * @param target     the declaration the carrier item resolved to
+ * @param count      how many carrier items share this upgrade; at least 1
+ * @param customData the per-copy NBT of a dynamic upgrade, as carried by the carrier item; empty when the
+ *                   declaration is not dynamic, and empty rather than {@code null} always
  */
-public record UpgradeStack(UpgradeTarget target, int count) {
+public record UpgradeStack(UpgradeTarget target, int count, CompoundTag customData) {
 
     public UpgradeStack {
         count = Math.max(1, count);
+        customData = customData == null ? new CompoundTag() : customData.copy();
+    }
+
+    /**
+     * The same stack with no per-copy data.
+     *
+     * <p>Kept because most callers — every recipe-modifier read, every compatibility question — have no interest in
+     * the tag, and a two-argument constructor here means they do not have to say so.
+     */
+    public UpgradeStack(UpgradeTarget target, int count) {
+        this(target, count, new CompoundTag());
     }
 
     public UpgradeType type() {
         return this.target.upgrade();
+    }
+
+    /** Whether this stack carries any per-copy NBT — i.e. whether the declaration is dynamic <i>and</i> used. */
+    public boolean hasCustomData() {
+        return !this.customData.isEmpty();
+    }
+
+    /**
+     * The per-copy tag as its carrier item would spell it, or an empty tag when there is none.
+     *
+     * <p>Reading the record's own field would do; this exists so the caller does not have to defensively copy
+     * before handing it to something that might write to it.
+     */
+    public CompoundTag customDataCopy() {
+        return this.customData.copy();
     }
 
     /** The stack as the original printed it in the bus GUI: {@code "3x <name>"}. */

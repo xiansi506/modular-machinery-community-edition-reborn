@@ -140,8 +140,18 @@ public final class MachineHatchScreen extends AbstractContainerScreen<MachineHat
 
     private List<Component> tooltipLines() {
         if (family() == HatchKind.Family.ENERGY) {
+            // The one energy line the original scaled, abbreviated <b>and</b> labelled from the config, all three in
+            // the same place (`GuiContainerEnergyHatch.java:56-64`): it scaled both numbers with
+            // `formatEnergyForDisplay`, printed them with `MiscUtils.formatNumber` and took the unit from
+            // `EnergyDisplayUtil.type.getUnlocalizedFormat()`. This port had none of the three.
+            com.reborn.modularmachinery.config.EnergyDisplay display =
+                    com.reborn.modularmachinery.config.ModConfig.energyDisplay();
             return List.of(Component.translatable("tooltip.modular_machinery_reborn.energyhatch.charge",
-                    menu.energyStored(), menu.energyCapacity()));
+                    com.reborn.modularmachinery.config.DisplayNumbers.abbreviated(
+                            display.display(menu.energyStored())),
+                    com.reborn.modularmachinery.config.DisplayNumbers.abbreviated(
+                            display.display(menu.energyCapacity())),
+                    display.labelComponent()));
         }
         FluidStack fluid = menu.hatch().fluidTank().getFluid();
         if (fluid.isEmpty() || menu.fluidAmount() <= 0) {

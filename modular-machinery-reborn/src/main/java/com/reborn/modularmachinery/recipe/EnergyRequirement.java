@@ -3,6 +3,8 @@ package com.reborn.modularmachinery.recipe;
 import com.reborn.modularmachinery.machine.HatchCollection;
 import net.minecraft.util.RandomSource;
 
+import javax.annotation.Nullable;
+
 /**
  * An energy input or output of a machine recipe.
  *
@@ -24,6 +26,10 @@ import net.minecraft.util.RandomSource;
  * same as {@code floor(available / ratePerCopy)} — the arithmetic below.
  */
 public final class EnergyRequirement extends MachineRequirement {
+
+    /** The original's own two messages ({@code RequirementEnergy.java:138-146}), key for key. */
+    public static final String FAILURE_ENERGY_INPUT = "craftcheck.failure.energy.input";
+    public static final String FAILURE_ENERGY_OUTPUT_SPACE = "craftcheck.failure.energy.output.space";
 
     private final long energyPerTick;
 
@@ -85,6 +91,16 @@ public final class EnergyRequirement extends MachineRequirement {
         return IngredientIo.canInsertEnergy(ports.energyOutputs(), draw);
     }
 
+    /**
+     * The original's two energy messages ({@code RequirementEnergy.java:138-146}): not enough stored energy, or
+     * output hatches that are already full. Only asked after {@link #canSatisfy} has already answered {@code false}.
+     */
+    @javax.annotation.Nullable
+    @Override
+    public String startFailure(HatchCollection ports) {
+        return this.ioType() == IOType.INPUT ? FAILURE_ENERGY_INPUT : FAILURE_ENERGY_OUTPUT_SPACE;
+    }
+
     @Override
     public int parallelLimit(HatchCollection ports, RecipeModifiers modifiers, int ceiling) {
         if (!isParallelizable()) {
@@ -124,6 +140,13 @@ public final class EnergyRequirement extends MachineRequirement {
 
     @Override
     public String describe() {
-        return (this.ioType() == IOType.INPUT ? "" : "+") + this.energyPerTick + " FE/t";
+        // The unit is a display choice (`display.energy.Display_Energy_Type`), and the number is scaled for display
+        // only — the stored amount and the draw are untouched. The original scaled every energy number it printed
+        // the same way, in `TooltipEnergyInput` as much as in the hatch GUI.
+        com.reborn.modularmachinery.config.EnergyDisplay display =
+                com.reborn.modularmachinery.config.ModConfig.energyDisplay();
+        return (this.ioType() == IOType.INPUT ? "" : "+")
+                + com.reborn.modularmachinery.config.DisplayNumbers.abbreviated(display.display(this.energyPerTick))
+                + " " + display.label() + "/t";
     }
 }

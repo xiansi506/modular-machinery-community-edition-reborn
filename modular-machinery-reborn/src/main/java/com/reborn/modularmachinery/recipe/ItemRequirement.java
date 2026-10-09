@@ -37,6 +37,10 @@ import java.util.Locale;
  */
 public final class ItemRequirement extends MachineRequirement {
 
+    /** The original's own two messages ({@code RequirementItem.java:288-292}), key for key. */
+    public static final String FAILURE_ITEM_INPUT = "craftcheck.failure.item.input";
+    public static final String FAILURE_ITEM_OUTPUT_SPACE = "craftcheck.failure.item.output.space";
+
     @Nullable private final Ingredient ingredient;
     @Nullable private final ItemStack stack;
     private final int minAmount;
@@ -134,6 +138,21 @@ public final class ItemRequirement extends MachineRequirement {
         }
         // Space is checked for the guaranteed maximum, so a craft cannot end when the result would not fit.
         return this.stack != null && IngredientIo.canInsertItems(ports.itemOutputs(), this.stack, perCopy * copies);
+    }
+
+    /**
+     * The original's two item messages, split by direction ({@code RequirementItem.java:288-292}): a missing
+     * input and an output that will not fit are different problems with different fixes, and the original said
+     * which one it was.
+     *
+     * <p>Only asked after {@link #canSatisfy} has answered {@code false}, so the two can never disagree about
+     * what happened. The per-copy arithmetic is not repeated here: the message names the requirement, not the
+     * shortfall, which is all the original's wording carried.
+     */
+    @Nullable
+    @Override
+    public String startFailure(HatchCollection ports) {
+        return this.ioType() == IOType.INPUT ? FAILURE_ITEM_INPUT : FAILURE_ITEM_OUTPUT_SPACE;
     }
 
     @Override

@@ -51,7 +51,7 @@
 
   "tooltip.modular_machinery_reborn.hatch.slots": "%s slots",
   "tooltip.modular_machinery_reborn.hatch.tank": "%s mB",
-  "tooltip.modular_machinery_reborn.hatch.energy": "%s FE, %s FE/t",
+  "tooltip.modular_machinery_reborn.hatch.energy": "%s %s, %s %s/t",
   "tooltip.modular_machinery_reborn.blueprint.empty": "Empty",
   "tooltip.modular_machinery_reborn.parallel_controller": "Up to §a%s§7 of identical recipes can be run simultaneously.",
   "tooltip.modular_machinery_reborn.upgrade_bus": "Up to §a%s§7 different upgrades can be placed.",
@@ -59,7 +59,7 @@
   "command.modular_machinery_reborn.get_blueprint.player_only": "This command can only be executed by the player.",
   "command.modular_machinery_reborn.get_blueprint.not_found": "The machine with the registered name %s was not found!",
   "command.modular_machinery_reborn.get_blueprint.success": "Blueprint given: %s",
-  "tooltip.modular_machinery_reborn.energyhatch.charge": "%s / %s FE",
+  "tooltip.modular_machinery_reborn.energyhatch.charge": "%s / %s %s",
   "tooltip.modular_machinery_reborn.fluidhatch.empty": "Empty",
   "tooltip.modular_machinery_reborn.fluidhatch.tank": "%s mB / %s mB",
 
@@ -77,6 +77,10 @@
   "tooltip.modular_machinery_reborn.machine.energy.tick": "%s %s/t",
   "tooltip.modular_machinery_reborn.machine.energy.total": "Total: %s %s",
   "tooltip.modular_machinery_reborn.machine.energy.type": "FE",
+  "tooltip.modular_machinery_reborn.machine.energy.type.fe": "FE",
+  "tooltip.modular_machinery_reborn.machine.energy.type.rf": "RF",
+  "tooltip.modular_machinery_reborn.machine.energy.type.ic2_eu": "EU",
+  "tooltip.modular_machinery_reborn.machine.energy.type.gt_eu": "EU",
 
   "jei.modular_machinery_reborn.structure.title": "Structure Preview",
   "jei.category.preview": "Structure Preview",
@@ -184,6 +188,12 @@
   "block.modular_machinery_reborn.fluid_output_hatch_vacuum": "Vacuum Fluid Output Hatch",
 
   "craftcheck.failure.interface.number.notequal": "Different values for Smart Data Interface inputs!",
+  "craftcheck.failure.item.input": "Missing input item!",
+  "craftcheck.failure.item.output.space": "Not enough inventory space for item output(s)!",
+  "craftcheck.failure.fluid.input": "Missing fluid input!",
+  "craftcheck.failure.fluid.output.space": "Not enough tank space for fluid output(s)!",
+  "craftcheck.failure.energy.input": "Not enough energy!",
+  "craftcheck.failure.energy.output.space": "Energy output hatch are full",
   "component.missing.modularmachinery.interface.number": "No Smart Data Interface found!",
   "tooltip.modular_machinery_reborn.smartinterface.value": "Smart Interface Number Input：%s",
   "tooltip.modular_machinery_reborn.smartinterface.minvalue": "Smart Interface Min Number Input：%s",

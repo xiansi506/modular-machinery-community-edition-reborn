@@ -51,7 +51,7 @@
 
   "tooltip.modular_machinery_reborn.hatch.slots": "%s 个槽位",
   "tooltip.modular_machinery_reborn.hatch.tank": "%s mB",
-  "tooltip.modular_machinery_reborn.hatch.energy": "%s FE，%s FE/t",
+  "tooltip.modular_machinery_reborn.hatch.energy": "%s %s，%s %s/t",
   "tooltip.modular_machinery_reborn.blueprint.empty": "空",
   "tooltip.modular_machinery_reborn.parallel_controller": "最多可以同时运行 §a%s§7 个相同配方。",
   "tooltip.modular_machinery_reborn.upgrade_bus": "最多可以放置 §a%s§7 种不同的升级。",
@@ -59,7 +59,7 @@
   "command.modular_machinery_reborn.get_blueprint.player_only": "该指令只能由玩家执行。",
   "command.modular_machinery_reborn.get_blueprint.not_found": "未找到注册名为 %s 的机械！",
   "command.modular_machinery_reborn.get_blueprint.success": "已给予机械蓝图：%s",
-  "tooltip.modular_machinery_reborn.energyhatch.charge": "当前储能：%s / %s FE",
+  "tooltip.modular_machinery_reborn.energyhatch.charge": "当前储能：%s / %s %s",
   "tooltip.modular_machinery_reborn.fluidhatch.empty": "空",
   "tooltip.modular_machinery_reborn.fluidhatch.tank": "%s mB / %s mB",
 
@@ -77,6 +77,10 @@
   "tooltip.modular_machinery_reborn.machine.energy.tick": "%s %s/t",
   "tooltip.modular_machinery_reborn.machine.energy.total": "总计：%s %s",
   "tooltip.modular_machinery_reborn.machine.energy.type": "FE",
+  "tooltip.modular_machinery_reborn.machine.energy.type.fe": "FE",
+  "tooltip.modular_machinery_reborn.machine.energy.type.rf": "RF",
+  "tooltip.modular_machinery_reborn.machine.energy.type.ic2_eu": "EU",
+  "tooltip.modular_machinery_reborn.machine.energy.type.gt_eu": "EU",
 
   "jei.modular_machinery_reborn.structure.title": "结构预览",
   "jei.category.preview": "结构预览",
@@ -184,6 +188,12 @@
   "block.modular_machinery_reborn.fluid_output_hatch_vacuum": "真空流体输出仓",
 
   "craftcheck.failure.interface.number.notequal": "智能数据接口输入的数值不同！",
+  "craftcheck.failure.item.input": "缺少物品输入！",
+  "craftcheck.failure.item.output.space": "没有足够的库存空间用于物品输出！",
+  "craftcheck.failure.fluid.input": "缺少液体输入！",
+  "craftcheck.failure.fluid.output.space": "没有足够的库存空间用于流体输出！",
+  "craftcheck.failure.energy.input": "缺少能量输入！",
+  "craftcheck.failure.energy.output.space": "能源输出仓已满",
   "component.missing.modularmachinery.interface.number": "没有找到对应类型的智能数据接口！",
   "tooltip.modular_machinery_reborn.smartinterface.value": "智能接口数值输入：%s",
   "tooltip.modular_machinery_reborn.smartinterface.minvalue": "智能接口最小数值输入：%s",

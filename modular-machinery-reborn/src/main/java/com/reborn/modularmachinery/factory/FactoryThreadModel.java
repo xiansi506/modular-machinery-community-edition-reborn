@@ -85,13 +85,16 @@ public final class FactoryThreadModel {
 
     /**
      * {@code max-threads}: how many <b>ordinary</b> threads a factory controller may hold — the original's
-     * {@code AbstractMachine#getMaxThreads} ({@code AbstractMachine.java:133-135}), which
-     * {@code TileFactoryController#getMaxThreads} then adds {@code extraThreadCount} to
-     * ({@code TileFactoryController.java:455-457}).
+     * {@code AbstractMachine#getMaxThreads} ({@code AbstractMachine.java:133-135}).
      *
-     * <p>A machine's definition cannot change at runtime, and this slice has no controller GUI to raise the
-     * count from, so the original's {@code extraThreadCount} is always {@code 0} here and the machine's field
-     * <b>is</b> the limit.
+     * <p>This is the <b>definition's</b> half of the original's total. The original's
+     * {@code TileFactoryController#getMaxThreads} then added the controller's own {@code extraThreadCount} to it
+     * ({@code TileFactoryController.java:455-457}), which is why that addition lives on the controller
+     * ({@link com.reborn.modularmachinery.block.MachineControllerBlockEntity}) rather than here: a definition is
+     * immutable, and the extra count is per-controller runtime state that survives a save.
+     *
+     * <p>Callers asking "how many threads may this controller hold" must therefore add the two; a caller asking
+     * "what did the pack author declare" wants this method alone.
      */
     public static int maxThreads(MachineDefinition definition) {
         if (definition == null) {
