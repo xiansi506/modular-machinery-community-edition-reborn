@@ -1414,6 +1414,24 @@ final class MocNamespaceCheck {
             String empty = (String) tagText.invoke(null, List.of());
             report("an empty declaration list still yields a valid, merging file rather than no file: " + empty,
                     empty.contains("\"replace\":false") && empty.contains("\"values\":[]"));
+
+            // Which namespaces the generated files actually live in. The pack must declare every one of them:
+            // a synthetic pack is asked which namespaces it serves, and a namespace it does not name is never
+            // searched — however correct the files under it are, and with no error anywhere. That omission is
+            // why the generated tags were never read (the pack declared the mod's two namespaces but not
+            // `minecraft`, which is where a vanilla-tag contribution must live).
+            java.util.Set<String> servedByFiles = new TreeSet<>();
+            for (String id : produced.keySet()) {
+                servedByFiles.add(id.substring(0, id.indexOf(':')));
+            }
+            for (ResourceLocation id : tags.keySet()) {
+                servedByFiles.add(id.getNamespace());
+            }
+            report("the generated files require the pack to serve these namespaces: " + servedByFiles
+                            + " (the pack must declare each of them, or the game never looks)",
+                    servedByFiles.contains("minecraft") && servedByFiles.contains(modNs)
+                            && servedByFiles.contains(mocNs));
+            check("...and that is exactly three namespaces, not two", 3, servedByFiles.size());
         } catch (ReflectiveOperationException failure) {
             report("the tag builder can be driven: " + describe(failure), false);
         }

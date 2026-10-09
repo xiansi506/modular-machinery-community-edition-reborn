@@ -70,6 +70,11 @@ public final class ModularMachineryReborn {
         // the connection did (PlayerStructureSelectionHelper:128-134). A new session must not inherit one.
         MinecraftForge.EVENT_BUS.addListener(
                 com.reborn.modularmachinery.selection.ServerSelections::onPlayerLoggedOut);
+        // TEMPORARY: lists every one of this mod's blocks that is not in minecraft:mineable/pickaxe. That is a
+        // runtime fact (two packs merge that tag) which no file can answer. Remove once the declared controllers
+        // are confirmed mineable.
+        MinecraftForge.EVENT_BUS.addListener(
+                com.reborn.modularmachinery.block.MineabilitySelfCheck::onServerStarted);
 
         DistExecutor.unsafeRunWhenOn(Dist.CLIENT, () -> () -> bus.addListener(com.reborn.modularmachinery.client.ClientSetup::onClientSetup));
         String version = ModList.get().getModContainerById(MOD_ID)

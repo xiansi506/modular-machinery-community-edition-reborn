@@ -122,10 +122,28 @@ public final class GeneratedLootTablePack extends AbstractPackResources {
         }
     }
 
+    /**
+     * <b>Every</b> namespace this pack serves files for: the mod's own, the compatibility namespace, and
+     * {@code minecraft} — because a tag that adds to a vanilla tag lives under {@code data/minecraft/…}.
+     *
+     * <p>Leaving {@code minecraft} out is what kept the generated tags (and, before them, the generated loot
+     * tables' namespaced paths) from ever being read: a synthetic pack is asked which namespaces it serves, and a
+     * namespace it does not name is not searched, however correct the files inside it are. The build succeeded,
+     * the pack loaded, and nothing anywhere reported an error — the same silent shape as writing the tags under
+     * the wrong namespace in the first place.
+     */
+    private static final Set<String> SERVED_NAMESPACES =
+            Set.of(NAMESPACE, MocNamespace.NAMESPACE, "minecraft");
+
+    /** The namespaces this pack serves, exposed for the offline acceptance harness. */
+    public static Set<String> namespaces() {
+        return SERVED_NAMESPACES;
+    }
+
     /** Both namespaces, because the pack carries tables for both. */
     @Override
     public Set<String> getNamespaces(PackType type) {
-        return type == PackType.SERVER_DATA ? Set.of(NAMESPACE, MocNamespace.NAMESPACE) : Set.of();
+        return type == PackType.SERVER_DATA ? SERVED_NAMESPACES : Set.of();
     }
 
     @Override
