@@ -14,9 +14,11 @@ archived** — by this project's 必查 7 that makes it "built, not yet verified
 > 🚀 **New here? Start at [docs/使用说明.md](docs/使用说明.md)** — "from an empty instance to a machine that runs",
 > in Chinese, with complete copy-pasteable machine definitions and recipes.
 >
-> **This mod ships no machines and no recipes.** The jar's `data/` is empty on purpose (M10), and **no example
-> data pack is shipped either** — the documentation *is* the distribution for content. You supply machines
-> (data pack / config directory / KubeJS) and recipes (JSON / KubeJS) yourself.
+> **This mod ships no machines and no recipes.** The jar carries none of either on purpose (M10), and **no
+> example data pack is shipped either** — the documentation *is* the distribution for content. You supply
+> machines (data pack / config directory / KubeJS) and recipes (JSON / KubeJS) yourself.
+> *(Since 0.31.0 the jar's `data/` holds three block tags — the mineable/`needs_stone_tool` metadata that makes
+> its blocks drop anything at all. That is mod metadata, not content; see `迁移日志.md`, 0.31.0.)*
 >
 > 📚 **文档导航见 [docs/README.md](docs/README.md)** —— 一屏看懂该读哪份（总纲 / 专项 / 历史）。
 
