@@ -63,16 +63,18 @@ public final class GeneratedPacks {
         }
 
         if (event.getPackType() == PackType.SERVER_DATA) {
-            ModularMachineryReborn.LOGGER.info("[{}] Generating controller loot tables for {} machine "
-                            + "declaration(s) in the config directory, in the mod's own namespace and in '{}'",
+            ModularMachineryReborn.LOGGER.info("[{}] Generating controller loot tables and mineability tags for {} "
+                            + "machine declaration(s) in the config directory, in the mod's own namespace and in"
+                            + " '{}'",
                     ModularMachineryReborn.MOD_ID, declarations, MocNamespace.NAMESPACE);
             event.addRepositorySource(packs -> packs.accept(Pack.create(
                     ModularMachineryReborn.MOD_ID + "_generated_loot_tables",
                     Component.literal("Modular Machinery Reborn: generated controller loot tables"),
                     true,
                     GeneratedLootTablePack::new,
-                    new Pack.Info(Component.literal("Block loot tables for controllers of machines declared "
-                            + "in config/modular_machinery_reborn/machinery/"), PACK_FORMAT, FeatureFlags.VANILLA_SET),
+                    new Pack.Info(Component.literal("Block loot tables and mineability tags for controllers of "
+                            + "machines declared in config/modular_machinery_reborn/machinery/"),
+                            PACK_FORMAT, FeatureFlags.VANILLA_SET),
                     PackType.SERVER_DATA,
                     Pack.Position.TOP,
                     true,

@@ -9,6 +9,8 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+
+import net.minecraft.resources.ResourceLocation;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
@@ -1334,10 +1336,87 @@ final class MocNamespaceCheck {
                 missingBlock.add(namespace + ":" + blockPath);
             }
         }
-        check("no generated table collides with a table shipped in the jar", 0, collisions.size());
+        // A loot table must NOT collide: the generated pack would be shadowed by the shipped file. A TAG must
+        // collide, deliberately — the game merges tag files across packs, and that is how the declared names reach
+        // the vanilla tag while the jar keeps the fixed blocks in it. The two cases are opposite on purpose.
+        check("no generated loot table collides with a table shipped in the jar", 0, collisions.size());
         report("the jar carries " + shipped.size() + " data json files and " + blockStates.size()
                 + " blockstate files; fixtures are not registered blocks, so "
                 + missingBlock.size() + " fixture block id(s) are absent from it by design", true);
+
+        // The tags. A declared controller that is not in minecraft:mineable/pickaxe is mined at one fifth speed
+        // and never drops, which was the second half of the same omission this section's loot tables fixed.
+        Class<?> tagBuilder;
+        try {
+            tagBuilder = Class.forName("com.reborn.modularmachinery.block.GeneratedControllerTags", false,
+                    MocNamespaceCheck.class.getClassLoader());
+        } catch (ClassNotFoundException missing) {
+            report("the generated-tag builder is on the classpath: " + missing, false);
+            return;
+        }
+        try {
+            Method idsMethod = tagBuilder.getMethod("controllerBlockIds", String.class, List.class,
+                    String.class, List.class);
+            @SuppressWarnings("unchecked")
+            List<String> ids = (List<String>) idsMethod.invoke(null, modNs, List.of(ordinary, withFactory),
+                    mocNs, List.of(mocRef));
+            // Both namespaces, and the factory controller too: three declarations, four controllers.
+            check("the tag names every controller the declarations produce, in both namespaces and including the"
+                            + " requested factory controller: " + ids, 4, ids.size());
+            report("...and each is <namespace>:<path>_controller: " + ids,
+                    ids.contains("modular_machinery_reborn:zz_fixture_controller")
+                            && ids.contains("modular_machinery_reborn:zz_factory_controller")
+                            && ids.contains("modular_machinery_reborn:zz_factory_factory_controller")
+                            && ids.contains("modularcontroller:zz_legacy_controller"));
+
+            @SuppressWarnings("unchecked")
+            Map<ResourceLocation, byte[]> tags = (Map<ResourceLocation, byte[]>)
+                    tagBuilder.getMethod("all", String.class, List.class, String.class, List.class)
+                            .invoke(null, modNs, List.of(ordinary, withFactory), mocNs, List.of(mocRef));
+            java.util.List<String> tagIds = new ArrayList<>();
+            for (ResourceLocation id : tags.keySet()) {
+                tagIds.add(id.toString());
+            }
+            java.util.Collections.sort(tagIds);
+            // A tag that adds to a VANILLA tag must live in the minecraft namespace. Writing it under the mod's
+            // own namespace creates a tag nothing reads, silently — the mistake that cost several rounds.
+            check("both tag files are written in the minecraft namespace: " + tagIds, 2, tags.size());
+            report("...as minecraft:tags/blocks/mineable/pickaxe and minecraft:tags/blocks/needs_stone_tool: "
+                            + tagIds,
+                    tags.containsKey(new ResourceLocation("minecraft", "tags/blocks/mineable/pickaxe.json"))
+                            && tags.containsKey(new ResourceLocation("minecraft",
+                            "tags/blocks/needs_stone_tool.json")));
+
+            int notMerging = 0;
+            int notParsing = 0;
+            for (Map.Entry<ResourceLocation, byte[]> entry : tags.entrySet()) {
+                String text = new String(entry.getValue(), StandardCharsets.UTF_8);
+                try {
+                    com.google.gson.JsonParser.parseString(text);
+                } catch (RuntimeException malformed) {
+                    notParsing++;
+                    report("tag " + entry.getKey() + " is valid JSON (it is not: " + malformed.getMessage() + ")",
+                            false);
+                }
+                // replace:true would discard the jar's entries and leave the eleven fixed blocks unmineable.
+                if (!text.contains("\"replace\":false")) {
+                    notMerging++;
+                    report("tag " + entry.getKey() + " merges instead of replacing (it does not: " + text + ")",
+                            false);
+                }
+            }
+            check("both generated tags parse", 0, notParsing);
+            check("both generated tags merge rather than replace", 0, notMerging);
+
+            // Merging only works if the two lists can coexist: the jar keeps the fixed blocks, the pack adds the
+            // declared ones, and the file names are the same tag.
+            Method tagText = tagBuilder.getMethod("tag", List.class);
+            String empty = (String) tagText.invoke(null, List.of());
+            report("an empty declaration list still yields a valid, merging file rather than no file: " + empty,
+                    empty.contains("\"replace\":false") && empty.contains("\"values\":[]"));
+        } catch (ReflectiveOperationException failure) {
+            report("the tag builder can be driven: " + describe(failure), false);
+        }
     }
 
     /**

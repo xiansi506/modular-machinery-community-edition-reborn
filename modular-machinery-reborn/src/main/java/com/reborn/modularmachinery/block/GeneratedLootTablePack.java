@@ -15,15 +15,16 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * A synthetic data pack holding one loot table per controller a pack author declared in
- * {@code config/modular_machinery_reborn/machinery/}.
+ * A synthetic data pack holding the data files of every controller a pack author declared in
+ * {@code config/modular_machinery_reborn/machinery/}: one loot table each, plus the mineability tags that
+ * name them.
  *
  * <p>This is the data-pack twin of {@code GeneratedControllerPack}, which does the same for blockstates and item
- * models. A controller's registry name is the author's, so no file in the jar can name it — and a block with no
- * loot table does not drop when broken, which would make an author's controller (and an old save's compatibility
- * controller) permanently unobtainable. The files themselves are built by
- * {@link GeneratedControllerLootTables}, which depends on the declarations alone so the offline harness can build
- * the same bytes.
+ * models. A controller's registry name is the author's, so no file in the jar can name it — and a block that is
+ * neither in {@code mineable/pickaxe} nor has a loot table takes five times as long to break and then drops
+ * nothing. The files themselves are built by {@link GeneratedControllerLootTables} and
+ * {@link GeneratedControllerTags}, which depend on the declarations alone so the offline harness can build the
+ * same bytes.
  *
  * <p>Safe on a dedicated server: it touches no client-only type, and the pack is only ever contributed for
  * {@link PackType#SERVER_DATA}.
@@ -41,12 +42,24 @@ public final class GeneratedLootTablePack extends AbstractPackResources {
     private static final Map<ResourceLocation, byte[]> MOC_FILES = GeneratedControllerLootTables.compatibility(
             MocNamespace.NAMESPACE, ModBlocks.MOC_CONTROLLERS);
 
+    /**
+     * The tags, for the same declarations. Kept in this pack rather than a second one: the game merges tag files
+     * across packs, and a controller needs both its table and its tag to behave like a fixed block, so they are
+     * generated and shipped together.
+     */
+    private static final Map<ResourceLocation, byte[]> TAG_FILES = GeneratedControllerTags.all(
+            NAMESPACE,
+            ModBlocks.controllersNeedingGeneratedAssets(),
+            MocNamespace.NAMESPACE,
+            ModBlocks.MOC_CONTROLLERS);
+
     private final Map<ResourceLocation, byte[]> files = new LinkedHashMap<>();
 
     public GeneratedLootTablePack(String packId) {
         super(packId, true);
         this.files.putAll(FILES);
         this.files.putAll(MOC_FILES);
+        this.files.putAll(TAG_FILES);
     }
 
     /** How many tables this pack carries, for the startup log. */
@@ -62,6 +75,11 @@ public final class GeneratedLootTablePack extends AbstractPackResources {
     /** The {@code modularcontroller} namespace's generated tables, exposed for the offline acceptance harness. */
     public static Map<ResourceLocation, byte[]> mocFiles() {
         return MOC_FILES;
+    }
+
+    /** The generated tag files, exposed for the offline acceptance harness. */
+    public static Map<ResourceLocation, byte[]> tagFiles() {
+        return TAG_FILES;
     }
 
     /**
