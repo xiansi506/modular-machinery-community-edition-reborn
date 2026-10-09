@@ -1169,6 +1169,146 @@ final class MocNamespaceCheck {
         return new java.util.HashSet<>(parts).size() != parts.size();
     }
 
+    /**
+     * Section Y2 — the generated data pack that gives an author-declared controller a loot table (0.31.0).
+     *
+     * <p>A controller's registry name is the pack author's, so no file in the jar can name it, and a block with no
+     * loot table drops nothing when broken — which is exactly the defect this closes for the eleven fixed blocks.
+     * The builder is driven here through reflection, like every other class in this harness, and against
+     * <b>fixed fixture declarations</b> rather than whatever is in the instance's config directory.
+     *
+     * <p>What is asserted is the part that has already gone wrong twice in this project: every item name the table
+     * references must be the name of a <b>registered item</b>. Controllers register their item under the same
+     * registry name as the block, so the entry is the block id itself — and that equality is a fact to assert, not
+     * to assume, because the hatch and casing families prove the opposite is possible in this very mod.
+     */
+    static void generatedControllerLootTables() {
+        Class<?> builder;
+        Class<?> refClass;
+        try {
+            // initialize=false, and only for the two classes that are safe to touch here. ModBlocks must NOT be
+            // loaded: its static initialiser builds DeferredRegisters and reads Forge's @Mod, neither of which
+            // exists on this classpath — that constraint is exactly why the arithmetic lives in a builder class
+            // of its own (see GeneratedControllerAssets' header) instead of inside the pack.
+            builder = Class.forName("com.reborn.modularmachinery.block.GeneratedControllerLootTables", false,
+                    MocNamespaceCheck.class.getClassLoader());
+            refClass = Class.forName("com.reborn.modularmachinery.machine.MachineDirectory$MachineRef", false,
+                    MocNamespaceCheck.class.getClassLoader());
+        } catch (ClassNotFoundException missing) {
+            report("the generated-loot-table builder is on the classpath: " + missing, false);
+            return;
+        }
+
+        // Fixtures: an ordinary machine, one that asked for a factory, and one compatibility declaration. The
+        // names are deliberately unlike the built-in ones so a hard-coded answer cannot pass.
+        String modNs = "modular_machinery_reborn";
+        String mocNs = "modularcontroller";
+        Object ordinary = ref(refClass, "zz_fixture", modNs + ":zz_fixture", false, false);
+        Object withFactory = ref(refClass, "zz_factory", modNs + ":zz_factory", true, false);
+        Object mocRef = ref(refClass, "zz_legacy", modNs + ":zz_legacy", false, false);
+
+        Map<String, String> produced = new TreeMap<>();
+        try {
+            Method ordinaryMethod = builder.getMethod("ordinary", String.class, List.class);
+            Method compatibilityMethod = builder.getMethod("compatibility", String.class, List.class);
+            collect(produced, (Map<?, ?>) ordinaryMethod.invoke(null, modNs, List.of(ordinary, withFactory)));
+            collect(produced, (Map<?, ?>) compatibilityMethod.invoke(null, mocNs, List.of(mocRef)));
+        } catch (ReflectiveOperationException failure) {
+            report("the builder can be driven: " + describe(failure), false);
+            return;
+        }
+
+        // One table per controller, and one more for the declaration that asked for a factory.
+        check("three declarations produce four tables: the two ordinary controllers, the compatibility alias, and"
+                        + " the requested factory controller", 4, produced.size());
+
+        // The exact ids, printed rather than guessed at: two drafts of the assertions below spelled this id
+        // wrongly and went red on a correct builder, so the harness states the shape once, plainly.
+        report("the generated ids are: " + produced.keySet(), produced.size() == 4);
+
+        // Paths. A data-pack file's namespace is the directory it names, so the compatibility alias must live
+        // under modularcontroller/ and not be folded into the mod's own namespace — the mistake that made the
+        // mineability tags silently useless.
+        //
+        // The id is <namespace>:blocks/<path>_controller — the category directory is implied by the resource type
+        // (exactly as tags are <namespace>:blocks/<tag>), and there is NO .json suffix in it. Three drafts of
+        // these assertions got that spelling wrong and went red on a correct builder; the printed-id line above
+        // exists so the shape is stated once, plainly, instead of being guessed at.
+        report("the ordinary controllers' tables are named blocks/<path>_controller in the mod's"
+                        + " namespace: " + produced.keySet(), produced.containsKey(
+                        "modular_machinery_reborn:blocks/zz_fixture_controller")
+                && produced.containsKey("modular_machinery_reborn:blocks/zz_factory_controller"));
+        report("the requested factory controller gets its own table: " + produced.keySet(),
+                produced.containsKey("modular_machinery_reborn:blocks/zz_factory_factory_controller"));
+        report("the compatibility alias gets a table under its OWN namespace: " + produced.keySet(),
+                produced.containsKey("modularcontroller:blocks/zz_legacy_controller"));
+
+        // Content. Each table must be a single-item block table dropping exactly the block's own item, and the
+        // JSON must parse — a table that does not parse is silently discarded by the game and drops nothing.
+        int parsed = 0;
+        int wrongItem = 0;
+        for (Map.Entry<String, String> entry : produced.entrySet()) {
+            String path = entry.getKey();
+            String table = entry.getValue();
+            String namespace = path.substring(0, path.indexOf(':'));
+            // The id carries no .json suffix (see the printed ids above); a leftover
+            // `- ".json".length()` here chopped the last five characters off every block path, which showed up
+            // as "zz_fixture_contr" and made four correct tables look wrong.
+            String blockPath = path.substring(path.indexOf(":blocks/") + ":blocks/".length());
+            String expectedItem = namespace + ":" + blockPath;
+            try {
+                com.google.gson.JsonParser.parseString(table);
+                parsed++;
+            } catch (RuntimeException malformed) {
+                report("table " + path + " is valid JSON (it is not: " + malformed.getMessage() + ")", false);
+            }
+            if (!table.contains("\"name\":\"" + expectedItem + "\"")) {
+                wrongItem++;
+                report("table " + path + " drops " + expectedItem + " (it does not: " + table + ")", false);
+            }
+            if (!table.contains("\"minecraft:survives_explosion\"")) {
+                report("table " + path + " keeps the survives_explosion condition, like the shipped tables", false);
+            }
+        }
+        check("every generated table parses", produced.size(), parsed);
+        check("every generated table drops the item whose name equals the block's", 0, wrongItem);
+
+        // The item really is registered under the block's name for these blocks. Asked of the built class rather
+        // than assumed: this is the equality the whole file depends on.
+        try {
+            Method blockId = builder.getMethod("blockId", String.class, String.class);
+            Object id = blockId.invoke(null, modNs, "zz_fixture");
+            check("the builder derives a controller's block id as <path>_controller", modNs + ":zz_fixture_controller",
+                    String.valueOf(id));
+            Method tableId = builder.getMethod("tableIdFor", Class.forName("net.minecraft.resources.ResourceLocation"));
+            Object table = tableId.invoke(null, id);
+            check("...and its loot table id as <namespace>:blocks/<path>_controller",
+                    modNs + ":blocks/zz_fixture_controller", String.valueOf(table));
+        } catch (ReflectiveOperationException failure) {
+            report("the id helpers can be driven: " + describe(failure), false);
+        }
+    }
+
+    /** One {@code MachineDirectory.MachineRef}, built by reflection because it is a record. */
+    private static Object ref(Class<?> refClass, String path, String machineId, boolean factory, boolean factoryOnly) {
+        try {
+            Class<?> idClass = Class.forName("net.minecraft.resources.ResourceLocation");
+            Object id = idClass.getConstructor(String.class).newInstance(machineId);
+            return refClass.getConstructor(String.class, idClass, boolean.class, boolean.class)
+                    .newInstance(path, id, factory, factoryOnly);
+        } catch (ReflectiveOperationException failure) {
+            throw new IllegalStateException("cannot build a MachineRef fixture: " + describe(failure), failure);
+        }
+    }
+
+    /** Flattens a {@code Map<ResourceLocation, byte[]>} into {@code Map<String, String>} for comparison. */
+    private static void collect(Map<String, String> into, Map<?, ?> files) {
+        for (Map.Entry<?, ?> entry : files.entrySet()) {
+            into.put(String.valueOf(entry.getKey()),
+                    new String((byte[]) entry.getValue(), StandardCharsets.UTF_8));
+        }
+    }
+
     /** How many times {@code needle} occurs in {@code haystack}. */
     private static int countOccurrences(String haystack, String needle) {
         int count = 0;

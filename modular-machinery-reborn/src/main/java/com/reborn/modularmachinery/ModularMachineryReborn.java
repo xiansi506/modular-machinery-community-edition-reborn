@@ -60,7 +60,7 @@ public final class ModularMachineryReborn {
             event.addListener(new com.reborn.modularmachinery.upgrade.UpgradeLoader());
         });
         // Registers the synthetic resource pack that models controllers declared by a pack author.
-        bus.addListener(com.reborn.modularmachinery.client.GeneratedResources::onAddPackFinders);
+        bus.addListener(com.reborn.modularmachinery.block.GeneratedPacks::onAddPackFinders);
         // Exposes config/modular_machinery_reborn/recipes/ as a data pack, since 1.20.1 recipes can only come
         // from a RecipeManager reload.
         bus.addListener(com.reborn.modularmachinery.recipe.ConfigRecipes::onAddPackFinders);

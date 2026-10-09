@@ -251,6 +251,10 @@ public final class ParallelCraftCheck {
         // 0.27.0: the MOC compatibility namespace. Reflection-first for the same reason, and it owns the
         // timing check that justifies the design.
         MocNamespaceCheck.mocCompatibilityNamespace();
+        // 0.31.0: the generated data pack that gives an author-declared controller its loot table. Also
+        // reflection-first — the builder is a game-side class, and the pre-implementation run must report FAIL
+        // rather than fail to build.
+        MocNamespaceCheck.generatedControllerLootTables();
         // 0.28.0: the KubeJS machine-definition entry point. Also reflection-first, because the KubeJS jar is a
         // compileOnly dependency and is not on this harness's classpath: the pre-implementation run must compile
         // and report FAIL rather than fail to build.
