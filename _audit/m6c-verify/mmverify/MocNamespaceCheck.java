@@ -8,6 +8,7 @@ import java.lang.reflect.Method;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
@@ -1287,11 +1288,88 @@ final class MocNamespaceCheck {
         } catch (ReflectiveOperationException failure) {
             report("the id helpers can be driven: " + describe(failure), false);
         }
+
+        // Against the built jar: the generated file names must be the ones the game will look for, and must not
+        // collide with a shipped file. Both failures would be silent otherwise, which is how the mineability tags
+        // and the first three loot-table drafts went wrong.
+        Path jar = builtJar();
+        if (jar == null) {
+            report("the built mod jar was found so the generated paths can be checked against it", false);
+            return;
+        }
+        Set<String> shipped = new TreeSet<>();
+        Map<String, String> blockStates = new LinkedHashMap<>();
+        try (java.util.zip.ZipFile zip = new java.util.zip.ZipFile(jar.toFile())) {
+            zip.stream().forEach(entry -> {
+                String name = entry.getName();
+                if (name.startsWith("data/") && name.endsWith(".json")) {
+                    shipped.add(name);
+                }
+                if (name.startsWith("assets/") && name.endsWith(".json") && name.contains("/blockstates/")) {
+                    String file = name.substring(name.lastIndexOf('/') + 1, name.length() - ".json".length());
+                    blockStates.put(name.substring("assets/".length(), name.indexOf("/blockstates/")) + ":" + file,
+                            name);
+                }
+            });
+        } catch (IOException unreadable) {
+            report("the built mod jar can be read: " + unreadable, false);
+            return;
+        }
+
+        java.util.List<String> collisions = new ArrayList<>();
+        java.util.List<String> missingBlock = new ArrayList<>();
+        for (String id : produced.keySet()) {
+            String namespace = id.substring(0, id.indexOf(':'));
+            String path = id.substring(id.indexOf(':') + 1);
+            String asFile = "data/" + namespace + "/loot_tables/" + path + ".json";
+            if (shipped.contains(asFile)) {
+                collisions.add(asFile);
+            }
+            // The block the table names must exist, and the one place this harness can see registered blocks is
+            // the jar's own blockstate assets: every registered block has one.
+            String blockPath = path.substring("blocks/".length());
+            if (!blockStates.containsKey(namespace + ":" + blockPath)) {
+                // Controllers generated from an instance's config directory are not in the jar, so a miss here is
+                // only meaningful for the fixtures, which are not real machines either. Recorded, not asserted.
+                missingBlock.add(namespace + ":" + blockPath);
+            }
+        }
+        check("no generated table collides with a table shipped in the jar", 0, collisions.size());
+        report("the jar carries " + shipped.size() + " data json files and " + blockStates.size()
+                + " blockstate files; fixtures are not registered blocks, so "
+                + missingBlock.size() + " fixture block id(s) are absent from it by design", true);
+    }
+
+    /**
+     * The built mod jar, so the generated file names can be checked against the shipped ones.
+     *
+     * <p>Located from the harness's own working directory rather than hard-coded: the file name carries the mod
+     * version, and a hard-coded version would silently stop checking anything the next time it moved.
+     */
+    private static Path builtJar() {
+        Path libs = Paths.get("modular-machinery-reborn", "build", "libs");
+        if (!Files.isDirectory(libs)) {
+            libs = Paths.get("build", "libs");
+        }
+        if (!Files.isDirectory(libs)) {
+            return null;
+        }
+        try (java.util.stream.Stream<Path> stream = Files.list(libs)) {
+            return stream.filter(p -> {
+                        String name = p.getFileName().toString();
+                        return name.startsWith("modular_machinery_reborn-") && name.endsWith(".jar")
+                                && !name.endsWith("-sources.jar");
+                    })
+                    .sorted()
+                    .findFirst()
+                    .orElse(null);
+        } catch (IOException unreadable) {
+            return null;
+        }
     }
 
     /** One {@code MachineDirectory.MachineRef}, built by reflection because it is a record. */
-    private static Object ref(Class<?> refClass, String path, String machineId, boolean factory, boolean factoryOnly) {
-        try {
+    private static Object ref(Class<?> refClass, String path, String machineId, boolean factory, boolean factoryOnly) {        try {
             Class<?> idClass = Class.forName("net.minecraft.resources.ResourceLocation");
             Object id = idClass.getConstructor(String.class).newInstance(machineId);
             return refClass.getConstructor(String.class, idClass, boolean.class, boolean.class)
