@@ -13,6 +13,13 @@
     "modular_machinery_reborn:parallel_controller",
     "modular_machinery_reborn:upgrade_bus",
     { "id": "modular_machinery_reborn:example_machine_controller", "required": false },
-    { "id": "modular_machinery_reborn:example_factory_controller", "required": false }
+    { "id": "modular_machinery_reborn:example_factory_controller", "required": false },
+    { "id": "modularcontroller:alloy_furnace_controller", "required": false },
+    { "id": "modularcontroller:iron_centrifuge_controller", "required": false },
+    { "id": "modularcontroller:transformer_controller", "required": false },
+    { "id": "modularcontroller:example_factory_controller", "required": false },
+    { "id": "modularcontroller:example_machine_controller", "required": false },
+    { "id": "modularcontroller:immortal_bloom_assembler_controller", "required": false },
+    { "id": "modularcontroller:machine_1_controller", "required": false }
   ]
 }

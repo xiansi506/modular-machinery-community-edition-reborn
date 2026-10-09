@@ -70,6 +70,7 @@ public final class ModularMachineryReborn {
         // the connection did (PlayerStructureSelectionHelper:128-134). A new session must not inherit one.
         MinecraftForge.EVENT_BUS.addListener(
                 com.reborn.modularmachinery.selection.ServerSelections::onPlayerLoggedOut);
+
         DistExecutor.unsafeRunWhenOn(Dist.CLIENT, () -> () -> bus.addListener(com.reborn.modularmachinery.client.ClientSetup::onClientSetup));
         String version = ModList.get().getModContainerById(MOD_ID)
                 .map(container -> container.getModInfo().getVersion().toString())

@@ -11,8 +11,6 @@
     "modular_machinery_reborn:energy_input_hatch",
     "modular_machinery_reborn:energy_output_hatch",
     "modular_machinery_reborn:parallel_controller",
-    "modular_machinery_reborn:upgrade_bus",
-    { "id": "modular_machinery_reborn:example_machine_controller", "required": false },
-    { "id": "modular_machinery_reborn:example_factory_controller", "required": false }
+    "modular_machinery_reborn:upgrade_bus"
   ]
 }
