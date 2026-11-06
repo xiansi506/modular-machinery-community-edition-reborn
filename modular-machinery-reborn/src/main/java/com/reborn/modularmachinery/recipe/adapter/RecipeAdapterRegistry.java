@@ -11,6 +11,9 @@ import org.slf4j.Logger;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.LinkedHashSet;
+import java.util.LinkedHashMap;
+import java.util.Map;
 
 /**
  * C1 第一纵切（0.107.0）：适配器分派与生成配方 id 的唯一出处。
@@ -45,7 +48,15 @@ public final class RecipeAdapterRegistry {
      */
     public static List<MachineRecipe> generateAll(List<MachineRecipe> declarations, RecipeManager manager,
                                                   RegistryAccess access) {
+        return generateAll(declarations, manager, access, MachineRegistry::contains);
+    }
+
+    /** Loading may validate against this cycle's candidate, without exposing it to gameplay readers. */
+    public static List<MachineRecipe> generateAll(List<MachineRecipe> declarations, RecipeManager manager,
+                                                  RegistryAccess access,
+                                                  java.util.function.Predicate<ResourceLocation> machineExists) {
         List<MachineRecipe> generated = new ArrayList<>();
+        Map<ResourceLocation, String> generatedOrigins = new LinkedHashMap<>();
         for (MachineRecipe declaration : declarations) {
             if (!declaration.requirements().isEmpty()) {
                 // 旧版两个第一纵切适配器（熔炉/机器间）都无视声明里的附加需求
@@ -54,16 +65,30 @@ public final class RecipeAdapterRegistry {
                                 + "adapter declarations are not applied",
                         ModularMachineryReborn.MOD_ID, declaration.getId(), declaration.requirements().size());
             }
-            for (ResourceLocation owning : declaration.machineIds()) {
-                if (!MachineRegistry.contains(owning)) {
+            // machineIds 已完成裸名/完整 ID 解析；按首次出现顺序只展开同一归属一次。
+            for (ResourceLocation owning : new LinkedHashSet<>(declaration.machineIds())) {
+                if (!machineExists.test(owning)) {
                     LOGGER.warn("[{}] Adapter declaration {} names unknown machine {} — skipped",
                             ModularMachineryReborn.MOD_ID, declaration.getId(), owning);
                     continue;
                 }
-                if (FURNACE.equals(declaration.adapterKey())) {
-                    generated.addAll(AdapterMinecraftFurnace.generate(declaration, owning, manager, access));
-                } else {
-                    generated.addAll(DynamicMachineAdapter.generate(declaration, owning, manager));
+                List<MachineRecipe> expanded = FURNACE.equals(declaration.adapterKey())
+                        ? AdapterMinecraftFurnace.generate(declaration, owning, manager, access)
+                        : DynamicMachineAdapter.generate(declaration, owning, manager);
+                for (MachineRecipe recipe : expanded) {
+                    String origin = "declaration=" + declaration.getId() + ", target=" + owning
+                            + ", id=" + recipe.getId();
+                    String previous = generatedOrigins.putIfAbsent(recipe.getId(), origin);
+                    if (previous != null || manager.byKey(recipe.getId()).isPresent()) {
+                        ResourceLocation source = manager.getRecipes().stream()
+                                .map(net.minecraft.world.item.crafting.Recipe::getId)
+                                .filter(id -> generatedId(declaration, owning, id).equals(recipe.getId()))
+                                .findFirst().orElse(null);
+                        throw new IllegalArgumentException("Adapter recipe ID conflict: " + origin
+                                + ", source=" + source
+                                + (previous == null ? "; existing RecipeManager recipe" : "; previous " + previous));
+                    }
+                    generated.add(recipe);
                 }
             }
         }

@@ -14,6 +14,7 @@ import net.minecraft.resources.ResourceLocation;
 import org.slf4j.Logger;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
@@ -171,7 +172,7 @@ public final class MachineSchema {
         }
 
         boolean requiresBlueprint = root.has("requires-blueprint")
-                && root.get("requires-blueprint").getAsBoolean();
+                && readBoolean(root, "requires-blueprint", where, "Write true or false, without quotes.");
 
         // 0.71.0（E5）：`hide-components-when-formed` 以前在 UNIMPLEMENTED_ROOT_FIELDS 里「认得但不求值」。
         // 现在求值：类型错误直接拒绝（与 1.12.2 旧版一致；0.70.0 未求值时曾照单全收），
@@ -223,12 +224,12 @@ public final class MachineSchema {
         List<MachineMultiBlockModifier> multiBlockModifiers = readMultiBlockModifiers(root, variables, where);
 
         // ---------------------------------------------------------------- M6e: the factory
-        int maxThreads = MachineDefinition.DEFAULT_MAX_THREADS;
+        int maxThreads = com.reborn.modularmachinery.config.ModConfig.factoryDefaultMaxThread();
         if (root.has(FactoryThreadModel.JSON_MAX_THREADS)) {
             maxThreads = readThreadCount(root, FactoryThreadModel.JSON_MAX_THREADS, where);
         }
 
-        boolean hasFactory = MachineDefinition.DEFAULT_HAS_FACTORY;
+        boolean hasFactory = com.reborn.modularmachinery.config.ModConfig.factoryControllerEnabledByDefault();
         if (root.has(FactoryThreadModel.JSON_HAS_FACTORY)) {
             hasFactory = readBoolean(root, FactoryThreadModel.JSON_HAS_FACTORY, where,
                     "Write \"has-factory\": true to give this machine a factory controller (a block that runs "
@@ -311,7 +312,7 @@ public final class MachineSchema {
         // 波 6 第 2 项（color）的第一小步：**解析并保存**颜色。染色本身（模型 tint 层 + 颜色处理器）
         // 是下一小步——这一步证明的是「定义里写什么颜色，读出来就是什么」，而那是离线可证的。
         // 解析规则见 MachineRootFields#color / MachineDefinition#parseColor。
-        return new MachineDefinition(id, localizedName, builder.build(), failureAction, requiresBlueprint,
+        MachineDefinition definition = new MachineDefinition(id, localizedName, builder.build(), failureAction, requiresBlueprint,
                 maxParallelism, internalParallelism, parallelizable, modifiers,
                 maxThreads, hasFactory, factoryOnly, coreThreads, smartInterfaces, dynamicPatterns)
                 .withColor(MachineRootFields.color(root, String.valueOf(where)))
@@ -321,6 +322,41 @@ public final class MachineSchema {
                 .withPrefix(prefix)
                 .withControllerBoundingBox(
                         MachineRootFields.controllerBoundingBox(root, String.valueOf(where)));
+        return definition.withSynchronizationSource(synchronizationSource(root, variables, definition));
+    }
+
+    /** Preserve the whole author document, expanding only schema-owned elements and pinning adopted defaults. */
+    public static JsonObject synchronizationSource(JsonObject root, Map<String, List<String>> variables,
+                                                   MachineDefinition definition) {
+        JsonObject copy = root.deepCopy();
+        expandSyncParts(copy.get("parts"), variables, definition.id());
+        expandSyncParts(copy.get("modifiers"), variables, definition.id());
+        if (copy.has("multi-block-modifiers")) for (JsonElement entry : copy.getAsJsonArray("multi-block-modifiers"))
+            expandSyncParts(entry.getAsJsonObject().get("parts"), variables, definition.id());
+        if (copy.has("dynamic-patterns")) for (JsonElement entry : copy.getAsJsonArray("dynamic-patterns")) {
+            expandSyncParts(entry.getAsJsonObject().get("parts"), variables, definition.id());
+            expandSyncParts(entry.getAsJsonObject().get("parts-end"), variables, definition.id());
+        }
+        copy.addProperty("max-parallelism", definition.maxParallelism());
+        copy.addProperty("internal-parallelism", definition.internalParallelism());
+        copy.addProperty("parallelizable", definition.parallelizable());
+        copy.addProperty("max-threads", definition.maxThreads());
+        copy.addProperty("has-factory", definition.hasFactory());
+        copy.addProperty("color", String.format(java.util.Locale.ROOT, "%06X", definition.color()));
+        if (copy.toString().length() > (1 << 20))
+            throw new JsonParseException(definition.id() + " expanded synchronization JSON exceeds 1MiB characters");
+        return copy;
+    }
+
+    private static void expandSyncParts(@javax.annotation.Nullable JsonElement raw, Map<String, List<String>> variables,
+                                        Object where) {
+        if (raw == null) return;
+        for (JsonElement entry : raw.getAsJsonArray()) {
+            JsonObject part = entry.getAsJsonObject();
+            JsonArray expanded = new JsonArray();
+            for (BlockMatcher matcher : readElements(part, variables, where)) expanded.add(matcher.descriptor());
+            part.add("elements", expanded);
+        }
     }
 
     // 0.31.0 removed rejectDeferred(JsonObject, Object, boolean) and its call above read()'s body. It existed to
@@ -372,9 +408,9 @@ public final class MachineSchema {
             throw new JsonParseException("'" + key + "' of " + where + " must be a whole number. Write a "
                     + "non-negative integer such as \"max-threads\": 4 — the number of recipes this machine's "
                     + "factory controller may run at once — or remove the field (the default is "
-                    + MachineDefinition.DEFAULT_MAX_THREADS + ").");
+                    + com.reborn.modularmachinery.config.ModConfig.factoryDefaultMaxThread() + ").");
         }
-        int value = element.getAsInt();
+        int value = com.reborn.modularmachinery.util.JsonNumbers.integer(element, 0, Integer.MAX_VALUE, where + " '" + key + "'");
         if (value < 0) {
             throw new JsonParseException("'" + key + "' of " + where + " is " + value + ", but a thread count "
                     + "cannot be negative. Write 0 for \"this machine may run nothing on a factory controller "
@@ -537,7 +573,7 @@ public final class MachineSchema {
                             + "undeclared value binds to (the largest wins), e.g. \"priority\": 1000, or remove "
                             + "the field (the default is 0).");
                 }
-                priority = raw.getAsInt();
+                priority = com.reborn.modularmachinery.util.JsonNumbers.integer(raw, Integer.MIN_VALUE, Integer.MAX_VALUE, where + " smart-interface.priority");
             }
 
             types.add(new SmartInterfaceType(name, defaultValue,
@@ -576,7 +612,11 @@ public final class MachineSchema {
      */
     private static float readFloat(JsonElement element, String where) {
         try {
-            return element.getAsFloat();
+            float value = element.getAsFloat();
+            if (!Float.isFinite(value)) {
+                throw new JsonParseException("The " + where + " must be a finite float");
+            }
+            return value;
         } catch (NumberFormatException | UnsupportedOperationException exception) {
             throw new JsonParseException("The " + where + " is not a number that fits a float");
         }
@@ -592,7 +632,7 @@ public final class MachineSchema {
             throw new JsonParseException("'" + key + "' of " + where + " must be a whole number. Write a "
                     + "non-negative integer such as \"max-parallelism\": 64, or remove the field.");
         }
-        int value = element.getAsInt();
+        int value = com.reborn.modularmachinery.util.JsonNumbers.integer(element, 0, Integer.MAX_VALUE, where + " '" + key + "'");
         if (value < 0) {
             throw new JsonParseException("'" + key + "' of " + where + " is " + value + ", but a parallelism "
                     + "cannot be negative. The original floored it at 0 (a machine with no parallel controller "
@@ -801,6 +841,7 @@ public final class MachineSchema {
                                      Map<String, List<String>> variables, Object where,
                                      boolean skipOrigin) {
         boolean ignoredExtras = false;
+        int index = 0;
         for (JsonElement partElement : parts) {
             JsonObject part = asObject(partElement, where + " part");
             List<Integer> xs = readCoordinates(part, "x", where);
@@ -815,6 +856,8 @@ public final class MachineSchema {
             }
             if (part.has("nbt")) com.reborn.modularmachinery.recipe.NbtPredicate.parse(part.get("nbt"), where);
             if (part.has("preview-nbt")) com.reborn.modularmachinery.recipe.NbtPredicate.previewTag(part.get("preview-nbt"), where);
+            if (part.has("script-checker")) validateScriptChecker(part.get("script-checker"),
+                    partWhere(where, index, xs, ys, zs));
 
             for (int x : xs) {
                 for (int y : ys) {
@@ -834,8 +877,53 @@ public final class MachineSchema {
                     }
                 }
             }
+            index++;
         }
         return ignoredExtras;
+    }
+
+    /**
+     * P07-01 返工（0.121.38）：部件级定位——校验错误的 {@code where} 追加部件在数组中的序号与
+     * 它覆盖的坐标范围（单值直接给数字，多值给 {@code [min..max]}）。一台机器几十个部件时，
+     * 「同机多个部件中的哪一个写了非法 {@code script-checker}」由此一眼可辨，而不是只有机器名。
+     */
+    private static String partWhere(Object where, int index,
+                                    List<Integer> xs, List<Integer> ys, List<Integer> zs) {
+        return where + " part " + index + " (x=" + span(xs) + ", y=" + span(ys) + ", z=" + span(zs) + ")";
+    }
+
+    /** 单值给数字，多值给 {@code [min..max]}——部件坐标展开的最简定位。 */
+    private static String span(List<Integer> values) {
+        int min = java.util.Collections.min(values);
+        int max = java.util.Collections.max(values);
+        return min == max ? Integer.toString(min) : "[" + min + ".." + max + "]";
+    }
+
+    /**
+     * P07-01（0.121.36）：{@code script-checker} 在定义读取时就地校验——只接受 JSON 字符串 token。
+     *
+     * <p>旧版这里只拷贝不校验（旁边的 {@code nbt}/{@code preview-nbt} 都有自己的解析），对象、null、
+     * 数组等错误类型一路活到服务端结构检查：{@code MachinePattern.matchesRule} 在把 token 交给
+     * {@code ScriptHooks.checkBlock} <strong>之前</strong>先求值 {@code getAsString()}，异常从参数求值
+     * 阶段逃出匹配与控制器 tick。本批在加载入口拒绝：token 必须是字符串且非空白——正文的原始
+     * 字符串按原样保留（这是已有脚本标识：不 trim、不改大小写、不要求是 ResourceLocation，
+     * 也不要求加载时已注册回调；未注册的合法 token 仍由运行期安全拒绝）。错误信息带来源、
+     * 字段名与值类型，方便发布前定位。根 parts、坐标数组、dynamic 段与多块修改器都经
+     * {@link #readParts} 读取，这一处校验对四条路径同时生效。返工（0.121.38）后错误带
+     * 部件序号与坐标范围（见 {@link #partWhere}），多部件机器可直接定位到具体部件。
+     */
+    private static void validateScriptChecker(com.google.gson.JsonElement value, Object where) {
+        if (value != null && value.isJsonPrimitive() && value.getAsJsonPrimitive().isString()
+                && !value.getAsString().isBlank()) {
+            return;
+        }
+        String kind = value == null ? "null" : value.isJsonPrimitive() ? value.getAsString()
+                : value.isJsonObject() ? "an object" : value.isJsonArray() ? "an array"
+                : value.isJsonPrimitive() ? "a number/boolean" : "this JSON value";
+        throw new com.google.gson.JsonParseException("'script-checker' in " + where
+                + " must be a non-empty script token string (the same id a KubeJS block checker is registered "
+                + "with), but the definition wrote " + kind + ". Write the registered checker id once, e.g. "
+                + "\"script-checker\": \"my_pack:checks/stone_only\".");
     }
 
     /**
@@ -869,10 +957,20 @@ public final class MachineSchema {
         }
 
         List<DynamicPattern> patterns = new ArrayList<>(array.size());
+        // Saved structures are restored by segment name (MachineStructures looks the name up), so two same-named
+        // entries would both rebuild with the last measured size. Names are compared by exact string identity.
+        Map<String, Integer> seenNames = new LinkedHashMap<>(array.size());
         for (JsonElement patternElement : array) {
             JsonObject pattern = asObject(patternElement, where + " 'dynamic-patterns' entry");
 
             String name = requireString(pattern, "name", where + " dynamic pattern");
+            Integer firstEntry = seenNames.putIfAbsent(name, patterns.size());
+            if (firstEntry != null) {
+                throw new JsonParseException("Dynamic pattern name '" + name + "' appears twice in " + where
+                        + " (entries " + firstEntry + " and " + patterns.size() + "). One machine cannot declare two "
+                        + "dynamic segments with the same name, because saved structures are restored by name; "
+                        + "rename one of the two segments.");
+            }
             Set<Direction> faces = readFaces(pattern, name, where);
             int maxSize = readPatternSize(pattern, "maxSize", name, where, true, 0);
             int minSize = readPatternSize(pattern, "minSize", name, where, false, 0);
@@ -896,7 +994,7 @@ public final class MachineSchema {
                 MachinePattern.Builder endBuilder = MachinePattern.builder();
                 readParts(asArray(pattern.get("parts-end"),
                         "dynamic pattern '" + name + "' 'parts-end' in " + where), endBuilder, variables,
-                        where + " dynamic pattern '" + name + "'", false);
+                        where + " dynamic pattern '" + name + "' 'parts-end'", false);
                 if (!endBuilder.isEmpty()) {
                     endPart = endBuilder.build();
                 }
@@ -904,6 +1002,11 @@ public final class MachineSchema {
 
             BlockPos startOffset = readPatternOffset(pattern, "structure-size-offset-start", name, where);
             BlockPos stepOffset = readPatternOffset(pattern, "structure-size-offset", name, where);
+            if (maxSize > 0 && BlockPos.ZERO.equals(stepOffset)) {
+                throw new JsonParseException("Repeating dynamic pattern '" + name + "' in " + where
+                        + " requires a nonzero 'structure-size-offset'. For example, write {\"z\":1}. "
+                        + "A zero step is only valid when maxSize is 0.");
+            }
 
             patterns.add(new DynamicPattern(name, faces, minSize, maxSize, partBuilder.build(), endPart,
                     startOffset, stepOffset));
@@ -980,7 +1083,7 @@ public final class MachineSchema {
             throw new JsonParseException("'" + key + "' of dynamic pattern '" + name + "' in " + where
                     + " must be a whole number, but it is " + element + ".");
         }
-        int value = element.getAsInt();
+        int value = com.reborn.modularmachinery.util.JsonNumbers.integer(element, 0, Integer.MAX_VALUE, where + " dynamic '" + key + "'");
         if (value < 0) {
             throw new JsonParseException("'" + key + "' of dynamic pattern '" + name + "' in " + where + " is "
                     + value + ". A pattern cannot repeat a negative number of times; write 0 or more.");
@@ -997,11 +1100,10 @@ public final class MachineSchema {
      *
      * <p><strong>省略时是零向量，这是照抄旧版的。</strong>旧版 {@code DynamicPattern} 对这两个字段的初值就是
      * {@code new BlockPos(0, 0, 0)}，而它们决定的是「第一节从哪儿开始量、每节之间走多远」。取零向量意味着
-     * 「不写这两个字段的模式不会一格格往前走」，也就是它只能有一节——这是旧版的实际行为，本版不去替作者
-     * 猜一个更「好用」的默认值：一个被发明出来的默认值会让同一份定义在两个模组里产生不同的结构，
-     * 而那种分歧在世界里表现为「机器在旧版成型、在新版不成型」，极难归因。
+     * 「不写这两个字段的模式不会一格格往前走」。重复同一位置无法量得可靠长度，因此maxSize大于0时
+     * 由调用方明确拒绝零步进；maxSize为0的仅收尾段模式仍允许零向量。不会替作者猜一个方向。
      *
-     * <p>作者要写动态结构就必须写这两个字段（旧版自带的装配线两个都写了 {@code (0,0,1)}）。
+     * <p>重复段必须显式给出非零structure-size-offset；起始偏移仍可省略为原点。
      */
     private static BlockPos readPatternOffset(JsonObject pattern, String key, String name, Object where) {
         if (!pattern.has(key)) {
@@ -1063,7 +1165,7 @@ public final class MachineSchema {
             return out;
         }
         if (element.isJsonPrimitive() && element.getAsJsonPrimitive().isNumber()) {
-            out.add(element.getAsInt());
+            out.add(com.reborn.modularmachinery.util.JsonNumbers.integer(element, Integer.MIN_VALUE, Integer.MAX_VALUE, where + " coordinate '" + key + "'"));
             return out;
         }
         if (element.isJsonArray()) {
@@ -1072,7 +1174,7 @@ public final class MachineSchema {
                     throw new JsonParseException("Coordinate '" + key + "' of " + where
                             + " must contain only numbers");
                 }
-                out.add(value.getAsInt());
+                out.add(com.reborn.modularmachinery.util.JsonNumbers.integer(value, Integer.MIN_VALUE, Integer.MAX_VALUE, where + " coordinate '" + key + "'"));
             }
             if (out.isEmpty()) {
                 throw new JsonParseException("Coordinate '" + key + "' of " + where + " is an empty array");

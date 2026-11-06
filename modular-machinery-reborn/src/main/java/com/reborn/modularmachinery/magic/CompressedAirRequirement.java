@@ -41,22 +41,20 @@ public final class CompressedAirRequirement extends MagicRequirement {
             int air = 0;
             if (raw != null) {
                 if (!raw.isJsonPrimitive() || !raw.getAsJsonPrimitive().isNumber()) throw new JsonParseException("air must be an integer mL amount in " + where);
-                try { air = raw.getAsBigDecimal().intValueExact(); }
-                catch (ArithmeticException error) { throw new JsonParseException("air must fit an integer in " + where, error); }
+                air = com.reborn.modularmachinery.util.JsonNumbers.integer(raw, 0, Integer.MAX_VALUE, where + " air");
             } else if (io == IOType.OUTPUT) throw new JsonParseException("Missing air for compressed air output in " + where);
             double pressure = 0;
             if (io == IOType.INPUT && !json.has("pressure")) throw new JsonParseException("Missing pressure in bar in " + where);
             if (json.has("pressure")) {
                 JsonElement p = json.get("pressure");
                 if (!p.isJsonPrimitive() || !p.getAsJsonPrimitive().isNumber()) throw new JsonParseException("pressure must be a number in " + where);
-                pressure = p.getAsDouble();
+                pressure = com.reborn.modularmachinery.util.JsonNumbers.finite(p, where + " pressure");
             }
             if (json.has("perTick") && (!json.get("perTick").isJsonPrimitive() || !json.get("perTick").getAsJsonPrimitive().isBoolean()
                     || json.get("perTick").getAsBoolean() != tick)) throw new JsonParseException("perTick contradicts compressed_air/compressed_air_pertick in " + where);
             // In the old integration time only informed JEI; recipeTime remains the actual runtime duration.
             if (json.has("time")) {
-                try { if (json.get("time").getAsBigDecimal().intValueExact() < 1) throw new ArithmeticException(); }
-                catch (RuntimeException error) { throw new JsonParseException("legacy time must be a positive integer in " + where, error); }
+                com.reborn.modularmachinery.util.JsonNumbers.integer(json.get("time"), 1, Integer.MAX_VALUE, where + " legacy time");
             }
             try { return new CompressedAirRequirement(io, air, pressure, tick); }
             catch (IllegalArgumentException error) { throw new JsonParseException(error.getMessage() + " in " + where, error); }

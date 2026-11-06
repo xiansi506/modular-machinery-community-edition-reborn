@@ -14,7 +14,9 @@ public final class EmberBackend implements MagicBackend {
     private final Object ember;
     private LazyOptional<Object> view;
     private double stored;
-    private double clientCapacity = MagicConfig.emberCapacity();
+    // The config requires reloading the block entity. Keep capacity stable throughout its transactions.
+    private final double serverCapacity = MagicConfig.emberCapacity();
+    private double clientCapacity = serverCapacity;
     private boolean valid = true;
     public EmberBackend(MagicHatchBlockEntity hatch) {
         this.hatch = hatch;
@@ -24,7 +26,7 @@ public final class EmberBackend implements MagicBackend {
     }
     public MagicFamily family() { return MagicFamily.EMBER; }
     public boolean input() { return hatch.input(); }
-    public double capacity() { return hatch.getLevel() != null && hatch.getLevel().isClientSide ? clientCapacity : MagicConfig.emberCapacity(); }
+    public double capacity() { return hatch.getLevel() != null && hatch.getLevel().isClientSide ? clientCapacity : serverCapacity; }
     public double stored() { return stored; }
     private boolean active() { return valid && !hatch.isRemoved() && hatch.getLevel() != null && !hatch.getLevel().isClientSide; }
     private void stored(double amount) {
@@ -45,7 +47,7 @@ public final class EmberBackend implements MagicBackend {
                 double wanted = (double)args[0]; boolean execute = (boolean)args[1];
                 boolean adding = method.getName().equals("addAmount");
                 double moved = !active() || !Double.isFinite(wanted) || wanted < 0 ? 0
-                        : Math.min(wanted, adding ? capacity()-stored : stored);
+                        : Math.min(wanted, Math.max(0, adding ? capacity()-stored : stored));
                 if (execute && moved > 0) stored(stored+(adding ? moved : -moved));
                 yield moved;
             }
@@ -78,10 +80,14 @@ public final class EmberBackend implements MagicBackend {
             public double amount() { return stored; }
             public double minimum() { return 0; }
             public double maximum() { return capacity(); }
+            public boolean linearParallelPlanning() { return true; }
+            public double parallelQuantum(double lower, double upper) {
+                return lower > 0 && Double.isFinite(upper) ? Math.ulp(lower) : Double.NaN;
+            }
             public boolean valid() { return active(); }
             public double move(double delta, boolean simulate) {
                 if (!valid() || !Double.isFinite(delta)) return 0;
-                double moved = delta >= 0 ? Math.min(delta, capacity()-stored) : -Math.min(-delta, stored);
+                double moved = delta >= 0 ? Math.min(delta, Math.max(0, capacity()-stored)) : -Math.min(-delta, Math.max(0, stored));
                 if (!simulate) stored(stored+moved);
                 return moved;
             }

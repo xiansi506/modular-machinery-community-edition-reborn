@@ -40,7 +40,16 @@ public final class MagicRequirements {
                 throw new JsonParseException("perTick must be a boolean");
             double min = number(json, family == MagicFamily.AURA ? "min-aura" : "min", family == MagicFamily.AURA ? Integer.MIN_VALUE : 0);
             double max = number(json, family == MagicFamily.AURA ? "max-aura" : "max", family == MagicFamily.WILL ? 100 : family == MagicFamily.EMBER ? Double.MAX_VALUE : Integer.MAX_VALUE);
-            try { return new MagicRequirement(io, family, number(json,json.has("amount") ? "amount" : "ember",0), variant, min, max, json.has("perTick") && json.get("perTick").getAsBoolean()); }
+            String amountKey = json.has("amount") ? "amount" : "ember";
+            double amount = family.integerUnits() ? com.reborn.modularmachinery.util.JsonNumbers.integer(
+                    json.get(amountKey), 0, Integer.MAX_VALUE, where + " " + amountKey) : number(json, amountKey, 0);
+            if (family.integerUnits()) {
+                String minKey = family == MagicFamily.AURA ? "min-aura" : "min";
+                String maxKey = family == MagicFamily.AURA ? "max-aura" : "max";
+                if (json.has(minKey)) min = com.reborn.modularmachinery.util.JsonNumbers.integer(json.get(minKey), Integer.MIN_VALUE, Integer.MAX_VALUE, where + " " + minKey);
+                if (json.has(maxKey)) max = com.reborn.modularmachinery.util.JsonNumbers.integer(json.get(maxKey), Integer.MIN_VALUE, Integer.MAX_VALUE, where + " " + maxKey);
+            }
+            try { return new MagicRequirement(io, family, amount, variant, min, max, json.has("perTick") && json.get("perTick").getAsBoolean()); }
             catch (IllegalArgumentException error) { throw new JsonParseException(error.getMessage() + " in " + where, error); }
         }
         public void write(FriendlyByteBuf buf, MachineRequirement requirement) {

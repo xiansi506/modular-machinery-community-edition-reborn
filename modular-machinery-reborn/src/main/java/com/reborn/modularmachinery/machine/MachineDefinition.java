@@ -60,18 +60,20 @@ public final class MachineDefinition {
     public static final boolean DEFAULT_PARALLELIZABLE = true;
     /**
      * The original's {@code Config.defaultFactoryMaxThread}, which {@code AbstractMachine.maxThreads} started
-     * from — read through the config key ({@code factory-system.default-factory-max-thread}) rather than frozen
-     * here, because M6e-2 made it configurable. The original's own config-file default is {@code 10}
+     * from. This legacy field snapshots the config at class initialization for API compatibility; new
+     * definitions read the current config instead. The original's own config-file default is {@code 10}
      * ({@code Config.java:122-124}); see {@link com.reborn.modularmachinery.config.ModConfig} for why that value
      * and not the {@code 20} field initialiser.
      */
+    @Deprecated // Legacy first-load snapshot; internal construction/reading uses current config instead.
     public static final int DEFAULT_MAX_THREADS =
             com.reborn.modularmachinery.config.ModConfig.factoryDefaultMaxThread();
     /**
      * The original's {@code Config.enableFactoryControllerByDefault}, which {@code AbstractMachine.hasFactory}
-     * started from — likewise read through its config key
+     * started from. This legacy field is a first-load snapshot; new definitions read its current config key
      * ({@code factory-system.enable-factory-controller-bydefault}).
      */
+    @Deprecated // Retained for API compatibility, not a live configuration value.
     public static final boolean DEFAULT_HAS_FACTORY =
             com.reborn.modularmachinery.config.ModConfig.factoryControllerEnabledByDefault();
     /** The original's {@code AbstractMachine.factoryOnly}. */
@@ -173,6 +175,41 @@ public final class MachineDefinition {
      * 与 {@link #color} 一样，定义建好后不可变，设置走 {@link #withControllerBoundingBox(AABB)}。
      */
     private final AABB controllerBoundingBox;
+    @Nullable private final com.google.gson.JsonObject synchronizationSource;
+
+    /** Immutable parse-time context; not a second simplified schema and not an exposed mutable source. */
+    private MachineDefinition(MachineDefinition from, com.google.gson.JsonObject source) {
+        this.id = from.id;
+        this.localizedName = from.localizedName;
+        this.pattern = from.pattern;
+        this.failureAction = from.failureAction;
+        this.requiresBlueprint = from.requiresBlueprint;
+        this.maxParallelism = from.maxParallelism;
+        this.internalParallelism = from.internalParallelism;
+        this.parallelizable = from.parallelizable;
+        this.hideComponentsWhenFormed = from.hideComponentsWhenFormed;
+        this.modifiers = from.modifiers;
+        this.multiBlockModifiers = from.multiBlockModifiers;
+        this.maxThreads = from.maxThreads;
+        this.hasFactory = from.hasFactory;
+        this.factoryOnly = from.factoryOnly;
+        this.coreThreads = from.coreThreads;
+        this.smartInterfaces = from.smartInterfaces;
+        this.dynamicPatterns = from.dynamicPatterns;
+        this.color = from.color;
+        this.geoModel = from.geoModel;
+        this.prefix = from.prefix;
+        this.controllerBoundingBox = from.controllerBoundingBox;
+        this.synchronizationSource = source.deepCopy();
+    }
+
+    MachineDefinition withSynchronizationSource(com.google.gson.JsonObject source) {
+        return new MachineDefinition(this, source);
+    }
+
+    @Nullable public com.google.gson.JsonObject synchronizationSource() {
+        return synchronizationSource == null ? null : synchronizationSource.deepCopy();
+    }
 
     public MachineDefinition(ResourceLocation id, String localizedName, MachinePattern pattern,
                              FailureAction failureAction, boolean requiresBlueprint) {
@@ -219,7 +256,9 @@ public final class MachineDefinition {
                              int maxParallelism, int internalParallelism, boolean parallelizable,
                              List<MachineModifier> modifiers) {
         this(id, localizedName, pattern, failureAction, requiresBlueprint, maxParallelism, internalParallelism,
-                parallelizable, modifiers, DEFAULT_MAX_THREADS, DEFAULT_HAS_FACTORY, DEFAULT_FACTORY_ONLY,
+                parallelizable, modifiers,
+                com.reborn.modularmachinery.config.ModConfig.factoryDefaultMaxThread(),
+                com.reborn.modularmachinery.config.ModConfig.factoryControllerEnabledByDefault(), DEFAULT_FACTORY_ONLY,
                 List.of());
     }
 
@@ -298,6 +337,7 @@ public final class MachineDefinition {
         this.geoModel = geoModel;
         this.prefix = prefix;
         this.controllerBoundingBox = controllerBoundingBox;
+        this.synchronizationSource = null;
     }
 
     /**

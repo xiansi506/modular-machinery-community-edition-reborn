@@ -104,14 +104,24 @@ public final class MachineDefinitions {
         staged = Collections.unmodifiableMap(next);
         if (source != null) {
             Map<ResourceLocation, com.google.gson.JsonObject> sources = new LinkedHashMap<>(stagedSources);
-            sources.put(definition.id(), source);
+            // Freeze the client sync source at registration time: the caller (typically a KubeJS builder)
+            // keeps mutating its live tree, and a shared reference would let post-register edits silently
+            // change what the client rebuilds while the server keeps the registered structure.
+            sources.put(definition.id(), source.deepCopy());
             stagedSources = Collections.unmodifiableMap(sources);
         }
     }
 
-    /** 脚本层每个定义解析用的 JSON；没有的那几个（直接构造的定义）不在里面。 */
+    /**
+     * 脚本层每个定义解析用的 JSON；没有的那几个（直接构造的定义）不在里面。
+     *
+     * <p>返回的是<strong>快照的深拷贝</strong>：调用方改写拿到的树不会改到注册表里的注册时快照，
+     * 快照也不会被读取侧意外污染。
+     */
     public static Map<ResourceLocation, com.google.gson.JsonObject> stagedSources() {
-        return stagedSources;
+        Map<ResourceLocation, com.google.gson.JsonObject> copies = new LinkedHashMap<>();
+        stagedSources.forEach((id, source) -> copies.put(id, source.deepCopy()));
+        return Collections.unmodifiableMap(copies);
     }
 
     /**

@@ -13,7 +13,6 @@ import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.core.BlockPos;
@@ -98,8 +97,7 @@ public final class StructurePreviews {
     }
 
     private static ItemStack itemFor(BlockState state) {
-        Item item = state.getBlock().asItem();
-        return item == Items.AIR ? ItemStack.EMPTY : new ItemStack(item);
+        return com.reborn.modularmachinery.item.PropertyBlockItem.stackForState(state);
     }
 
     /**
@@ -281,13 +279,14 @@ public final class StructurePreviews {
         if (state == null || state.isAir()) {
             return;
         }
-        Item item = state.getBlock().asItem();
-        if (item == Items.AIR) {
+        ItemStack material = itemFor(state);
+        if (material.isEmpty()) {
             return;
         }
+        Item item = material.getItem();
         ItemStack stack = stacks.get(item);
         if (stack == null) {
-            stacks.put(item, new ItemStack(item));
+            stacks.put(item, material);
         } else {
             stack.grow(1);
         }

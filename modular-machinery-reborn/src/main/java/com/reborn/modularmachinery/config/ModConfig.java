@@ -350,10 +350,11 @@ public final class ModConfig {
         // affects per-tick energy: RecipeCraftingContext#getDurationMultiplier returns 1f while it is off
         // (RecipeCraftingContext.java:196-199), and the recipe's duration is reduced either way. This port had
         // no switch before 0.77.0 and always applied the compensation; see RecipeModifiers#durationMultiplier.
-        builder.comment("Scale per-tick energy when a duration modifier shortens or lengthens a craft",
+        builder.comment("Scale per-tick energy and already-supported per-tick magic resources when duration changes",
                 "(the original's enable-duration-multiplier). Default false, the value the original's",
                 "config file actually used. When false, a duration modifier still changes how many ticks",
-                "the craft takes, but the energy drawn per tick is not scaled to keep the total constant.");
+                "the craft takes, but per-tick energy/magic costs are not compensated. Integer magic rounds",
+                "once after copies and compensation, with a minimum of one for a positive total; explicit zero stays zero.");
         ENABLE_FLUXNETWORKS_INTEGRATION = builder.comment("Expose Flux Networks long-energy capabilities. Requires a world restart.")
                 .worldRestart().define(List.of(GENERAL_ROOT, "enable-fluxnetworks-integration"), true);
         ENABLE_DURATION_MULTIPLIER_VALUE = builder.define(

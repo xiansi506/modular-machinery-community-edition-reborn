@@ -61,7 +61,8 @@ public final class MachinePartColors implements BlockColor {
         // 逐个注册而不是注册给 Block.class：Jade 那次教训说明「全量注册」会把别的模组方块也卷进来。
         for (com.reborn.modularmachinery.block.HatchKind kind
                 : com.reborn.modularmachinery.block.HatchKind.values()) {
-            event.register(handler, com.reborn.modularmachinery.block.ModBlocks.hatchBlock(kind).get());
+            var block = com.reborn.modularmachinery.block.ModBlocks.hatchBlock(kind);
+            if (block != null) event.register(handler, block.get());
         }
     }
 
@@ -71,6 +72,10 @@ public final class MachinePartColors implements BlockColor {
             return NO_TINT;
         }
         BlockEntity entity = level.getBlockEntity(pos);
+        if (entity instanceof com.reborn.modularmachinery.block.WirelessEnergyHatch wireless) {
+            if (tintIndex == 2) return wireless.networkColor();
+            return wireless.machineColor() == null ? NO_TINT : wireless.machineColor();
+        }
         if (entity instanceof MachineCasingBlockEntity casing && casing.machineColor() != null) {
             return casing.machineColor();
         }

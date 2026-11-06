@@ -19,6 +19,8 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.LinkedHashSet;
 import java.util.stream.Stream;
 
 /**
@@ -124,25 +126,57 @@ public final class MachineDirectory {
      */
     public static List<MachineRef> scanMachinePaths(Path root) {
         List<MachineRef> found = new ArrayList<>();
+        Map<MachineRef, Path> sources = new LinkedHashMap<>();
         if (!Files.isDirectory(root)) {
             return found;
         }
         try (Stream<Path> stream = Files.walk(root)) {
-            for (Path file : stream.filter(Files::isRegularFile).toList()) {
+            for (Path file : stream.filter(Files::isRegularFile).sorted().toList()) {
                 String name = file.getFileName().toString();
                 if (!name.endsWith(JSON_SUFFIX) || name.endsWith(".var.json") || isUnderVariables(root, file)) {
                     continue;
                 }
                 MachineRef ref = readRef(root, file);
                 if (ref != null) {
-                    found.add(ref);
+                    sources.putIfAbsent(ref, file);
                 }
             }
         } catch (IOException exception) {
             LOGGER.warn("[{}] Could not read the machine directory {}; only the built-in controllers will "
                     + "exist", ModularMachineryReborn.MOD_ID, root, exception);
         }
-        return found;
+        return registrationSafe(sources);
+    }
+
+    /** Validate the complete ordinary/factory registration plan before any DeferredRegister mutation. */
+    private static List<MachineRef> registrationSafe(Map<MachineRef, Path> sources) {
+        Set<String> reserved = Set.of("machine_controller", "factory_controller", "parallel_controller");
+        Map<String, MachineRef> owners = new LinkedHashMap<>();
+        Set<MachineRef> rejected = new LinkedHashSet<>();
+        for (MachineRef ref : sources.keySet()) {
+            List<String> names = ref.factoryController()
+                    ? List.of(ref.path() + "_controller", ref.path() + "_factory_controller")
+                    : List.of(ref.path() + "_controller");
+            if (names.stream().anyMatch(reserved::contains)) {
+                LOGGER.warn("[{}] {} declares '{}', whose controller names {} conflict with built-in blocks; "
+                                + "no dedicated controllers are registered for this declaration. Choose another registryname.",
+                        ModularMachineryReborn.MOD_ID, sources.get(ref), ref.machineId(), names);
+                rejected.add(ref);
+                continue;
+            }
+            for (String name : names) {
+                MachineRef previous = owners.putIfAbsent(name, ref);
+                if (previous != null && !previous.equals(ref)) {
+                    rejected.add(previous);
+                    rejected.add(ref);
+                    LOGGER.warn("[{}] Controller block '{}' is requested by '{}' in {} and '{}' in {}; "
+                                    + "neither declaration receives dedicated controllers. IDs are not renamed.",
+                            ModularMachineryReborn.MOD_ID, name, previous.machineId(), sources.get(previous),
+                            ref.machineId(), sources.get(ref));
+                }
+            }
+        }
+        return sources.keySet().stream().filter(ref -> !rejected.contains(ref)).toList();
     }
 
     private static boolean isUnderVariables(Path root, Path file) {

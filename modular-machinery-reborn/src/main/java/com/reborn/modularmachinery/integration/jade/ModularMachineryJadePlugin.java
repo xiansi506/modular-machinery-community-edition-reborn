@@ -23,6 +23,8 @@ public final class ModularMachineryJadePlugin implements IWailaPlugin {
 
     @Override
     public void register(IWailaCommonRegistration registration) {
+        if (com.reborn.modularmachinery.block.ModBlocks.FLUX_NETWORKS_LOADED)
+            com.reborn.modularmachinery.compat.fluxnetworks.FluxHatchJade.register(registration);
         registration.registerEnergyStorage(HatchEnergyStorageProvider.SERVER,
                 com.reborn.modularmachinery.block.MachineHatchBlockEntity.class);
         registration.registerFluidStorage(HatchFluidStorageProvider.SERVER,

@@ -131,7 +131,8 @@ public final class RecipeCommands {
                 throw new JsonParseException(
                         "Interval specified in 'interval' of recipe command object is not an int!");
             }
-            return new RecipeCommand(command, interval.getAsInt());
+            return new RecipeCommand(command, com.reborn.modularmachinery.util.JsonNumbers.integer(interval,
+                    -1, Integer.MAX_VALUE, "recipe command interval"));
         }
         throw new JsonParseException("Tried to deserialize recipe command, found neither command nor object "
                 + "describing command and optional interval!");

@@ -11,4 +11,4 @@ Jade 能量信息已覆盖工厂核心线程和普通线程，分别合计消耗
 - 字节：1,308,917
 - SHA-256：`708E33B9A24E365BAC71D77E03B5D016D727AB830122EF616652750284C50D99`
 
-[显示说明](../../../modular-machinery-reborn/docs/联动/工厂能量信息.md) · [交接](../../../modular-machinery-reborn/docs/开发/交接-2026-10-23.md) · [验证记录](../../../_audit/factory-energy-0.115.0/工厂能量信息更新.md)
+[显示说明](../../../modular-machinery-reborn/docs/联动/工厂能量信息.md) · [交接](../../../modular-machinery-reborn/docs/开发/交接-2026-10-23.md) · 验证记录（本地审计工件，不随本次发布）

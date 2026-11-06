@@ -673,10 +673,13 @@ public final class PreviewPanel {
         // E2（0.101.0）：材料格的 JEI 查询，照旧版 SlotItemVirtualJEI.onMouseClick——
         // 左键把该物品作为产出查配方、右键作为输入查用途，点击即消费。
         // 材料格（y≥179）与按钮条（161..174）、视口（26..176）不相交，提前返回不影响其它手势。
+        // P10-10（0.121.34）：查询范围从仅底部材料（componentAt）扩为 ingredientAt——
+        // 与键盘 R/U 同一查找：选中主图标（落在 overStatus 矩形里，旧路径随后 return NONE）
+        // 与候选轮换图标（旧路径被当视口手势）都接入鼠标左/右键查询。
         // JEI 类只在 ModList 确认在场后才被类加载（JEI 是可选依赖，mandatory=false）。
         if (!this.jeiHost && (button == 0 || button == 1) && ModList.get().isLoaded("jei")) {
-            ItemStack hovered = StructurePreviews.componentAt(this.components, mouseX, mouseY);
-            if (hovered != null && !hovered.isEmpty() && PreviewJeiActions.show(hovered, button == 1)) {
+            ItemStack hovered = this.ingredientAt(mouseX, mouseY);
+            if (!hovered.isEmpty() && PreviewJeiActions.show(hovered, button == 1)) {
                 return PointerClaim.MATERIAL;
             }
         }
@@ -929,8 +932,7 @@ public final class PreviewPanel {
     }
 
     private static ItemStack itemFor(net.minecraft.world.level.block.state.BlockState state) {
-        Item item = state.getBlock().asItem();
-        return item == net.minecraft.world.item.Items.AIR ? ItemStack.EMPTY : new ItemStack(item);
+        return com.reborn.modularmachinery.item.PropertyBlockItem.stackForState(state);
     }
 
     private boolean isOverTrack(double mouseX, double mouseY) {

@@ -1,6 +1,8 @@
+> **0.123.0 / protocol 13:** selection gestures, default single-block toggle, box logic, operations, air filtering and undo/redo are unchanged. Only export UI is simplified. Right-click the controller after selecting, review the suggested ID/name and full-JSON format, then preview and save. Advanced export fields and source preview remain available. Saving still requires installing the exported definition as documented below.
+
 # Structure authoring tool
 
-For **0.121.0 / Minecraft 1.20.1 / Forge**, protocol **12**. Update both peers. Creative mode and permission level 2 are required.
+For **0.121.62 / Minecraft 1.20.1 / Forge**, protocol **13**. Update both peers. Creative mode and permission level 2 are required.
 
 ## Workflow
 

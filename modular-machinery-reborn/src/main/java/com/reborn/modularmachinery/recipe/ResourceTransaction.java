@@ -19,6 +19,49 @@ import java.util.function.BooleanSupplier;
 public final class ResourceTransaction {
     /** 可选集成自己实现副本，主模块不引用其 API。 */
     public interface OpaquePort { Object transactionView(ResourceTransaction transaction); }
+    /** Explicit capability contract. Methods are pure candidate-state permission/rate checks; callers
+     * still enforce native capacity/type rules. This alone does not promise recoverability: a writable
+     * external port must also implement SnapshotParticipant. Unknown handlers are read-only in plans.
+     */
+    public interface CandidateItems {
+        int candidateInsertLimit(int slot, ItemStack current, ItemStack offered);
+        int candidateExtractLimit(int slot, ItemStack current, int requested);
+    }
+    public interface CandidateFluids {
+        int candidateFillLimit(List<FluidStack> contents, FluidStack offered);
+        int candidateDrainLimit(List<FluidStack> contents, FluidStack requested);
+    }
+    /** Opt-in local, synchronous recovery contract. Snapshots include every state changed by a write;
+     * restore must work even after a partial/throwing operation, without invoking transfer permissions.
+     * Implementations must serialize external mutation with commit and must not perform irreversible IO.
+     * Merely implementing a mutable Forge API (or subclassing its templates) is not this promise.
+     */
+    public interface SnapshotParticipant {
+        Object transactionSnapshot();
+        boolean transactionUnchanged(Object snapshot);
+        void transactionRestore(Object snapshot);
+    }
+    public interface CandidateEnergy {
+        long candidateReceiveLimit(long current, long offered);
+        long candidateExtractLimit(long current, long requested);
+    }
+    /** Local template with explicit candidate and recovery semantics. Subclasses retain this contract. */
+    public static class NativeItems extends ItemStackHandler implements CandidateItems, SnapshotParticipant {
+        public NativeItems(int slots) { super(slots); }
+        public int candidateInsertLimit(int slot, ItemStack current, ItemStack offered) { return offered.getCount(); }
+        public int candidateExtractLimit(int slot, ItemStack current, int requested) { return requested; }
+        public Object transactionSnapshot() { return serializeNBT().copy(); }
+        public boolean transactionUnchanged(Object snapshot) { return serializeNBT().equals(snapshot); }
+        public void transactionRestore(Object snapshot) { deserializeNBT(((net.minecraft.nbt.CompoundTag) snapshot).copy()); }
+    }
+    public static class NativeTank extends FluidTank implements CandidateFluids, SnapshotParticipant {
+        public NativeTank(int capacity) { super(capacity); }
+        public int candidateFillLimit(List<FluidStack> contents, FluidStack offered) { return offered.getAmount(); }
+        public int candidateDrainLimit(List<FluidStack> contents, FluidStack requested) { return requested.getAmount(); }
+        public Object transactionSnapshot() { return fluid.copy(); }
+        public boolean transactionUnchanged(Object snapshot) { return fluid.isFluidStackIdentical((FluidStack) snapshot); }
+        public void transactionRestore(Object snapshot) { setFluid(((FluidStack) snapshot).copy()); }
+    }
     private final Map<Object,Object> shared = new HashMap<>();
     @SuppressWarnings("unchecked")
     public <T> T shared(Object key, java.util.function.Supplier<T> factory) {
@@ -84,29 +127,33 @@ public final class ResourceTransaction {
         return handler instanceof ResourceTransaction.Items view && view.replace(slot, expected, replacement);
     }
     private final class Items extends ItemStackHandler {
+        final boolean supported;
         final IItemHandler source;
         final List<ItemStack> before = new ArrayList<>();
         Items(IItemHandler source) {
             super(source.getSlots()); this.source=source;
+            supported = source.getClass() == ItemStackHandler.class || source instanceof Items
+                    || source instanceof CandidateItems && source instanceof SnapshotParticipant;
+            Object state = source instanceof SnapshotParticipant participant ? participant.transactionSnapshot() : null;
             for(int i=0;i<getSlots();i++){ before.add(source.getStackInSlot(i).copy()); setStackInSlot(i,before.get(i).copy()); }
             enlist(()->{
+                if (source instanceof SnapshotParticipant participant && !participant.transactionUnchanged(state)) return false;
                 for(int i=0;i<getSlots();i++) if(!ItemStack.matches(before.get(i),source.getStackInSlot(i))) return false;
                 return true;
             },()->{
-                for(int i=0;i<getSlots();i++) {
-                    if (ItemStack.matches(before.get(i), source.getStackInSlot(i))) continue;
-                    if(source instanceof IItemHandlerModifiable mutable) mutable.setStackInSlot(i,before.get(i).copy());
-                    else if(!ItemStack.matches(before.get(i),source.getStackInSlot(i))) {
-                        source.extractItem(i,Integer.MAX_VALUE,false);
-                        if(!source.insertItem(i,before.get(i).copy(),false).isEmpty()) throw new IllegalStateException("Item rollback refused");
-                    }
-                }
+                if (!supported) return;
+                if (source instanceof SnapshotParticipant participant) participant.transactionRestore(state);
+                else for(int i=0;i<getSlots();i++) ((IItemHandlerModifiable) source).setStackInSlot(i,before.get(i).copy());
             });
         }
+
         @Override public int getSlotLimit(int slot){return source.getSlotLimit(slot);}
         @Override public boolean isItemValid(int slot,ItemStack stack){return source.isItemValid(slot,stack);}
         @Override public ItemStack insertItem(int slot,ItemStack stack,boolean simulate){
-            int allowed=stack.getCount()-source.insertItem(slot,stack.copy(),true).getCount();
+            if (!supported) return stack;
+            int allowed=source instanceof CandidateItems candidate
+                    ? Math.max(0, Math.min(stack.getCount(), candidate.candidateInsertLimit(slot, getStackInSlot(slot).copy(), stack.copy())))
+                    : stack.getCount();
             if(allowed<=0)return stack;
             ItemStack offer=stack.copyWithCount(Math.min(allowed,stack.getCount()));
             int accepted=offer.getCount()-super.insertItem(slot,offer,simulate).getCount();
@@ -114,16 +161,20 @@ public final class ResourceTransaction {
             return accepted==stack.getCount()?ItemStack.EMPTY:stack.copyWithCount(stack.getCount()-accepted);
         }
         @Override public ItemStack extractItem(int slot,int amount,boolean simulate){
-            int allowed=source.extractItem(slot,amount,true).getCount();
+            if (!supported || amount <= 0) return ItemStack.EMPTY;
+            int allowed=source instanceof CandidateItems candidate
+                    ? Math.max(0, Math.min(amount, candidate.candidateExtractLimit(slot, getStackInSlot(slot).copy(), amount)))
+                    : amount;
             ItemStack result=super.extractItem(slot,Math.min(amount,allowed),simulate);
             if(!simulate&&!result.isEmpty()){ItemStack exact=result.copy();record(()->ItemStack.matches(exact,source.extractItem(slot,exact.getCount(),false)));}
             return result;
         }
         boolean replace(int slot, ItemStack expected, ItemStack replacement) {
-            if (!ItemStack.matches(getStackInSlot(slot), expected)
-                    || !ItemStack.matches(source.extractItem(slot, expected.getCount(), true), expected)) return false;
+            if (!supported || !ItemStack.matches(getStackInSlot(slot), expected)
+                    || !ItemStack.matches(extractItem(slot, expected.getCount(), true), expected)) return false;
             if (!replacement.isEmpty() && (!source.isItemValid(slot, replacement)
-                    || replacement.getCount() > Math.min(source.getSlotLimit(slot), replacement.getMaxStackSize()))) return false;
+                    || replacement.getCount() > Math.min(source.getSlotLimit(slot), replacement.getMaxStackSize())
+                    || source instanceof CandidateItems candidate && candidate.candidateInsertLimit(slot, ItemStack.EMPTY, replacement.copy()) < replacement.getCount())) return false;
             super.setStackInSlot(slot, replacement.copy());
             record(() -> {
                 if (source instanceof ResourceTransaction.Items view) return view.replace(slot, expected, replacement);
@@ -135,36 +186,44 @@ public final class ResourceTransaction {
     }
     private final class Fluids implements IFluidHandler {
         final IFluidHandler source; final FluidStack[] before; final FluidTank[] working;
+        final boolean supported;
         Fluids(IFluidHandler source){
             this.source=source; before=new FluidStack[source.getTanks()];working=new FluidTank[before.length];
+            supported = source.getClass() == FluidTank.class || source instanceof Fluids
+                    || source instanceof CandidateFluids && source instanceof SnapshotParticipant;
+            Object state = source instanceof SnapshotParticipant participant ? participant.transactionSnapshot() : null;
             for(int i=0;i<before.length;i++){final int tank=i;before[i]=source.getFluidInTank(i).copy();working[i]=new FluidTank(source.getTankCapacity(i),s->source.isFluidValid(tank,s));working[i].setFluid(before[i].copy());}
-            enlist(()->{for(int i=0;i<before.length;i++)if(!before[i].isFluidStackIdentical(source.getFluidInTank(i)))return false;return true;},()->{
-                boolean unchanged = true;
-                for (int i = 0; i < before.length; i++)
-                    unchanged &= before[i].isFluidStackIdentical(source.getFluidInTank(i));
-                if (unchanged) return;
-                if(source instanceof FluidTank tank)tank.setFluid(before[0].copy());
-                else if(source instanceof MeFluidTanks tanks){for(int i=0;i<before.length;i++)tanks.tank(i).setFluid(before[i].copy());}
-                else {
-                    for(int i=0;i<before.length;i++){FluidStack current=source.getFluidInTank(i).copy();if(!current.isEmpty())source.drain(current,FluidAction.EXECUTE);}
-                    for(FluidStack stack:before)if(!stack.isEmpty()&&source.fill(stack.copy(),FluidAction.EXECUTE)!=stack.getAmount())throw new IllegalStateException("Fluid rollback refused");
-                }
+            enlist(()->{
+                if (source instanceof SnapshotParticipant participant && !participant.transactionUnchanged(state)) return false;
+                for(int i=0;i<before.length;i++)if(!before[i].isFluidStackIdentical(source.getFluidInTank(i)))return false;
+                return true;
+            },()->{
+                if (!supported) return;
+                if (source instanceof SnapshotParticipant participant) participant.transactionRestore(state);
+                else if (source instanceof FluidTank tank) tank.setFluid(before[0].copy());
+                else if (source instanceof Fluids view) for (int i=0;i<before.length;i++) view.working[i].setFluid(before[i].copy());
             });
         }
+
         @Override public int getTanks(){return working.length;}
         @Override public FluidStack getFluidInTank(int tank){return working[tank].getFluid();}
         @Override public int getTankCapacity(int tank){return working[tank].getCapacity();}
         @Override public boolean isFluidValid(int tank,FluidStack stack){return source.isFluidValid(tank,stack);}
+        private List<FluidStack> candidateContents() {
+            return java.util.Arrays.stream(working).map(tank -> tank.getFluid().copy()).toList();
+        }
         @Override public int fill(FluidStack resource,FluidAction action){
-            if (resource.isEmpty()) return 0;
+            if (!supported || resource.isEmpty()) return 0;
             BooleanSupplier blocker = fluidBlockers.get(source);
             if (blocker != null && blocker.getAsBoolean()) return 0;
-            int remaining = blocker == null ? Math.min(resource.getAmount(), source.fill(resource, FluidAction.SIMULATE))
+            int remaining = blocker != null ? resource.getAmount() : source instanceof CandidateFluids candidate
+                    ? Math.max(0, Math.min(resource.getAmount(), candidate.candidateFillLimit(candidateContents(), resource.copy())))
                     : resource.getAmount();
             int offered = remaining;
             // 与罐池一致，先补同种流体，避免把空罐提前占掉而错误拒绝本批次的另一种流体。
             for (FluidTank tank : working) {
                 if (remaining <= 0) break;
+                if (tank.getFluidAmount() >= tank.getCapacity()) continue;
                 if (!tank.isEmpty() && tank.getFluid().isFluidEqual(resource))
                     remaining -= tank.fill(new FluidStack(resource, remaining), action);
             }
@@ -177,10 +236,11 @@ public final class ResourceTransaction {
             return accepted;
         }
         @Override public FluidStack drain(FluidStack resource,FluidAction action){
-            if(resource.isEmpty())return FluidStack.EMPTY;
+            if(!supported || resource.isEmpty())return FluidStack.EMPTY;
             BooleanSupplier blocker = fluidBlockers.get(source);
             if (blocker != null && blocker.getAsBoolean()) return FluidStack.EMPTY;
-            int remaining = blocker == null ? Math.min(resource.getAmount(), source.drain(resource, FluidAction.SIMULATE).getAmount())
+            int remaining = blocker != null ? resource.getAmount() : source instanceof CandidateFluids candidate
+                    ? Math.max(0, Math.min(resource.getAmount(), candidate.candidateDrainLimit(candidateContents(), resource.copy())))
                     : resource.getAmount();
             int offered = remaining;
             for(FluidTank tank:working){if(remaining<=0)break;remaining-=tank.drain(new FluidStack(resource,remaining),action).getAmount();}
@@ -194,27 +254,38 @@ public final class ResourceTransaction {
         final IEnergyStorage source;
         final long before;
         long stored;
+        final boolean supported;
         Energy(IEnergyStorage source) {
             this.source = source;
             before = stored = EnergyAccess.stored(source);
-            enlist(() -> EnergyAccess.stored(source) == before, () -> {
-                if (source instanceof LongEnergyStorage wide) wide.setStored(before);
+            supported = source.getClass() == EnergyStorage.class || source instanceof LongEnergyStorage || source instanceof Energy
+                    || source instanceof CandidateEnergy && source instanceof SnapshotParticipant;
+            Object state = source instanceof SnapshotParticipant participant ? participant.transactionSnapshot() : null;
+            enlist(() -> EnergyAccess.stored(source) == before
+                    && (!(source instanceof SnapshotParticipant participant) || participant.transactionUnchanged(state)), () -> {
+                if (!supported) return;
+                if (source instanceof SnapshotParticipant participant) participant.transactionRestore(state);
+                else if (source instanceof LongEnergyStorage wide) wide.setStored(before);
                 else if (source instanceof EnergyStorage mutable) mutable.deserializeNBT(IntTag.valueOf((int) before));
-                else {
-                    long current = EnergyAccess.stored(source);
-                    long delta = before - current;
-                    long changed = delta > 0 ? EnergyAccess.receive(source, delta, false) : -EnergyAccess.extract(source, -delta, false);
-                    if (changed != delta) throw new IllegalStateException("Energy rollback refused");
-                }
+                else if (source instanceof Energy view) view.stored = before;
             });
         }
+
         @Override public long receiveEnergyL(long amount, boolean simulate) {
-            long n = Math.max(0, Math.min(Math.min(amount, getMaxEnergyStoredL() - stored), EnergyAccess.receive(source, amount, true)));
+            if (!supported || amount <= 0) return 0;
+            long limit = source instanceof CandidateEnergy candidate ? candidate.candidateReceiveLimit(stored, amount)
+                    : source instanceof LongEnergyStorage wide ? wide.maxReceiveL()
+                    : EnergyAccess.receive(source, amount, true);
+            long n = Math.max(0, Math.min(Math.min(amount, getMaxEnergyStoredL() - stored), limit));
             if (!simulate && n > 0) { stored += n; record(() -> EnergyAccess.receive(source, n, false) == n); }
             return n;
         }
         @Override public long extractEnergyL(long amount, boolean simulate) {
-            long n = Math.max(0, Math.min(Math.min(amount, stored), EnergyAccess.extract(source, amount, true)));
+            if (!supported || amount <= 0) return 0;
+            long limit = source instanceof CandidateEnergy candidate ? candidate.candidateExtractLimit(stored, amount)
+                    : source instanceof LongEnergyStorage wide ? wide.maxExtractL()
+                    : EnergyAccess.extract(source, amount, true);
+            long n = Math.max(0, Math.min(Math.min(amount, stored), limit));
             if (!simulate && n > 0) { stored -= n; record(() -> EnergyAccess.extract(source, n, false) == n); }
             return n;
         }

@@ -425,9 +425,10 @@ public final class MachineRecipeCategory implements IRecipeCategory<MachineRecip
 
         // One energy part per energy requirement, and every one of them drew its side's summed rate
         // (drawInfo: inputComponents.stream().filter(Energy.class::isInstance).forEach(part -> part.drawEnergy(mc,
-        // finalTotalEnergyIn))).
-        long energyIn = MachineRecipeText.energyPerTick(recipe, IOType.INPUT);
-        long energyOut = MachineRecipeText.energyPerTick(recipe, IOType.OUTPUT);
+        // finalTotalEnergyIn))). The positive check goes through the exact sum so a legal total above
+        // Long.MAX_VALUE still reads as "has energy demand" instead of wrapping negative.
+        boolean energyIn = MachineRecipeText.energyPerTickExact(recipe, IOType.INPUT).signum() > 0;
+        boolean energyOut = MachineRecipeText.energyPerTickExact(recipe, IOType.OUTPUT).signum() > 0;
         for (MachineRecipeLayout.Cell cell : measured.inputEnergy()) {
             drawEnergyCell(graphics, cell, energyIn);
         }
@@ -460,6 +461,19 @@ public final class MachineRecipeCategory implements IRecipeCategory<MachineRecip
      * 把一句话画进 18×18 的格子里：按半倍字高缩放，先在未缩放的文本空间折行（0.5 缩放下
      * 格内 16px ≈ 文本空间 32px 宽），超过格高的行数直接不画（scissor 兜底），整体水平垂直居中。
      * 颜色与 tip 块一致（白字带阴影，背景同为 JEI 灰面板）。
+     *
+     * <p><b>裁剪必须换算到绝对 GUI 坐标。</b>JEI 在画类别与槽位前会把 pose 平移到配方原点
+     * （{@code RecipeLayout#drawRecipe} 的 {@code translate(area.x, area.y, 0)}），而
+     * {@code GuiGraphics#enableScissor} 不读取 pose——它直接接收屏幕像素。宿主平移 (120,70) 时，
+     * 文字跟着 pose 走，裁剪框却留在格子的局部坐标上，于是文字被裁到页面左上角之外。
+     * 这里在进入文字自身的 {@code translate/scale} <b>之前</b>，把格子的四角用当前 pose 转换一次，
+     * 向下取整左/上、向上取整右/下，保证 0.5 倍缩放后的字形不会因取整被削掉一列像素。
+     *
+     * <p>支持边界：JEI 常规二维平移，以及轴向缩放（四角转换对轴对齐缩放是精确的）。任意旋转/透视宿主
+     * 只会得到一个保守的外接矩形，不属于本方法验收范围；这里也不手工乘窗口 GUI 倍率，不取消外层裁剪。
+     *
+     * <p>异常边界（P10-15）：每一行 push 成功后用 finally 归还，开启的 scissor 在外层 finally 归还；
+     * 原异常照常抛出，不静默吞掉，也不清理调用者自己的 pose/scissor 栈。
      */
     static void drawTextInCell(GuiGraphics graphics, MachineRecipeLayout.Cell cell, String text) {
         Font font = Minecraft.getInstance().font;
@@ -474,29 +488,61 @@ public final class MachineRecipeCategory implements IRecipeCategory<MachineRecip
         }
         float totalHeight = drawn * lineHeight;
         float y = cell.y() + (MachineRecipeLayout.CELL - totalHeight) / 2.0F;
-        graphics.enableScissor(cell.x(), cell.y(),
-                cell.x() + MachineRecipeLayout.CELL, cell.y() + MachineRecipeLayout.CELL);
-        for (int i = 0; i < drawn; i++) {
-            FormattedCharSequence line = lines.get(i);
-            float x = cell.x() + (MachineRecipeLayout.CELL - font.width(line) * GAS_TEXT_SCALE) / 2.0F;
-            PoseStack pose = graphics.pose();
-            pose.pushPose();
-            pose.translate(x, y, 0);
-            pose.scale(GAS_TEXT_SCALE, GAS_TEXT_SCALE, 1.0F);
-            graphics.drawString(font, line, 0, 0, TEXT_COLOR, true);
-            pose.popPose();
-            y += lineHeight;
+        int[] clip = absoluteCellRect(graphics, cell.x(), cell.y(), MachineRecipeLayout.CELL);
+        graphics.enableScissor(clip[0], clip[1], clip[2], clip[3]);
+        try {
+            for (int i = 0; i < drawn; i++) {
+                FormattedCharSequence line = lines.get(i);
+                float x = cell.x() + (MachineRecipeLayout.CELL - font.width(line) * GAS_TEXT_SCALE) / 2.0F;
+                PoseStack pose = graphics.pose();
+                pose.pushPose();
+                try {
+                    pose.translate(x, y, 0);
+                    pose.scale(GAS_TEXT_SCALE, GAS_TEXT_SCALE, 1.0F);
+                    graphics.drawString(font, line, 0, 0, TEXT_COLOR, true);
+                } finally {
+                    pose.popPose();
+                }
+                y += lineHeight;
+            }
+        } finally {
+            graphics.disableScissor();
         }
-        graphics.disableScissor();
+    }
+
+    /**
+     * 把调用者坐标系里的矩形四角转换到绝对 GUI 坐标，并按像素覆盖范围向外取整。
+     *
+     * <p>左/上取 {@link Mth#floor}、右/下取 {@link Mth#ceil}：GUI 坐标是连续的，而 scissor 只接受整数像素；
+     * 向外取整保证非整数平移（例如 10.4）下最后半个像素列不会被裁掉，代价是可能多覆盖不到一个像素。
+     * 负坐标同样适用。矩阵是 2D 仿射时（平移/轴缩放）这是精确边界；含旋转时得到的是保守外接框。
+     */
+    private static int[] absoluteCellRect(GuiGraphics graphics, int x, int y, int size) {
+        org.joml.Matrix4f matrix = graphics.pose().last().pose();
+        float minX = Float.MAX_VALUE;
+        float minY = Float.MAX_VALUE;
+        float maxX = -Float.MAX_VALUE;
+        float maxY = -Float.MAX_VALUE;
+        for (int cornerX : new int[]{x, x + size}) {
+            for (int cornerY : new int[]{y, y + size}) {
+                float tx = matrix.m00() * cornerX + matrix.m10() * cornerY + matrix.m30();
+                float ty = matrix.m01() * cornerX + matrix.m11() * cornerY + matrix.m31();
+                minX = Math.min(minX, tx);
+                minY = Math.min(minY, ty);
+                maxX = Math.max(maxX, tx);
+                maxY = Math.max(maxY, ty);
+            }
+        }
+        return new int[]{Mth.floor(minX), Mth.floor(minY), Mth.ceil(maxX), Mth.ceil(maxY)};
     }
 
     /**
      * {@code RecipeLayoutPart.Energy}: the 18x54 background always, the 18x54 filled column only while that
-     * side's summed rate is positive ({@code drawEnergy} guarded on {@code energy > 0}).
+     * side's summed rate is positive.
      */
-    private static void drawEnergyCell(GuiGraphics graphics, MachineRecipeLayout.Cell cell, long energyPerTick) {
+    private static void drawEnergyCell(GuiGraphics graphics, MachineRecipeLayout.Cell cell, boolean hasEnergyDemand) {
         MachineRecipeAtlas.ENERGY_EMPTY.draw(graphics, cell.x(), cell.y());
-        if (energyPerTick > 0L) {
+        if (hasEnergyDemand) {
             MachineRecipeAtlas.ENERGY_FILLED.draw(graphics, cell.x(), cell.y());
         }
     }

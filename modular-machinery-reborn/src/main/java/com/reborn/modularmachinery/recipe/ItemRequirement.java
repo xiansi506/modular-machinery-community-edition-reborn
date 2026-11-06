@@ -133,6 +133,11 @@ public final class ItemRequirement extends MachineRequirement {
         return input(ingredient, amount, null, null);
     }
 
+    /** Server definition copy: ItemStack.copy preserves private NBT/capabilities without share-tag hooks. */
+    ItemRequirement definitionCopy() {
+        return new ItemRequirement(ioType(), ingredient, stack, minAmount, maxAmount, chance, nbt, displayTag);
+    }
+
     /**
      * An item input with the original's {@code nbt} template.
      *
@@ -398,14 +403,11 @@ public final class ItemRequirement extends MachineRequirement {
         }
 
         float decidedChance = modifiedChance(modifiers);
-        boolean rollChance = decidedChance < 1.0F;
+        // One gate for this whole output demand, matching the input side. Range amounts still roll
+        // independently for each parallel copy, but only after that group gate succeeds.
+        if (decidedChance < 1.0F && random.nextFloat() >= decidedChance) return true;
         int total = 0;
         for (int copy = 0; copy < copies; copy++) {
-            // The original rolled the chance once for the whole settlement (chance.canWork gated doItemIO), and
-            // rolled a random amount per craft. With the default chance of 1.0 there is nothing to roll.
-            if (rollChance && random.nextFloat() >= decidedChance) {
-                continue;
-            }
             int rolled = perCopy;
             if (this.hasAmountRange()) {
                 int amount = this.minAmount + random.nextInt(this.maxAmount - this.minAmount + 1);
@@ -432,12 +434,16 @@ public final class ItemRequirement extends MachineRequirement {
         return net.minecraftforge.common.ForgeHooks.getBurnTime(stack, net.minecraft.world.item.crafting.RecipeType.SMELTING);
     }
     private long inputCapacity(HatchCollection ports) {
-        if (!option("consume-durability") && !option("fuel-time")) return IngredientIo.count(ports.itemInputs(), this::inputMatches);
+        if (!option("consume-durability") && !option("fuel-time")) return IngredientIo.countLong(ports.itemInputs(), this::inputMatches);
         long count = 0;
         for (var handler : ports.itemInputs()) for (int slot = 0; slot < handler.getSlots(); slot++) {
             ItemStack item = handler.getStackInSlot(slot);
-            if (inputMatches(item)) count += option("fuel-time") ? (long) burnTime(item) * item.getCount()
-                    : (long) (item.getMaxDamage() - item.getDamageValue()) * item.getCount();
+            if (inputMatches(item) && item.getCount() > 0) {
+                long value = Math.max(0L, option("fuel-time") ? burnTime(item)
+                        : (long) item.getMaxDamage() - item.getDamageValue());
+                long capacity = value * item.getCount();
+                count = count > Long.MAX_VALUE - capacity ? Long.MAX_VALUE : count + capacity;
+            }
         }
         return count;
     }

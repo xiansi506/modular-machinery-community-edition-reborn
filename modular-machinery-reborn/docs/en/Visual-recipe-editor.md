@@ -1,6 +1,10 @@
+> **0.123.1:** the JEI screen handler now reserves room on the right. The canvas, advanced forms, title and ghost targets share the adjusted bounds; resizing and draft text are preserved. JEI's global overlay toggle remains under your control. Offline layout checks passed; in-game rendering is pending.
+
+> **0.123.0 / protocol 13:** obtain the standalone **Recipe Editor** item from the MMCER creative tab (`/give @s modular_machinery_reborn:recipe_editor`). Right-click to open; use on a controller to select its machine. The default canvas has input/output slots: click to search by localized name or ID, or drag items/fluids/gases from JEI. Scroll changes amounts, Shift-scroll changes ten, right-click removes, left-click opens details. Use More for other resource types. Enter seconds and FE/t, check, review and save. IDs are generated automatically. Advanced mode retains IDs, parallelism, options, NBT and source editing. Saving does not install/reload recipes; use the reviewed recipe ID for the installation path described below. Closing still ends the draft session.
+
 # Visual recipe editor
 
-Version **0.121.0**, Minecraft 1.20.1 / Forge / Java 17, protocol **12**. Update both peers. The first implementation is complete; real input, drag/drop, GUI and multiplayer acceptance are still pending.
+Version **0.121.62**, Minecraft 1.20.1 / Forge / Java 17, protocol **13**. Update both peers. The first implementation is complete; real input, drag/drop, GUI and multiplayer acceptance are still pending.
 
 Open `/mm-recipe_editor` as a creative player with permission level 2, or `/mm-recipe_editor "namespace:machine"`. The console cannot open a player screen; holding the structure tool is unnecessary.
 

@@ -1,6 +1,6 @@
-# PneumaticCraft and Embers Rekindled (0.119.0)
+# PneumaticCraft and Embers Rekindled (0.121.5)
 
-Minecraft 1.20.1 / Forge / Java 17. This integration targets **PneumaticCraft: Repressurized 6.0.23** and **Embers Rekindled 1.20.1-1.4.7** from [RCXcrafter's repository](https://github.com/RCXcrafter/EmbersRekindled). Each mod is optional and requires its own dependencies. Update both client and server to Reborn 0.119.1, protocol **12**.
+Minecraft 1.20.1 / Forge / Java 17. This integration targets **PneumaticCraft: Repressurized 6.0.23** and **Embers Rekindled 1.20.1-1.4.7** from [RCXcrafter's repository](https://github.com/RCXcrafter/EmbersRekindled). Each mod is optional and requires its own dependencies. Update both client and server to MMCER 0.121.62, protocol **13**.
 
 ## Hatches
 
@@ -24,7 +24,7 @@ Configuration in `modular_machinery_reborn-common.toml`:
 "Ember Capacity" = 256000.0
 ```
 
-Restart and reload the block entity after editing. Drain storage before lowering capacity. Ember loads clamp to the configured capacity. Pneumatic volume uses current configuration, so changing volume changes the pressure represented by saved air.
+As of 0.121.5, an Ember backend keeps its server capacity for its block-entity lifetime, so configuration changes cannot truncate a transfer or rollback midway. A new backend adopts the new capacity; clients display the synced server capacity. Restart and reload the block entity after editing. Drain storage before lowering capacity. Ember loads clamp to the configured capacity. Pneumatic volume uses current configuration, so changing volume changes the pressure represented by saved air.
 
 ## Recipe requirements
 

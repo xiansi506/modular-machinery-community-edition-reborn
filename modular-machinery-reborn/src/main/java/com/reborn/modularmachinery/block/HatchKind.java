@@ -7,7 +7,8 @@ import java.util.List;
 
 /**
  * The six hatch families of the original mod, in the original input/output × item/fluid/energy split,
- * plus the two AE2 ME item buses added by C4 (0.73.0). The ME buses are only registered when AE2 is
+ * plus the two AE2 ME item buses and two Flux Networks wireless energy families. ME buses require AE2;
+ * wireless energy hatches require Flux Networks. The ME buses are only registered when AE2 is
  * installed; the enum constants exist unconditionally so the rest of the code can talk about them
  * without loading any {@code appeng} class.
  *
@@ -41,7 +42,10 @@ public enum HatchKind implements StringRepresentable {
 
     /** C4（0.73.0）：AE2 ME 物品输出总线，固定 36 个输出槽；0.73.2 起状态属性同样允许两个 ME tier。 */
     ME_ITEM_OUTPUT("me_item_output_bus", List.of(HatchTier.ME_OUTPUT),
-            List.of(HatchTier.ME_INPUT, HatchTier.ME_OUTPUT), false, Family.ITEM);
+            List.of(HatchTier.ME_INPUT, HatchTier.ME_OUTPUT), false, Family.ITEM),
+
+    WIRELESS_ENERGY_INPUT("wireless_energy_input_hatch", HatchTier.ENERGY_LADDER, true, Family.ENERGY),
+    WIRELESS_ENERGY_OUTPUT("wireless_energy_output_hatch", HatchTier.ENERGY_LADDER, false, Family.ENERGY);
 
     /** Which storage a hatch of this family carries. */
     public enum Family {
@@ -116,6 +120,10 @@ public enum HatchKind implements StringRepresentable {
     /** C4（0.73.0）：这是不是两个 AE2 ME 物品总线之一。 */
     public boolean isMeBus() {
         return this == ME_ITEM_INPUT || this == ME_ITEM_OUTPUT;
+    }
+
+    public boolean isWirelessEnergy() {
+        return this == WIRELESS_ENERGY_INPUT || this == WIRELESS_ENERGY_OUTPUT;
     }
 
     /** The {@code size} blockstate property for this family. */

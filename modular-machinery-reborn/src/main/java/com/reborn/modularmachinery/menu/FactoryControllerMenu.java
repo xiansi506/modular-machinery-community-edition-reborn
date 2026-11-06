@@ -155,8 +155,21 @@ public final class FactoryControllerMenu extends AbstractContainerMenu {
 
     private final MachineControllerBlockEntity machine;
 
+    /**
+     * The client's mirror of {@link #DATA_MAX_PARALLELISM}, written when the server broadcasts that index.
+     * The client block entity's own ceiling is never synced through the menu, so without this mirror the
+     * screen would always see the initial 1. Each broadcast replaces the value; until the first sync (and
+     * for anything out of range) the getter's floor keeps the safe default. The sending side is unaffected:
+     * {@code get} keeps reading the machine's authoritative, live ceiling.
+     */
+    private int clientMaxParallelism = 1;
+    private final int[] received = new int[DATA_COUNT];
+
     private final ContainerData data = new ContainerData() {
         @Override public int get(int index) {
+            if (machine.getLevel() != null && machine.getLevel().isClientSide) {
+                return index >= 0 && index < received.length ? received[index] : 0;
+            }
             return switch (index) {
                 case DATA_FORMED -> machine.isFormed() ? 1 : 0;
                 case DATA_REDSTONE_STOPPED -> machine.isRedstoneStopped() ? 1 : 0;
@@ -182,11 +195,13 @@ public final class FactoryControllerMenu extends AbstractContainerMenu {
         }
 
         @Override public void set(int index, int value) {
+            if (index >= 0 && index < received.length) received[index] = value;
             switch (index) {
                 case DATA_FORMED -> machine.setClientFormed(value != 0);
                 case DATA_REDSTONE_STOPPED -> machine.setClientRedstoneStopped(value != 0);
                 case DATA_STATUS -> machine.setClientStatus(value);
                 case DATA_MAX_THREADS -> machine.setClientFactoryMaxThreads(value);
+                case DATA_MAX_PARALLELISM -> clientMaxParallelism = Math.max(1, value);
                 case DATA_USED_TIME_AVG -> machine.setClientTiming(value, machine.searchUsedTimeAvg());
                 case DATA_SEARCH_TIME_AVG -> machine.setClientTiming(machine.usedTimeAvg(), value);
                 default -> { }
@@ -203,7 +218,9 @@ public final class FactoryControllerMenu extends AbstractContainerMenu {
         this.machine = machine;
         addSlot(new BlueprintSlot(machine.items(), MachineControllerBlockEntity.BLUEPRINT_SLOT,
                 BLUEPRINT_SLOT_X, BLUEPRINT_SLOT_Y));
-        addDataSlots(this.data);
+        addDataSlots(new IntContainerData(this.data, DATA_ORDINARY_THREADS, DATA_CORE_THREADS,
+                DATA_MAX_THREADS, DATA_TOTAL_THREADS, DATA_MAX_PARALLELISM, DATA_USED_TIME_AVG,
+                DATA_SEARCH_TIME_AVG));
         // One layout table, consumed here: the slots the menu registers and the rectangles the checks compare
         // against the texture's holes cannot drift apart.
         int[][] playerSlots = playerSlotRects();
@@ -240,8 +257,12 @@ public final class FactoryControllerMenu extends AbstractContainerMenu {
     /** Core threads first, then ordinary ones; the drawn list order ({@code allThreads()}). */
     public int totalThreads() { return Math.max(0, this.data.get(DATA_TOTAL_THREADS)); }
 
-    /** The parallelism ceiling, the original's {@code getTotalParallelism()} guard value. */
-    public int maxParallelism() { return Math.max(1, this.data.get(DATA_MAX_PARALLELISM)); }
+    /**
+     * The parallelism ceiling, the original's {@code getTotalParallelism()} guard value. On the client this
+     * is the last value broadcast on {@link #DATA_MAX_PARALLELISM}; the server's real ceiling is read
+     * through {@code get} when broadcasting, never through this client-facing accessor.
+     */
+    public int maxParallelism() { return Math.max(1, this.clientMaxParallelism); }
 
     /** The factory's status, the same five values the plain controller screen prints. */
     public ControllerStatus status() { return ControllerStatus.byOrdinal(this.data.get(DATA_STATUS)); }
@@ -259,6 +280,7 @@ public final class FactoryControllerMenu extends AbstractContainerMenu {
 
     @Override
     public ItemStack quickMoveStack(Player player, int index) {
+        if (!stillValid(player)) return ItemStack.EMPTY;
         Slot slot = this.slots.get(index);
         if (!slot.hasItem()) {
             return ItemStack.EMPTY;
@@ -293,7 +315,7 @@ public final class FactoryControllerMenu extends AbstractContainerMenu {
 
     @Override
     public boolean stillValid(Player player) {
-        return this.machine.getBlockPos().closerToCenterThan(player.position(), 8.0);
+        return BlockEntityMenuAccess.stillValid(player, machine);
     }
 
     /** The original's {@code SlotBlueprint}: only blueprints may go in. */

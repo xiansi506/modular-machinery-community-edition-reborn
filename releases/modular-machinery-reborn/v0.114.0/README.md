@@ -11,4 +11,4 @@
 - 字节：1,306,979
 - SHA-256：`EB136AAB164737C067774ED782FF9BE84A919858C57C9C04F5B3B7D7AB82B9CF`
 
-[使用规则](../../../modular-machinery-reborn/docs/进阶/世界模型隐藏.md) · [交接](../../../modular-machinery-reborn/docs/开发/交接-2026-10-23.md) · [验证记录](../../../_audit/world-hiding-0.114.0/世界模型隐藏更新.md)
+[使用规则](../../../modular-machinery-reborn/docs/进阶/世界模型隐藏.md) · [交接](../../../modular-machinery-reborn/docs/开发/交接-2026-10-23.md) · 验证记录（本地审计工件，不随本次发布）

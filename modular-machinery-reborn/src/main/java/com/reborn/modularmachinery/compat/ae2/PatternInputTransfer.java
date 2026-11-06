@@ -10,7 +10,14 @@ import net.minecraftforge.fluids.FluidStack;
 import net.minecraftforge.fluids.capability.IFluidHandler;
 import net.minecraftforge.items.IItemHandler;
 
-/** AE2 false 必须表示本批完全未接收；所有成分先共用事务副本，最后一次提交。 */
+/**
+ * Legacy explicit-only direct-transfer compatibility API. The production provider does not call this:
+ * it accepts inputs into {@link ProviderState}'s buffers. Retained for external binary/source compatibility,
+ * not a supported alternate provider mode. Planning uses ResourceTransaction's supported-port contract;
+ * arbitrary external capabilities do not acquire a general atomicity guarantee by calling this method.
+ * @deprecated Prefer the existing provider-buffer path; do not wire direct push into provider dispatch.
+ */
+@Deprecated(since = "0.121.79", forRemoval = false)
 public final class PatternInputTransfer {
     private PatternInputTransfer() { }
 

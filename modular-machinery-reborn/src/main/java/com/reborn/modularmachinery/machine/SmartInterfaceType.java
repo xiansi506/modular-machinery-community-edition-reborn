@@ -53,6 +53,9 @@ public record SmartInterfaceType(String type, float defaultValue, String header,
 
     public SmartInterfaceType(String type, float defaultValue, String header, @Nullable String valueFormat,
                               String footer, int priority, @Nullable String notEqual) {
+        if (!Float.isFinite(defaultValue)) {
+            throw new IllegalArgumentException("Smart interface default must be finite: " + type);
+        }
         this.type = type;
         this.defaultValue = defaultValue;
         this.header = header == null ? "" : header;

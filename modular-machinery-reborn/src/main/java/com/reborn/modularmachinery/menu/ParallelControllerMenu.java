@@ -48,7 +48,7 @@ public final class ParallelControllerMenu extends AbstractContainerMenu {
     public ParallelControllerMenu(int id, Inventory inventory, ParallelControllerBlockEntity controller) {
         super(ModMenus.PARALLEL_CONTROLLER.get(), id);
         this.controller = controller;
-        addDataSlots(this.data);
+        addDataSlots(new IntContainerData(this.data, DATA_MAX_PARALLELISM, DATA_PARALLELISM));
     }
 
     public ParallelControllerMenu(int id, Inventory inventory, FriendlyByteBuf buf) {
@@ -75,6 +75,6 @@ public final class ParallelControllerMenu extends AbstractContainerMenu {
 
     @Override
     public boolean stillValid(Player player) {
-        return this.controller.getBlockPos().closerToCenterThan(player.position(), 8.0);
+        return BlockEntityMenuAccess.stillValid(player, controller);
     }
 }

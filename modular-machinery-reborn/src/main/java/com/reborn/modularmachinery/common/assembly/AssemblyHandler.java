@@ -124,7 +124,8 @@ public final class AssemblyHandler {
         // 未成型控制器：dynamicPatterns 为空（结构检查没跑过）→ assembleUnrotated 用各段 minSize，
         // rotationSteps 从方块朝向取得；已成型时沿用匹配得到的朝向。
         var structure = MachineStructures.runtimeStructure(controller, machine);
-        MachineAssembly.start(player, pos, AssemblyIngredient.missing(structure, player.level(), pos));
+        MachineAssembly.start(player, pos, AssemblyIngredient.missing(structure, player.level(), pos),
+                controller, machine);
         return true;
     }
 
@@ -142,14 +143,25 @@ public final class AssemblyHandler {
         }
         for (MachineAssembly assembly : MachineAssemblyManager.ofPlayer(player.getUUID())) {
             if (!level.dimension().equals(assembly.dimension())) continue;
-            if (!(level.getBlockEntity(assembly.ctrlPos()) instanceof MachineControllerBlockEntity)) {
+            int state = assembly.checkTarget(level);
+            if (state == MachineAssembly.TARGET_PAUSED) continue;
+            if (state == MachineAssembly.TARGET_INVALID) {
                 MachineAssemblyManager.remove(level.dimension(), assembly.ctrlPos());
                 player.displayClientMessage(Component.translatable(
                         "message.modular_machinery_reborn.assembly.cancelled")
                         .withStyle(ChatFormatting.RED), false);
                 return;
             }
-            if (assembly.tickPlace(level, player) && assembly.isCompleted()) {
+            boolean finished = assembly.tickPlace(level, player);
+            // tickPlace validates again: direct callers cannot bypass the target check.
+            if (assembly.isCancelled()) {
+                MachineAssemblyManager.remove(level.dimension(), assembly.ctrlPos());
+                player.displayClientMessage(Component.translatable(
+                        "message.modular_machinery_reborn.assembly.cancelled")
+                        .withStyle(ChatFormatting.RED), false);
+                return;
+            }
+            if (finished && assembly.isCompleted()) {
                 MachineAssemblyManager.remove(level.dimension(), assembly.ctrlPos());
                 player.displayClientMessage(Component.translatable(
                         "message.modular_machinery_reborn.assembly.success")

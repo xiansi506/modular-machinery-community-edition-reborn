@@ -19,7 +19,15 @@ import javax.annotation.Nullable;
  * {@link IFluidHandler} 视图（本类实现）给端口/管道用——找「同流体或第一个空罐」的普通罐语义。
  * 不 import AE2：网络侧的搬运由 {@link MeFluidBusLogic.Storage} 适配。
  */
-public final class MeFluidTanks implements IFluidHandler {
+public final class MeFluidTanks implements IFluidHandler,
+        com.reborn.modularmachinery.recipe.ResourceTransaction.CandidateFluids,
+        com.reborn.modularmachinery.recipe.ResourceTransaction.SnapshotParticipant {
+
+    @Override public int candidateFillLimit(java.util.List<FluidStack> contents, FluidStack offered) { return offered.getAmount(); }
+    @Override public int candidateDrainLimit(java.util.List<FluidStack> contents, FluidStack requested) { return requested.getAmount(); }
+    @Override public Object transactionSnapshot() { return serializeNBT(); }
+    @Override public boolean transactionUnchanged(Object snapshot) { return serializeNBT().equals(snapshot); }
+    @Override public void transactionRestore(Object snapshot) { deserializeNBT(((CompoundTag) snapshot).copy()); }
 
     /** 旧版 {@code MEFluidBus.TANK_SLOT_AMOUNT}。 */
     public static final int SLOTS = 9;

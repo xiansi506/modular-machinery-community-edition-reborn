@@ -157,7 +157,8 @@ public final class MachineRootFields {
         double[] values = new double[6];
         for (int i = 0; i < values.length; i++) {
             try {
-                values[i] = array.get(i).getAsDouble();
+                values[i] = com.reborn.modularmachinery.util.JsonNumbers.finite(array.get(i), true,
+                        where + " controller-bounding-box[" + i + "]");
             } catch (RuntimeException e) {
                 throw new JsonParseException("Invalid 'controllerBoundingBox'! Expected an array of six numbers in "
                         + where + ", but element " + i + " is " + array.get(i) + ".", e);

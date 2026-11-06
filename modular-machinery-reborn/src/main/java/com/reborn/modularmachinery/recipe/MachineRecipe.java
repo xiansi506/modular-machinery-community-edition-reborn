@@ -66,14 +66,77 @@ import java.util.concurrent.atomic.AtomicInteger;
  * {@code canRestartCrafting}.
  */
 public final class MachineRecipe implements Recipe<Container> {
+    public static final String FAILURE_QUANTITY_RANGE = "craftcheck.failure.quantity.range";
+    public static final String FAILURE_TICK = "craftcheck.failure.tick";
     private int executionTick;
+    private boolean finalTickPaid;
+    public boolean hasPaidFinalTick() { return finalTickPaid; }
+    public void markFinalTickPaid() { finalTickPaid = true; }
+    private String definitionFingerprint;
     public void setExecutionTick(int tick) { executionTick = Math.max(0, tick); }
     public net.minecraft.nbt.CompoundTag saveExecutionState() {
         var tag = new net.minecraft.nbt.CompoundTag();
+        tag.putString("definition", definitionFingerprint());
+        tag.putBoolean("finalTickPaid", finalTickPaid);
         tag.putIntArray("triggered", java.util.stream.IntStream.range(0, requirements.size()).filter(i -> requirements.get(i).triggered()).toArray());
         return tag;
     }
+
+    /** Payment indices are meaningful only for the same definition, never merely the same recipe id. */
+    public boolean canRestoreExecutionState(net.minecraft.nbt.CompoundTag tag) {
+        return definitionFingerprint().equals(tag.getString("definition"));
+    }
+
+    private String definitionFingerprint() {
+        if (definitionFingerprint != null) return definitionFingerprint;
+        var buffer = new net.minecraft.network.FriendlyByteBuf(io.netty.buffer.Unpooled.buffer());
+        try {
+            buffer.writeVarInt(machines.size());
+            for (String machine : machines) writeDefinitionText(buffer, machine);
+            buffer.writeVarInt(recipeTime);
+            buffer.writeVarInt(maxParallelism);
+            buffer.writeBoolean(cancelIfPerTickFails);
+            commands.write(buffer);
+            buffer.writeVarInt(requirements.size());
+            for (MachineRequirement requirement : requirements) {
+                if (requirement instanceof ItemRequirement item) {
+                    // Avoid client share-tag hooks: both private output data and input predicates belong
+                    // to the server definition. Ingredient JSON retains custom/tag matching semantics.
+                    writeDefinitionText(buffer, item.type().id().toString());
+                    writeDefinitionText(buffer, item.ioType().name());
+                    buffer.writeVarInt(item.minAmount());
+                    buffer.writeVarInt(item.maxAmount());
+                    buffer.writeFloat(item.chance());
+                    if (item.ioType() == IOType.INPUT) {
+                        writeDefinitionText(buffer, item.ingredient().toJson().toString());
+                        writeDefinitionText(buffer, item.nbt() == null ? "" : item.nbt().source());
+                    } else {
+                        buffer.writeNbt(item.outputStack().save(new net.minecraft.nbt.CompoundTag()));
+                    }
+                    writeDefinitionText(buffer, item.selectorTag() == null ? "" : item.selectorTag());
+                    buffer.writeBoolean(item.isParallelizeUnaffected());
+                    writeDefinitionText(buffer, item.scriptOptions().toString());
+                } else {
+                    MachineRequirementParser.write(buffer, requirement);
+                }
+            }
+            byte[] bytes = new byte[buffer.readableBytes()];
+            buffer.getBytes(buffer.readerIndex(), bytes);
+            definitionFingerprint = java.util.HexFormat.of().formatHex(
+                    java.security.MessageDigest.getInstance("SHA-256").digest(bytes));
+            return definitionFingerprint;
+        } catch (java.security.NoSuchAlgorithmException unavailable) {
+            throw new IllegalStateException("SHA-256 is required by the Java runtime", unavailable);
+        } finally {
+            buffer.release();
+        }
+    }
+
+    private static void writeDefinitionText(net.minecraft.network.FriendlyByteBuf buffer, String text) {
+        buffer.writeByteArray(text.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+    }
     public void loadExecutionState(net.minecraft.nbt.CompoundTag tag) {
+        finalTickPaid = tag.getBoolean("finalTickPaid");
         for (MachineRequirement requirement : requirements) requirement.setTriggered(false);
         for (int index : tag.getIntArray("triggered")) if (index >= 0 && index < requirements.size()) requirements.get(index).setTriggered(true);
     }
@@ -465,7 +528,7 @@ public final class MachineRecipe implements Recipe<Container> {
         if (!element.isJsonPrimitive() || !element.getAsJsonPrimitive().isNumber()) {
             throw new JsonParseException("'priority' has to be a number! (if specified) in " + id);
         }
-        return element.getAsInt();
+        return com.reborn.modularmachinery.util.JsonNumbers.integer(element, Integer.MIN_VALUE, Integer.MAX_VALUE, id + " priority");
     }
 
     public List<MachineRequirement> requirements(IOType ioType) {
@@ -553,6 +616,38 @@ public final class MachineRecipe implements Recipe<Container> {
         return true;
     }
 
+    /** Admission may not assume that paying one fractional copy is a prerequisite for paying N.
+     * The ordinary one-copy path stays unchanged; only its fractional start refusal needs a search.
+     * Used on execution copies. Final events, start checks and transactional payment still run normally. */
+    public StartPlan prepareParallelStart(HatchCollection ports, RecipeModifiers base, int ceiling) {
+        parallelSearchIncomplete = false;
+        StartPlan ordinary = prepareStart(ports, base);
+        if (ordinary.feasible() || ceiling <= 1 || requirements.stream().noneMatch(r ->
+                r instanceof com.reborn.modularmachinery.magic.MagicRequirement magic
+                        && !magic.family.integerUnits() && r.isStartPhase())) return ordinary;
+        int previous = parallelism();
+        java.util.LinkedHashSet<Integer> selected = new java.util.LinkedHashSet<>();
+        for (int i = 0; i < requirements.size(); i++)
+            if (requirements.get(i) instanceof CatalystRequirement catalyst
+                    && catalyst.hasCatalyst(catalyst.visiblePorts(ports))) selected.add(i);
+        while (true) {
+            List<RecipeModifier> contributions = new ArrayList<>();
+            for (int index : selected) contributions.addAll(((CatalystRequirement) requirements.get(index)).modifiers());
+            RecipeModifiers catalysts = RecipeModifiers.of(contributions), effective = base.andThen(catalysts);
+            applyDurationMultiplier(effective);
+            int count = parallelism(ports, effective, ceiling, selected);
+            if (count > 0) {
+                setParallelism(count);
+                return new StartPlan(this, effective, catalysts, selected, count, true);
+            }
+            if (parallelSearchIncomplete() || selected.isEmpty()) {
+                setParallelism(previous);
+                return new StartPlan(this, effective, catalysts, selected, previous, false);
+            }
+            selected.remove(new ArrayList<>(selected).get(selected.size() - 1));
+        }
+    }
+
     private boolean reserveStart(HatchCollection ports, RecipeModifiers modifiers, java.util.Set<Integer> selected) {
         if (!reserveOrdinaryStart(ports, modifiers)) return false;
         for (int index : selected) {
@@ -594,7 +689,8 @@ public final class MachineRecipe implements Recipe<Container> {
     }
 
     private int parallelism(HatchCollection ports, RecipeModifiers modifiers, int ceiling,
-                            java.util.Set<Integer> selected) {
+                             java.util.Set<Integer> selected) {
+        parallelSearchIncomplete = false;
         int limit = this.maxParallelism > 0 ? Math.min(ceiling, this.maxParallelism) : ceiling;
         if (limit <= 0) {
             return 0;
@@ -612,6 +708,38 @@ public final class MachineRecipe implements Recipe<Container> {
         int low = 0, high = limit;
         int[] previous = this.requirements.stream().mapToInt(MachineRequirement::parallelism).toArray();
         try {
+            boolean fractional = requirements.stream().anyMatch(r -> r instanceof com.reborn.modularmachinery.magic.MagicRequirement magic
+                    && magic.hasCandidateDependentFractionalCost(modifiers)
+                    && (inPhase(r, 0, modifiers) || inPhase(r, 1, modifiers)
+                        || !r.option("ignore-output-check") && inPhase(r, 2, modifiers)));
+            fractional = fractional && !exactFractionalPlanning(ports, modifiers, limit);
+            if (fractional) {
+                // A non-moving double subtraction is refused by Planned. Consequently feasible counts
+                // need not be a prefix. Never apply the monotone binary search to this domain.
+                int budget = Math.min(4096, 65536 / Math.max(1, requirements.size()));
+                List<GridConstraint> constraints = limit > budget ? fractionalGrids(ports, modifiers, limit) : List.of();
+                FractionalParallelSearch.Budget proofBudget = new FractionalParallelSearch.Budget(65536);
+                int work = 0;
+                for (int candidate = limit; candidate > 0;) {
+                    if (++work > budget) { parallelSearchIncomplete = true; return 0; }
+                    if (candidate != limit && limit > budget) {
+                        if (constraints.isEmpty()) { parallelSearchIncomplete = true; return 0; }
+                        int next = candidate;
+                        for (GridConstraint constraint : constraints) {
+                            if (!constraint.unchanged().getAsBoolean()) { parallelSearchIncomplete = true; return 0; }
+                            try { next = Math.min(next, constraint.window().previous(next, proofBudget)); }
+                            catch (FractionalParallelSearch.Exhausted exhausted) { parallelSearchIncomplete = true; return 0; }
+                        }
+                        if (next <= 0) return 0;
+                        if (next < candidate) { candidate = next; continue; }
+                    }
+                    setParallelism(candidate);
+                    boolean start = selected == null ? checkPhase(ports, modifiers, 0) : checkStart(ports, modifiers, selected);
+                    if (start && checkPhase(ports, modifiers, 1) && checkPhase(ports, modifiers, 2)) return candidate;
+                    candidate--;
+                }
+                return 0;
+            }
             while (low < high) {
                 int middle = low + (int) (((long) high - low + 1) / 2);
                 setParallelism(middle);
@@ -627,11 +755,98 @@ public final class MachineRecipe implements Recipe<Container> {
         }
     }
 
+    private boolean parallelSearchIncomplete;
+    /** A finite complete search was not possible; zero is not evidence that all candidate counts fail. */
+    public boolean parallelSearchIncomplete() { return parallelSearchIncomplete; }
+
+    private record GridConstraint(FractionalParallelSearch.Window window,
+                                  java.util.function.BooleanSupplier unchanged) {}
+    /** Known linear planners remain monotone when the entire phase fits an exact dyadic lattice.
+     * In particular, ordinary integer/half-unit outputs starting from zero must not be over-rejected.
+     * Mixed IO on one identity is excluded: fixed inputs can otherwise become feasible only at larger N. */
+    private boolean exactFractionalPlanning(HatchCollection ports, RecipeModifiers modifiers, int limit) {
+        for (int phase = 0; phase < 3; phase++) {
+            java.util.Map<com.reborn.modularmachinery.magic.MagicPort.Key, Double> amounts = new java.util.HashMap<>();
+            java.util.Map<com.reborn.modularmachinery.magic.MagicPort.Key, Double> quanta = new java.util.HashMap<>();
+            java.util.Map<com.reborn.modularmachinery.magic.MagicPort.Key, Double> balances = new java.util.HashMap<>();
+            java.util.Map<com.reborn.modularmachinery.magic.MagicPort.Key, Integer> directions = new java.util.HashMap<>();
+            for (MachineRequirement r : requirements) {
+                if (!(r instanceof com.reborn.modularmachinery.magic.MagicRequirement magic)
+                        || magic.family.integerUnits() || !inPhase(r, phase, modifiers)
+                        || phase == 2 && r.option("ignore-output-check")) continue;
+                if (magic.getClass() != com.reborn.modularmachinery.magic.MagicRequirement.class) return false;
+                double unit = magic.parallelSearchCost(modifiers, 1);
+                double maximum = magic.parallelSearchCost(modifiers, r.isParallelizable() ? limit : 1);
+                if (!Double.isFinite(unit) || !Double.isFinite(maximum)) return false;
+                for (var port : magic.parallelSearchPorts(r.visiblePorts(ports))) {
+                    if (!port.access().linearParallelPlanning()) return false;
+                    double before = port.access().amount();
+                    if (!Double.isFinite(before) || !Double.isFinite(port.minimum()) || !Double.isFinite(port.maximum())) return false;
+                    double quantum = Math.min(FractionalParallelSearch.exactQuantum(unit), Math.min(
+                            FractionalParallelSearch.exactQuantum(before), Math.min(
+                            FractionalParallelSearch.exactQuantum(port.minimum()), FractionalParallelSearch.exactQuantum(port.maximum()))));
+                    amounts.merge(port.key(), Math.nextUp(maximum), (a,b) -> Math.nextUp(a + b));
+                    quanta.merge(port.key(), quantum, Math::min); balances.put(port.key(), before);
+                    directions.merge(port.key(), r.ioType() == IOType.INPUT ? 1 : 2, (a,b) -> a | b);
+                }
+            }
+            for (var key : amounts.keySet()) {
+                double bound = Math.nextUp(Math.abs(balances.get(key)) + amounts.get(key));
+                if (directions.get(key) == 3 || !Double.isFinite(bound)
+                        || Math.nextUp(bound / quanta.get(key)) > 0x1p53) return false;
+            }
+        }
+        return true;
+    }
+    /** Conservative envelopes include every matching alias/requirement in each phase. A grid is used
+     * only when the first eligible port alone can pay the complete demand throughout the envelope;
+     * splitting/clamping or an unknown planner never supplies an unproven exclusion hint. */
+    private List<GridConstraint> fractionalGrids(HatchCollection ports, RecipeModifiers modifiers, int limit) {
+        List<GridConstraint> result = new ArrayList<>();
+        for (int phase = 0; phase < 3; phase++) {
+            java.util.Map<com.reborn.modularmachinery.magic.MagicPort.Key, Double> amounts = new java.util.HashMap<>();
+            java.util.Map<com.reborn.modularmachinery.magic.MagicPort.Key, Integer> steps = new java.util.HashMap<>();
+            java.util.Map<com.reborn.modularmachinery.magic.MagicRequirement,
+                    List<com.reborn.modularmachinery.magic.MagicRequirement.ParallelPort>> options = new java.util.LinkedHashMap<>();
+            for (MachineRequirement r : requirements) {
+                if (!(r instanceof com.reborn.modularmachinery.magic.MagicRequirement magic)
+                        || magic.family.integerUnits() || !inPhase(r, phase, modifiers)
+                        || phase == 2 && r.option("ignore-output-check")) continue;
+                var candidates = magic.parallelSearchPorts(r.visiblePorts(ports)); options.put(magic, candidates);
+                double maximum = magic.getClass() == com.reborn.modularmachinery.magic.MagicRequirement.class
+                        ? magic.parallelSearchCost(modifiers, r.isParallelizable() ? limit : 1) : Double.NaN;
+                for (var candidate : candidates) {
+                    amounts.merge(candidate.key(), maximum, (a,b) -> Math.nextUp(a + b));
+                    steps.merge(candidate.key(), 1, Integer::sum);
+                }
+            }
+            for (var entry : options.entrySet()) {
+                var requirement = entry.getKey();
+                if (!requirement.hasCandidateDependentFractionalCost(modifiers) || entry.getValue().isEmpty()) continue;
+                var first = entry.getValue().get(0); var access = first.access();
+                double before = access.amount(), amount = amounts.get(first.key());
+                double rounding = 4d * steps.get(first.key()) * Math.ulp(Math.nextUp(Math.abs(before) + amount));
+                double margin = Math.nextUp(amount + rounding);
+                double lower = Math.nextDown(before - margin), upper = Math.nextUp(before + margin);
+                if (!Double.isFinite(lower) || !Double.isFinite(upper) || lower < first.minimum() || upper > first.maximum()) continue;
+                double quantum = access.parallelQuantum(lower, upper);
+                var window = FractionalParallelSearch.window(requirement.parallelSearchCost(modifiers, 1), quantum,
+                        requirement.parallelSearchCost(modifiers, limit));
+                if (window == null) continue;
+                Object snapshot = access.snapshot();
+                result.add(new GridConstraint(window, () -> access.unchanged(snapshot)));
+            }
+        }
+        return result;
+    }
+
     /** 每次合成持有独立需求状态，注册表对象始终只作为定义使用。 */
     public MachineRecipe executionCopy() {
-        return new MachineRecipe(id, machines, registryName, recipeTime,
+        MachineRecipe copy = new MachineRecipe(id, machines, registryName, recipeTime,
                 requirements.stream().map(MachineRequirementParser::copy).toList(), maxParallelism,
                 cancelIfPerTickFails, commands, priority, sortId, tooltips, adapterKey, adapterModifiers);
+        copy.definitionFingerprint = definitionFingerprint();
+        return copy;
     }
 
     /**
@@ -724,13 +939,36 @@ public final class MachineRecipe implements Recipe<Container> {
             if (!requirement.isStartPhase() || requirement instanceof CatalystRequirement) {
                 continue;
             }
-            if (requirement.reserve(requirement.visiblePorts(snapshot), modifiers)) {
-                continue;
+            try {
+                if (requirement.reserve(requirement.visiblePorts(snapshot), modifiers)) {
+                    continue;
+                }
+            } catch (ArithmeticException tooLarge) {
+                // Normal preflight already rejects these quantities; diagnostics must not turn refusal into a tick crash.
+                return FAILURE_QUANTITY_RANGE;
             }
             String message = requirement.startFailure(ports);
             if (message != null) {
                 return message;
             }
+        }
+        return null;
+    }
+
+    /** Read-only diagnostic for this execution tick, including due delayed requirements. */
+    @javax.annotation.Nullable
+    public String tickFailure(HatchCollection ports, RecipeModifiers modifiers) {
+        HatchCollection snapshot = ports.transactionView(new ResourceTransaction());
+        for (MachineRequirement requirement : requirements) {
+            if (!inPhase(requirement, 1, modifiers)) continue;
+            HatchCollection visible = requirement.visiblePorts(snapshot);
+            try {
+                if (requirement.reserve(visible, modifiers)) continue;
+            } catch (ArithmeticException tooLarge) {
+                return FAILURE_QUANTITY_RANGE;
+            }
+            String message = requirement.startFailure(visible);
+            return message == null ? FAILURE_TICK : message;
         }
         return null;
     }
@@ -746,6 +984,16 @@ public final class MachineRecipe implements Recipe<Container> {
     }
 
     public boolean start(HatchCollection ports, RandomSource random, StartPlan plan) {
+        return start(ports, random, plan, () -> true);
+    }
+
+    /**
+     * Plans the ordinary inputs and selected catalysts before checking a side-effect-free admission guard.
+     * A refusal discards the unpaid plan. Existing callers keep their default-allowed start contract.
+     * This does not make arbitrary external capability callbacks during commit atomic with admission.
+     */
+    public boolean start(HatchCollection ports, RandomSource random, StartPlan plan,
+                         java.util.function.BooleanSupplier admission) {
         if (!canStart(ports, plan)) return false;
         ResourceTransaction transaction = new ResourceTransaction();
         HatchCollection snapshot = ports.transactionView(transaction);
@@ -757,8 +1005,9 @@ public final class MachineRecipe implements Recipe<Container> {
             CatalystRequirement catalyst = (CatalystRequirement) requirements.get(index);
             if (!catalyst.applyRequired(catalyst.visiblePorts(snapshot), random)) return false;
         }
-        if (!transaction.commit()) return false;
+        if (!admission.getAsBoolean() || !transaction.commit()) return false;
         for (MachineRequirement requirement : requirements) requirement.setTriggered(false);
+        finalTickPaid = false;
         executionTick = 0;
         return true;
     }
@@ -795,6 +1044,24 @@ public final class MachineRecipe implements Recipe<Container> {
     /** {@link #canFinish} with modifiers applied to every requirement. */
     public boolean canFinish(HatchCollection ports, RecipeModifiers modifiers) {
         return checkPhase(ports, modifiers, 2);
+    }
+
+    /** Guaranteed tick then finish on one read-only ledger, including room freed/used by that tick. */
+    public boolean canTickAndFinish(HatchCollection ports, RecipeModifiers modifiers) {
+        HatchCollection snapshot = ports.transactionView(new ResourceTransaction());
+        try {
+            for (int phase = 1; phase <= 2; phase++) {
+                for (MachineRequirement requirement : requirements) {
+                    if (phase == 2 && (requirement.option("ignore-output-check")
+                            || requirement.triggerTime() > 0 && inPhase(requirement, 1, modifiers))) continue;
+                    if (inPhase(requirement, phase, modifiers)
+                            && !requirement.reserve(requirement.visiblePorts(snapshot), modifiers)) return false;
+                }
+            }
+            return true;
+        } catch (ArithmeticException tooLarge) {
+            return false;
+        }
     }
 
     /** Produces the outputs, rolling each output requirement's chance on its own. */

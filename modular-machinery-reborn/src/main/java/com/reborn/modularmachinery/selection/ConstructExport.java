@@ -67,7 +67,9 @@ public final class ConstructExport {
             String description=descriptor(options.replacements().getOrDefault(original,SelectionExport.describe(state)),options.states());
             BlockPos offset=SelectionExport.rotate(at.subtract(origin),steps);JsonObject part=new JsonObject();
             part.addProperty("x",offset.getX());part.addProperty("y",offset.getY());part.addProperty("z",offset.getZ());part.addProperty("elements",description);
-            BlockEntity entity=world.getBlockEntity(at);
+            // Fetch and serialize the entity only when at least one NBT filter will consume the snapshot.
+            boolean wantsNbt=!options.matchingNbt().isBlank()||!options.previewNbt().isBlank();
+            BlockEntity entity=wantsNbt?world.getBlockEntity(at):null;
             if(entity!=null&&!(entity instanceof MachineCasingBlockEntity)&&!options.replacements().containsKey(original)){
                 CompoundTag tag=entity.saveWithoutMetadata();
                 if(!options.matchingNbt().isBlank())part.add("nbt",LiteralNbt.encode(filter(tag,options.matchingNbt())));

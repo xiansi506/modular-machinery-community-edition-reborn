@@ -10,6 +10,7 @@ import net.minecraft.util.RandomSource;
 import javax.annotation.Nullable;
 import java.util.List;
 import java.util.Set;
+import java.util.function.BooleanSupplier;
 
 /**
  * One factory thread: a recipe-running state slot, the equivalent of the original's {@code FactoryRecipeThread}
@@ -72,6 +73,12 @@ public final class FactoryThread {
      * half-finished craft onto a different group's ports after a restart. Freezing it here is deliberate.
      */
     public static final String TAG_GROUP_ID = "groupId";
+    /**
+     * The engine-wide creation identity of this slot. Not an original key: before 0.121.51 it was derived
+     * again while loading, so replaying one server packet renumbered client slots. It is an optional,
+     * backward-compatible addition to the existing thread compound tags.
+     */
+    public static final String TAG_THREAD_ORDINAL = "threadOrdinal";
 
     private final boolean coreThread;
     @Nullable
@@ -241,7 +248,8 @@ public final class FactoryThread {
      * worked, and {@link #clear} drops one that did not. The pre-checks run first, so the common "cannot start"
      * answer costs no consumption at all.
      */
-    boolean begin(FactoryEngine.ActiveCraft craft, HatchCollection ports, RandomSource random) {
+    boolean begin(FactoryEngine.ActiveCraft craft, HatchCollection ports, RandomSource random,
+                  BooleanSupplier admission) {
         MachineRecipe recipe = craft.recipe();
         int parallelism = Math.max(1, craft.parallelism());
         recipe.setParallelism(parallelism);
@@ -253,7 +261,9 @@ public final class FactoryThread {
         }
         this.active = craft;
         this.idleTime = 0;
-        if (!recipe.start(ports, random, plan)) {
+        // Requirement planning can call scripts again after the engine's initial admission check.
+        // Recheck only at the recipe's payment boundary, without repeating any planning callbacks.
+        if (!recipe.start(ports, random, plan, admission)) {
             this.active = null;
             return false;
         }
@@ -308,12 +318,14 @@ public final class FactoryThread {
             tag.putString(TAG_ACTIVE_RECIPE, this.active.recipeId().toString());
             tag.putInt(TAG_PROGRESS, this.active.progress());
             tag.putInt(TAG_GROUP_ID, this.active.group());
+            this.active.inputBinding().save(tag);
             tag.putInt("parallelism", this.active.parallelism());
             tag.putInt("duration", this.active.duration());
             tag.put("modifiers", this.active.modifiers().save());
             tag.put("scriptExecution", this.active.recipe().saveExecutionState());
             tag.put("scriptModifiers", this.active.scriptModifiers().save());
         }
+        tag.putInt(TAG_THREAD_ORDINAL, this.ordinal);
         return tag;
     }
 
@@ -330,6 +342,31 @@ public final class FactoryThread {
         return new SavedCraft(id, Math.max(0, tag.getInt(TAG_PROGRESS)), Math.max(0, tag.getInt(TAG_GROUP_ID)),
                 Math.max(1, tag.getInt("parallelism")), Math.max(0, tag.getInt("duration")),
                 tag.contains("modifiers") ? RecipeModifiers.load(tag.getList("modifiers", net.minecraft.nbt.Tag.TAG_COMPOUND)) : null);
+    }
+
+    /**
+     * A saved slot identity that this code can restore, or {@code null} for "missing or malformed".
+     *
+     * <p>Ordinary slots answer non-negative numbers strictly below {@code MAX_VALUE} (the displayed number is
+     * ordinal + 1, so {@code MAX_VALUE} itself would overflow). Core slots answer the generated negative
+     * identities at or below {@code -2}; {@code -1} stays reserved. The caller, not this reader, decides how a
+     * null answer is migrated so old saves and malformed entries get one deterministic policy.
+     */
+    @Nullable
+    static Integer savedIdentity(CompoundTag tag, boolean coreThread) {
+        if (!tag.contains(TAG_THREAD_ORDINAL, net.minecraft.nbt.Tag.TAG_INT)) {
+            return null;
+        }
+        int identity = tag.getInt(TAG_THREAD_ORDINAL);
+        if (coreThread ? identity <= -2 : identity >= 0 && identity != Integer.MAX_VALUE) {
+            return identity;
+        }
+        return null;
+    }
+
+    /** The creation ordinal that produced this core identity; only valid for identities at or below {@code -2}. */
+    static int coreCreationOrdinal(int identity) {
+        return -2 - identity;
     }
 
     /** What a saved thread tag carries: which recipe, how far into it, and which port group it pays from. */

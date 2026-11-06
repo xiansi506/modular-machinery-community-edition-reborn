@@ -1,0 +1,18 @@
+> **2026-11-03 Codex结论：本批通过离线验收；无真实游戏/FML/完整网络/GPU验收。** 详见项目docs/归档/开发记录/验收记录/验收-GLM第二批12项-2026-11-03.md。下方“待验收/自测全过”为交付时状态。
+
+# 0.121.29：B批界面局部行为四项修复（2026-11-03）
+
+**本批由 GLM-5.3 Flash 按[第二批12项交接](../../../modular-machinery-reborn/docs/归档/开发记录/任务交接/修复交接-GLM5.3Flash-第二批12项-2026-11-03.md)交付 B 批（B1～B4），Codex 尚未验收。**
+
+- **B1/P10-02**（`client/MachineControllerScreen.keyPressed`）：值输入框聚焦且可见时，经 EditBox 自身 `canConsumeInput()` 状态让编辑按键（含 charTyped 支持的字母 E）留在输入上下文，不再落进容器库存键关窗分支；ESC（256）保留既有关窗路径；未聚焦/隐藏/不可编辑时库存快捷键照常（默认 E 与自定义重绑定均验证）。未硬编码键码69，未吞掉全部全局按键。
+- **B2/P10-03**（`MachineControllerScreen.drawInfo` 与 `FactoryControllerScreen.drawRecipeStatus` 的百分比点）：`progress*100/duration` 先提升为 long 再乘，30,000,000/60,000,000 显示 50%（此前 -21%）；50/100、0、21474837/214748365→10%、100/100→100% 等边界保留；进度条 fraction 对照 0.5；只改显示，不改变进度/时长/结算。
+- **B3/P10-07**（`client/UpgradeBusScreen.drawText`）：重算 scrollRange 后、截取绘制行前夹紧 scroll，说明变短（真实 handleUpdateTag 清空绑定）后无需滚轮即可恢复可见文字；有效中间位置保留、不每帧归零；setScroll 原有夹紧不变。
+- **B4/P10-16**（`client/jei/ModularMachineryJeiPlugin` + 白名单允许的 `client/preview/PreviewJeiActions` 生命周期入口）：插件覆写 `onRuntimeUnavailable()` 清空查询桥（幂等），JEI 关闭/重启窗口中 R/U/show 不再调用旧运行时；available(B) 后仅新运行时被调用（按 sink 计数证明，非仅字段 null）。未引入对 JEI API 的新依赖方向变化，未改按键映射/渲染。
+
+## 验证与边界
+
+同一夹具在 0.121.28 改前生产类（本批 A 批交付快照）上：B1 失败1项、B2 失败2项、B3 失败1项、B4 失败1项（全部为修复断言，对照通过）；构建后用完整 0.121.29 生产类快照复跑：B1 5/5、B2 3/3、B3 3/3、B4 2/2 全部通过且退出0。夹具调用真实 EditBox/容器按键分派（KeyStateAgent 只替换 InputConstants.isKeyDown 硬件查询）、真实 drawInfo/drawRecipeStatus 捕获 Component 参数（含真实 Language 表 + 项目 en_us.json）、真实 drawText/handleUpdateTag、真实插件回调与包私有桥（动态代理 sink 计数）。证据在 `_audit/glm53flash-12tasks-0.121.29/`。
+
+Gradle test 为 NO-SOURCE。未验证边界：真实窗口/OS 键盘事件/IME、真实鼠标滚轮、真实 JEI 关闭生命周期与 GPU 渲染、真实屏幕 init；未实机。B2 不改变服务端数值；B3 不动库存/升级效果/绑定存档；B4 不改其他缓存清理体系。未部署/启动游戏、暂存、提交、推送。
+
+协议 **12**。Java17 clean build/reobf 成功（55s）。归档 `modular-machinery-reborn-0.121.29.jar`，1626905字节，SHA-256 `C15189C6C926D5FABAE5C1079A0F63069811507A4091F9C6D2436F19DC786401`；归档 JAR 与 build/libs 字节一致（cmp 通过）。

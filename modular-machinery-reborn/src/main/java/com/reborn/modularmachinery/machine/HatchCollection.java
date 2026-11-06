@@ -182,6 +182,29 @@ public final class HatchCollection {
     public record MagicEntry(com.reborn.modularmachinery.magic.MagicPort port, String tag) {}
     private List<MagicEntry> magic = List.of();
     private boolean transactional;
+    private java.util.Map<Integer, InputGroupBinding.Key> isolatedGroups = java.util.Map.of();
+    private java.util.Map<InputGroupBinding.Key, Integer> isolatedNumbers = java.util.Map.of();
+    public InputGroupBinding.Key isolatedGroupKey(int group) { return isolatedGroups.get(group); }
+    public Integer isolatedGroupNumber(InputGroupBinding.Key key) { return isolatedNumbers.get(key); }
+    public java.util.Map<Integer, InputGroupBinding.Key> isolatedGroupKeys() { return isolatedGroups; }
+
+    private HatchCollection withIsolatedGroups(java.util.Map<Integer, InputGroupBinding.Key> groups) {
+        isolatedGroups = java.util.Map.copyOf(groups);
+        java.util.Map<InputGroupBinding.Key, Integer> reverse = new java.util.HashMap<>();
+        groups.forEach((number, key) -> {
+            Integer previous = reverse.putIfAbsent(key, number);
+            if (previous != null && !previous.equals(number))
+                throw new IllegalArgumentException("Isolated input identity has multiple local addresses");
+        });
+        isolatedNumbers = java.util.Map.copyOf(reverse);
+        return this;
+    }
+
+    private HatchCollection copyIsolatedGroups(HatchCollection from) {
+        isolatedGroups = from.isolatedGroups;
+        isolatedNumbers = from.isolatedNumbers;
+        return this;
+    }
     public boolean isTransactionView() { return transactional; }
     private HatchCollection withTransactionFlag(boolean flag) { transactional = flag; return this; }
     private HatchCollection withMagic(List<MagicEntry> values) { this.magic = List.copyOf(values); return this; }
@@ -195,7 +218,7 @@ public final class HatchCollection {
                 gasInputs.stream().map(transaction::opaque).toList(), gasOutputs.stream().map(transaction::opaque).toList(),
                 itemInputTags, itemOutputTags, fluidInputTags, fluidOutputTags, energyInputTags, energyOutputTags,
                 gasInputTags, gasOutputTags, itemInputGroups, itemOutputGroups, fluidInputGroups, fluidOutputGroups,
-                energyInputGroups, energyOutputGroups, gasInputGroups, gasOutputGroups, smartInterfaces, machine).withMagic(magic.stream().map(e -> new MagicEntry(e.port().transactionView(transaction), e.tag())).toList()).withTransactionFlag(true);
+                energyInputGroups, energyOutputGroups, gasInputGroups, gasOutputGroups, smartInterfaces, machine).withMagic(magic.stream().map(e -> new MagicEntry(e.port().transactionView(transaction), e.tag())).toList()).withTransactionFlag(true).copyIsolatedGroups(this);
     }
 
     private static List<String> checkedTags(List<String> tags, int ports, String bucket) {
@@ -306,7 +329,7 @@ public final class HatchCollection {
                 filterGroups(this.gasInputTags, this.gasInputGroups, wanted),
                 filterGroups(this.gasOutputTags, this.gasOutputGroups, wanted),
                 this.smartInterfaces,
-                this.machine).withMagic(magic.stream().filter(e -> wanted.equals(e.tag())).toList()).withTransactionFlag(transactional);
+                this.machine).withMagic(magic.stream().filter(e -> wanted.equals(e.tag())).toList()).withTransactionFlag(transactional).copyIsolatedGroups(this);
     }
 
     /**
@@ -351,7 +374,7 @@ public final class HatchCollection {
                 filterByGroup(this.gasInputGroups, this.gasInputGroups, groupId),
                 filterByGroup(this.gasOutputGroups, this.gasOutputGroups, groupId),
                 this.smartInterfaces,
-                this.machine).withMagic(magic).withTransactionFlag(transactional);
+                this.machine).withMagic(magic).withTransactionFlag(transactional).copyIsolatedGroups(this);
     }
 
     /**
@@ -526,6 +549,14 @@ public final class HatchCollection {
     }
 
     public static final class Builder {
+        private final java.util.Map<Integer, InputGroupBinding.Key> isolatedGroups = new java.util.HashMap<>();
+        public Builder isolatedGroup(int number, InputGroupBinding.Key key) {
+            if (number < 0) throw new IllegalArgumentException("Isolated inputs require a nonnegative local address");
+            InputGroupBinding.Key previous = isolatedGroups.putIfAbsent(number, key);
+            if (previous != null && !previous.equals(key))
+                throw new IllegalArgumentException("Two isolated sources share a local address");
+            return this;
+        }
         private final List<MagicEntry> magic = new ArrayList<>();
         public Builder addMagicPort(com.reborn.modularmachinery.magic.MagicPort port, String tag) {
             magic.add(new MagicEntry(port, tag == null || tag.isEmpty() ? UNTAGGED : tag)); return this;
@@ -754,7 +785,7 @@ public final class HatchCollection {
                     this.energyInputTags, this.energyOutputTags, this.gasInputTags, this.gasOutputTags,
                     this.itemInputGroups, this.itemOutputGroups, this.fluidInputGroups, this.fluidOutputGroups,
                     this.energyInputGroups, this.energyOutputGroups, this.gasInputGroups, this.gasOutputGroups,
-                    () -> this.smartInterfaces, this.machine).withMagic(this.magic);
+                    () -> this.smartInterfaces, this.machine).withMagic(this.magic).withIsolatedGroups(this.isolatedGroups);
         }
     }
 }

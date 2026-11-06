@@ -55,15 +55,19 @@ public final class MachineDefinitionSyncPacket {
 
     /** 单份定义的 JSON 长度上限。超长的定义是损坏或恶意的，宁可整包拒绝也不要吃掉内存。 */
     private static final int MAX_JSON_LENGTH = 1 << 20;
+    private static final int MAX_PACKET_BYTES = 2 * 1024 * 1024;
 
     private final Map<ResourceLocation, String> definitions;
 
     public MachineDefinitionSyncPacket(Map<ResourceLocation, String> definitions) {
+        validateSnapshot(definitions);
         this.definitions = Map.copyOf(definitions);
     }
 
     public MachineDefinitionSyncPacket(FriendlyByteBuf buf) {
         int count = buf.readInt();
+        if (count < 0 || count > MAX_PACKET_BYTES / 4) throw new io.netty.handler.codec.DecoderException("Invalid machine definition count");
+        int start = buf.readerIndex();
         Map<ResourceLocation, String> read = new LinkedHashMap<>(
                 Math.max(0, Math.min(count, INITIAL_CAPACITY_CAP)));
         for (int i = 0; i < count; i++) {
@@ -76,6 +80,8 @@ public final class MachineDefinitionSyncPacket {
                         "Machine definition sync carried an unreadable id at entry " + i);
             }
             read.put(id, json);
+            if (buf.readerIndex() - start + 4 > MAX_PACKET_BYTES)
+                throw new io.netty.handler.codec.DecoderException("Machine definition snapshot exceeds 2MiB");
         }
         this.definitions = Map.copyOf(read);
     }
@@ -111,18 +117,40 @@ public final class MachineDefinitionSyncPacket {
      * 而后者才是真正难查的。
      */
     public static Map<ResourceLocation, String> snapshot() {
+        return snapshot(MachineRegistry.all(), MachineRegistry.sources());
+    }
+
+    /** Also used to validate a complete candidate before the loader publishes it. */
+    public static Map<ResourceLocation, String> snapshot(java.util.Collection<MachineDefinition> definitions,
+                                                        Map<ResourceLocation, JsonElement> sources) {
         Map<ResourceLocation, String> out = new LinkedHashMap<>();
-        for (Map.Entry<ResourceLocation, JsonElement> entry : MachineRegistry.sources().entrySet()) {
-            out.put(entry.getKey(), entry.getValue().toString());
+        for (MachineDefinition definition : definitions) {
+            com.google.gson.JsonObject adopted = definition.synchronizationSource();
+            JsonElement raw = sources.get(definition.id());
+            if (adopted == null && raw != null) adopted = MachineSchema.synchronizationSource(raw.getAsJsonObject(), Map.of(), definition);
+            if (adopted != null) out.put(definition.id(), adopted.toString());
         }
-        int missing = MachineRegistry.size() - out.size();
+        int missing = definitions.size() - out.size();
         if (missing > 0) {
             ModularMachineryReborn.LOGGER.warn("[{}] {} machine definition(s) have no source JSON and cannot be "
                             + "sent to clients; they will be missing there. Definitions constructed directly "
                             + "(rather than parsed from JSON) cannot be synchronised.",
                     ModularMachineryReborn.MOD_ID, missing);
         }
+        validateSnapshot(out);
         return out;
+    }
+
+    private static void validateSnapshot(Map<ResourceLocation, String> definitions) {
+        long bytes = 4;
+        for (var entry : definitions.entrySet()) {
+            if (entry.getValue().length() > MAX_JSON_LENGTH)
+                throw new IllegalArgumentException(entry.getKey() + " synchronization JSON exceeds 1MiB characters");
+            // Include conservative VarInt prefixes for both UTF fields, not only the JSON payload.
+            bytes += 10L + entry.getKey().toString().getBytes(java.nio.charset.StandardCharsets.UTF_8).length
+                    + entry.getValue().getBytes(java.nio.charset.StandardCharsets.UTF_8).length;
+            if (bytes > MAX_PACKET_BYTES) throw new IllegalArgumentException("Machine definition snapshot exceeds 2MiB");
+        }
     }
 
     /** 解析一份定义 JSON；解析失败时返回 {@code null} 并把原因记下来（一份坏定义不该让整次同步失败）。 */

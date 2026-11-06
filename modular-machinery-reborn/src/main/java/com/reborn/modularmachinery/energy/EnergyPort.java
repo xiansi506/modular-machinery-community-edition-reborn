@@ -3,10 +3,13 @@ package com.reborn.modularmachinery.energy;
 import net.minecraftforge.energy.IEnergyStorage;
 
 /** External hatch direction; recipes use the backing buffer directly. */
-public final class EnergyPort implements LongEnergyAccess {
+public final class EnergyPort implements LongEnergyAccess, EnergyAccess.TransferAccounting {
     private final IEnergyStorage storage;
     private final boolean input;
     public EnergyPort(IEnergyStorage storage, boolean input) { this.storage = storage; this.input = input; }
+    public boolean supportsReceipts() { return EnergyAccess.supportsReceipts(storage); }
+    @Override public Object transferSnapshot() { return EnergyAccess.transferSnapshot(storage); }
+    @Override public long receivedSince(Object snapshot) { return EnergyAccess.receivedSince(storage, snapshot); }
     @Override public long receiveEnergyL(long amount, boolean simulate) { return canReceive() ? EnergyAccess.receive(storage, amount, simulate) : 0; }
     @Override public long extractEnergyL(long amount, boolean simulate) { return canExtract() ? EnergyAccess.extract(storage, amount, simulate) : 0; }
     @Override public long getEnergyStoredL() { return EnergyAccess.stored(storage); }

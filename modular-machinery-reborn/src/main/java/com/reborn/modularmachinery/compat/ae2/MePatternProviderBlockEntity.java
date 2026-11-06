@@ -24,7 +24,10 @@ public final class MePatternProviderBlockEntity extends BlockEntity
     public enum WorkMode { DEFAULT, CRAFTING_LOCK_MODE, ENHANCED_BLOCKING_MODE, BLOCKING_MODE, ISOLATION_INPUT }
     private final IManagedGridNode mainNode;
     private final List<ItemStack> patterns=new ArrayList<>(Collections.nCopies(PATTERNS,ItemStack.EMPTY));
-    private final ProviderState storage=new ProviderState(this::setChanged,this::refreshHosts,this::available);
+    private final ProviderState storage=new ProviderState(this::setChanged,this::refreshHosts,this::available,this::recordConsumer);
+    private final Map<UUID,BlockPos> lockConsumers = new LinkedHashMap<>();
+    private UUID observedLockCycle;
+    private boolean lockConsumptionKnown;
     private static final Set<MePatternProviderBlockEntity> ACTIVE_LOCKS=ConcurrentHashMap.newKeySet();
     private static boolean listenerRegistered;
     private BlockPos legacyLockHost;
@@ -55,7 +58,7 @@ public final class MePatternProviderBlockEntity extends BlockEntity
             .setInWorldNode(true).setTagName("ae_node").setExposedOnSides(EnumSet.allOf(Direction.class)).setVisualRepresentation(state.getBlock());
     }
     private boolean available(){return level!=null&&!level.isClientSide&&!isRemoved()&&level.hasChunkAt(worldPosition)&&level.getBlockEntity(worldPosition)==this;}
-    @Override public void onLoad(){super.onLoad();if(level!=null&&!level.isClientSide){mainNode.create(level,worldPosition);ICraftingProvider.requestUpdate(mainNode);registerListeners();if(storage.locked())ACTIVE_LOCKS.add(this);refreshHosts();}}
+    @Override public void onLoad(){super.onLoad();if(level!=null&&!level.isClientSide){storage.persistInputIdentity();mainNode.create(level,worldPosition);ICraftingProvider.requestUpdate(mainNode);registerListeners();if(storage.locked())ACTIVE_LOCKS.add(this);refreshHosts();}}
     @Override public void setRemoved(){ACTIVE_LOCKS.remove(this);mainNode.destroy();super.setRemoved();refreshHosts();}
     @Override public void onChunkUnloaded(){ACTIVE_LOCKS.remove(this);mainNode.destroy();super.onChunkUnloaded();refreshHosts();}
     @Override public IGridNode getGridNode(Direction side){return mainNode.getNode();}
@@ -70,6 +73,7 @@ public final class MePatternProviderBlockEntity extends BlockEntity
             return appeng.api.storage.StorageHelper.poweredInsert(grid.getEnergyService(),grid.getStorageService().getInventory(),key,amount,IActionSource.ofMachine(this),appeng.api.config.Actionable.MODULATE);
         });
         if(storage.locked())ACTIVE_LOCKS.add(this);else ACTIVE_LOCKS.remove(this);
+        reconcileLockConsumers();
     }
     @Override public List<IPatternDetails> getAvailablePatterns(){
         List<IPatternDetails> result=new ArrayList<>();if(level==null||level.isClientSide||!mainNode.isActive())return result;
@@ -106,7 +110,7 @@ public final class MePatternProviderBlockEntity extends BlockEntity
     }
     @Override public int declaredInputGroup(){return storage.group();}
     @Override public Object inputIdentity(){return this;}
-    @Override public void appendInputs(HatchCollection.Builder builder,String tag,GroupAllocator groups){storage.appendInputs(builder,tag,groups);}
+    @Override public void appendInputs(HatchCollection.Builder builder,String tag,GroupAllocator groups){storage.appendInputs(builder,tag,groups,level==null?new net.minecraft.resources.ResourceLocation("modular_machinery_reborn:unscoped"):level.dimension().location(),worldPosition);}
     private void refreshHosts(){
         if(level==null||level.isClientSide)return;
         MachineControllerBlockEntity.inputProviderChanged(level,worldPosition);
@@ -117,23 +121,78 @@ public final class MePatternProviderBlockEntity extends BlockEntity
         net.minecraftforge.common.MinecraftForge.EVENT_BUS.addListener((com.reborn.modularmachinery.api.event.FactoryRecipeFinishEvent e)->unlockByHost(e.controller()));
     }
     private static void unlockByHost(MachineControllerBlockEntity controller){
-        for(var provider:ACTIVE_LOCKS)if(provider.level==controller.getLevel()&&(controller.usesInputProvider(provider)||provider.legacyLockHost!=null&&provider.legacyLockHost.equals(controller.getBlockPos()))){
-            provider.storage.unlock();provider.legacyLockHost=null;ACTIVE_LOCKS.remove(provider);
+        // A finish only prompts reconciliation. Membership alone cannot prove ownership; another
+        // controller/core can still hold paid work. Never synthesize a finish for an aborted craft.
+        for(var provider:ACTIVE_LOCKS)if(provider.level==controller.getLevel())provider.reconcileLockConsumers();
+    }
+    private void synchronizeLockCycle() {
+        UUID cycle = storage.locked() ? storage.lockCycle() : null;
+        if (!Objects.equals(cycle, observedLockCycle)) {
+            observedLockCycle = cycle;
+            lockConsumers.clear();
+            lockConsumptionKnown = false;
+            setChanged();
+        }
+    }
+    private void recordConsumer(MachineControllerBlockEntity controller) {
+        if (!storage.locked() || level == null || controller.getLevel() != level) return;
+        synchronizeLockCycle();
+        lockConsumptionKnown = true;
+        if (!Objects.equals(lockConsumers.put(controller.paidInputIdentity(), controller.getBlockPos().immutable()), controller.getBlockPos())) setChanged();
+    }
+    private void reconcileLockConsumers() {
+        if (!available() || PaidInputScope.capturing()) return; // In-flight payments publish their receipts first.
+        synchronizeLockCycle();
+        if (!storage.locked() || !lockConsumptionKnown) return;
+        boolean changed = lockConsumers.entrySet().removeIf(entry -> {
+            BlockPos at = entry.getValue();
+            if (!level.hasChunkAt(at)) return false;
+            BlockEntity entity = level.getBlockEntity(at);
+            return !(entity instanceof MachineControllerBlockEntity controller) || controller.isRemoved()
+                    || !entry.getKey().equals(controller.paidInputIdentity()) || !controller.hasPaidInputWork();
+        });
+        if (changed) setChanged();
+        if (lockConsumers.isEmpty()) {
+            storage.unlock();
+            legacyLockHost = null;
+            ACTIVE_LOCKS.remove(this);
+            synchronizeLockCycle();
         }
     }
     @Override protected void saveAdditional(CompoundTag tag){super.saveAdditional(tag);saveContents(tag);mainNode.saveToNBT(tag);}
     private void saveContents(CompoundTag tag){
         ListTag list=new ListTag();for(var pattern:patterns)list.add(pattern.save(new CompoundTag()));tag.put("patterns",list);
         tag.putInt("work_mode",storage.mode().ordinal());tag.put("provider_storage",storage.save());
+        if (storage.locked() && storage.lockCycle().equals(observedLockCycle)) {
+            tag.putUUID("lock_consumption_cycle", observedLockCycle);
+            tag.putBoolean("lock_consumption_known", lockConsumptionKnown);
+            ListTag consumers = new ListTag();
+            lockConsumers.forEach((id,at) -> { CompoundTag owner = new CompoundTag(); owner.putUUID("owner",id);owner.putLong("position",at.asLong());consumers.add(owner); });
+            tag.put("lock_consumers",consumers);
+        }
         if(legacyLockHost!=null&&storage.locked())tag.putLong("lock_host",legacyLockHost.asLong());
     }
-    public CompoundTag dropContents(){CompoundTag tag=new CompoundTag();saveContents(tag);tag.remove("lock_host");return tag;}
+    public CompoundTag dropContents(){CompoundTag tag=new CompoundTag();saveContents(tag);tag.remove("lock_host");tag.remove("lock_consumers");tag.remove("lock_consumption_cycle");tag.remove("lock_consumption_known");tag.getCompound("provider_storage").remove("input_incarnation");return tag;}
     @Override public void load(CompoundTag tag){
         super.load(tag);ListTag list=tag.getList("patterns",Tag.TAG_COMPOUND);List<ItemStack> values=new ArrayList<>();for(int i=0;i<Math.min(PATTERNS,list.size());i++)values.add(ItemStack.of(list.getCompound(i)));readPatterns(values);
         int ordinal=tag.getInt("work_mode");clientMode=ordinal>=0&&ordinal<WorkMode.values().length?WorkMode.values()[ordinal]:WorkMode.DEFAULT;
         clientSummary=tag.getCompound("summary").copy();
         if(level!=null&&level.isClientSide)return;
         storage.load(tag.getCompound("provider_storage"),tag.getInt("work_mode"),tag.getBoolean("lock_active"));
+        lockConsumers.clear(); observedLockCycle = storage.locked() ? storage.lockCycle() : null;
+        lockConsumptionKnown = false;
+        if (storage.locked() && tag.hasUUID("lock_consumption_cycle")
+                && storage.lockCycle().equals(tag.getUUID("lock_consumption_cycle"))) {
+            ListTag consumers = tag.getList("lock_consumers",Tag.TAG_COMPOUND);
+            boolean valid = true;
+            for (int i=0;i<consumers.size();i++) {
+                CompoundTag owner = consumers.getCompound(i);
+                if (!owner.hasUUID("owner") || !owner.contains("position",Tag.TAG_LONG)) {valid=false;break;}
+                lockConsumers.put(owner.getUUID("owner"),BlockPos.of(owner.getLong("position")));
+            }
+            lockConsumptionKnown = valid && !lockConsumers.isEmpty() && tag.getBoolean("lock_consumption_known");
+            if (!valid) lockConsumers.clear();
+        }
         legacyLockHost=tag.contains("lock_host")?BlockPos.of(tag.getLong("lock_host")):null;
         mainNode.loadFromNBT(tag);
     }

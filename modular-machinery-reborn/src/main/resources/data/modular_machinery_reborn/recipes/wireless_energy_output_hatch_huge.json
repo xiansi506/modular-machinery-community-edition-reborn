@@ -1,0 +1,20 @@
+{
+  "type": "minecraft:crafting_shapeless",
+  "conditions": [
+    {
+      "type": "forge:mod_loaded",
+      "modid": "fluxnetworks"
+    }
+  ],
+  "ingredients": [
+    {
+      "item": "modular_machinery_reborn:energy_output_hatch_huge"
+    },
+    {
+      "item": "fluxnetworks:flux_plug"
+    }
+  ],
+  "result": {
+    "item": "modular_machinery_reborn:wireless_energy_output_hatch_huge"
+  }
+}

@@ -9,6 +9,14 @@ final class EnergyMath {
     private EnergyMath() {}
 
     static long modified(long value, RecipeModifiers modifiers, IOType io) {
+        return modified(value, modifiers, io, false);
+    }
+
+    static long baked(long value, RecipeModifiers modifiers, IOType io) {
+        return modified(value, modifiers, io, true);
+    }
+
+    private static long modified(long value, RecipeModifiers modifiers, IOType io, boolean baking) {
         float add = 0, multiply = 1;
         boolean touched = false;
         for (RecipeModifier modifier : modifiers.modifiers()) {
@@ -20,9 +28,14 @@ final class EnergyMath {
         if (!touched || add == 0 && multiply == 1) return value;
         if (!Float.isFinite(add) || !Float.isFinite(multiply)) {
             // Retain the established handling of non-finite modifier aggregates.
-            return (long) Math.max(0, Math.floor(((double) value + add) * multiply));
+            double result = ((double) value + add) * multiply;
+            return baking ? Math.max(0, Math.round(result)) : (long) Math.max(0, Math.floor(result));
         }
-        return floor(BigDecimal.valueOf(value).add(exact(add)).multiply(exact(multiply)), false);
+        BigDecimal result = BigDecimal.valueOf(value).add(exact(add)).multiply(exact(multiply));
+        if (!baking) return floor(result, false);
+        if (result.signum() <= 0) return 0;
+        if (result.compareTo(MAX) >= 0) return Long.MAX_VALUE;
+        return result.setScale(0, RoundingMode.HALF_UP).longValueExact();
     }
 
     static long draw(long perCopy, int copies, float durationMultiplier) {

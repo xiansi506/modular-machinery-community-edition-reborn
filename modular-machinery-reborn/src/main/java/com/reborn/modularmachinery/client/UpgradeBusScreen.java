@@ -167,6 +167,12 @@ public final class UpgradeBusScreen extends AbstractContainerScreen<UpgradeBusMe
     private void drawText(GuiGraphics graphics) {
         this.lines = wrap(buildLines());
         this.scrollRange = Math.max(0, this.lines.size() - MAX_DESC_LINES);
+        // The range is recomputed every frame, so a shortened description (an update tag that cleared the
+        // bindings) would otherwise leave a stale scroll cutting all lines off; clamp here, keeping valid
+        // positions untouched.
+        if (this.scroll > this.scrollRange) {
+            this.scroll = this.scrollRange;
+        }
 
         graphics.pose().pushPose();
         graphics.pose().translate(this.leftPos + TEXT_DRAW_OFFSET_X * FONT_SCALE,

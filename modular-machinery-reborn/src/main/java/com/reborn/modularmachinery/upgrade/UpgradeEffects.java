@@ -72,7 +72,15 @@ public final class UpgradeEffects {
             return RecipeModifiers.EMPTY;
         }
         List<RecipeModifier> flat = new ArrayList<>();
+        // Dynamic callbacks are per slot, but declared modifiers are still once per type per bus.
+        Map<ResourceLocation, UpgradeStack> aggregated = new LinkedHashMap<>();
         for (UpgradeStack stack : compatible) {
+            UpgradeStack previous = aggregated.get(stack.type().id());
+            int total = previous == null ? stack.count()
+                    : (int) Math.min(stack.type().maxStackSize(), (long) previous.count() + stack.count());
+            aggregated.put(stack.type().id(), new UpgradeStack(stack.target(), total));
+        }
+        for (UpgradeStack stack : aggregated.values()) {
             for (RecipeModifier modifier : stack.type().modifiers()) {
                 flat.add(stacked(modifier, stack));
             }
@@ -90,7 +98,14 @@ public final class UpgradeEffects {
         }
         // `value^n` the way the original computed it — repeated multiplication, so the result is bit-identical
         // to its loop rather than a Math.pow that might round differently in the last bit.
+        // Preserve the original float loop for ordinary inventories. Huge legal counts must not make
+        // planning loop billions of times; the same power is evaluated in bounded time for that case.
         float stacked = modifier.value();
+        if (stack.count() > 4096) {
+            stacked = (float) Math.pow(stacked, stack.count());
+            return new RecipeModifier(modifier.target(), modifier.ioTarget(), stacked, modifier.operation(),
+                    modifier.affectsChance());
+        }
         for (int i = 1; i < stack.count(); i++) {
             stacked *= modifier.value();
         }
@@ -101,7 +116,8 @@ public final class UpgradeEffects {
     // ------------------------------------------------------------------ reading a bus
 
     /**
-     * Reads every upgrade out of a bus's inventory, merging slots that hold the same upgrade.
+     * Reads effective copies with one max-stack budget per declaration ID per bus. Fixed entries merge;
+     * dynamic entries retain each effective slot's data, even when two slots have identical NBT.
      *
      * <p>This is the original's {@code TileUpgradeBus#onUpgradeInventoryChanged} ({@code :94-119}) plus
      * {@code updateUpgrades} ({@code :138-154}), without the {@code synchronized} block: this project's recipe
@@ -129,45 +145,38 @@ public final class UpgradeEffects {
      * through a function keeps the merge arithmetic — the part worth asserting — on production code.
      */
     public static UpgradeStack.Bag read(IItemHandler inventory, Function<ItemStack, UpgradeTarget.Targets> lookup) {
-        Map<UpgradeType, Integer> merged = new LinkedHashMap<>();
-        Map<UpgradeType, UpgradeTarget> targets = new LinkedHashMap<>();
-        // The per-copy tag of the FIRST slot that contributed each declaration, which is the closest counterpart of
-        // what the original kept. It merged same-type slots by summing their sizes (`TileUpgradeBus#updateUpgrades`,
-        // `:146-148`) and kept the machine-upgrade instance that arrived first, so a second slot holding the same
-        // declaration never overwrote the first one's data either. Two copies with *different* tags therefore
-        // resolve to the first's — the original had the same property, and inventing a merge here would be this
-        // port deciding something upstream never decided.
-        Map<UpgradeType, net.minecraft.nbt.CompoundTag> customData = new LinkedHashMap<>();
+        Map<ResourceLocation, Integer> used = new LinkedHashMap<>();
+        Map<ResourceLocation, Integer> fixedIndices = new LinkedHashMap<>();
+        List<UpgradeStack> stacks = new ArrayList<>();
         for (int slot = 0; slot < inventory.getSlots(); slot++) {
             ItemStack stack = inventory.getStackInSlot(slot);
-            if (stack.isEmpty()) {
+            if (stack.isEmpty() || stack.getCount() <= 0) {
                 continue;
             }
             UpgradeTarget.Targets declared = lookup.apply(stack);
             if (declared == null || declared.isEmpty()) {
                 continue;
             }
+            java.util.Set<ResourceLocation> seen = new java.util.HashSet<>();
             for (UpgradeTarget target : declared.targets()) {
                 UpgradeType type = target.upgrade();
-                Integer total = merged.get(type);
-                if (total == null) {
-                    merged.put(type, stack.getCount());
-                    targets.put(type, target);
-                    customData.put(type, UpgradeItemNbt.read(stack));
+                if (!seen.add(type.id())) continue;
+                int previous = used.getOrDefault(type.id(), 0);
+                int effective = Math.min(stack.getCount(), Math.max(0, type.maxStackSize() - previous));
+                if (effective <= 0) continue;
+                used.put(type.id(), previous + effective);
+                Integer index = fixedIndices.get(type.id());
+                if (type.dynamic() || index == null) {
+                    if (!type.dynamic()) fixedIndices.put(type.id(), stacks.size());
+                    stacks.add(new UpgradeStack(target, effective, UpgradeItemNbt.read(stack)));
                 } else {
-                    // The original summed the stack sizes of same-type slots rather than letting the second
-                    // slot overwrite the first (TileUpgradeBus#updateUpgrades, :146-148).
-                    merged.put(type, total + stack.getCount());
+                    UpgradeStack first = stacks.get(index);
+                    stacks.set(index, new UpgradeStack(first.target(), first.count() + effective, first.customDataCopy()));
                 }
             }
         }
-        if (merged.isEmpty()) {
+        if (stacks.isEmpty()) {
             return UpgradeStack.Bag.EMPTY;
-        }
-        List<UpgradeStack> stacks = new ArrayList<>(merged.size());
-        for (Map.Entry<UpgradeType, Integer> entry : merged.entrySet()) {
-            stacks.add(new UpgradeStack(targets.get(entry.getKey()), entry.getValue(),
-                    customData.get(entry.getKey())));
         }
         return new UpgradeStack.Bag(stacks);
     }

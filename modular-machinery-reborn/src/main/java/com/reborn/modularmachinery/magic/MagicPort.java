@@ -15,13 +15,18 @@ public interface MagicPort {
             public boolean input() { return source.input(); }
             public Access access(String variant) {
                 Access access = source.access(variant);
+                if(access != null) access.prepare(transaction);
                 return access == null ? null : transaction.shared(new Key(source.family(), access.identity(), variant),
-                        () -> new Planned(access, transaction));
+                        () -> access.plan(transaction));
             }
         };
     }
     record Key(MagicFamily family, Object identity, String variant) {}
     interface Access {
+        /** Enlist shared backend state before constructing the per-view shared entry (no recursive map writes). */
+        default void prepare(ResourceTransaction transaction) {}
+        /** Environmental backends may coordinate spatial read/write footprints within this transaction. */
+        default Access plan(ResourceTransaction transaction) { return new Planned(this, transaction); }
         Object identity();
         double amount();
         double minimum();
@@ -31,6 +36,14 @@ public interface MagicPort {
         /** Signed change; returns the signed amount actually moved. */
         double move(double delta, boolean simulate);
         default boolean valid() { return true; }
+        /** Opt-in search contract: every planned balance/movement in this closed range is an integer
+         * multiple of the returned positive power-of-two quantum. Reads must remain stable and pure.
+         * Unknown/custom planners return NaN; a hint never replaces actual shared payment checks. */
+        default double parallelQuantum(double lowerBalance, double upperBalance) { return Double.NaN; }
+        /** Pure linear capacity planning on the candidate balance, with no quantity-dependent permission
+         * or custom side effects. Enables a monotone path only when all intermediate dyadic arithmetic
+         * is proved exact and each shared identity has a single IO direction in that phase. */
+        default boolean linearParallelPlanning() { return false; }
         default Object snapshot() { return amount(); }
         default boolean unchanged(Object snapshot) { return valid() && Double.compare(amount(), (Double) snapshot) == 0; }
         default void restore(Object snapshot) {

@@ -10,7 +10,8 @@ import javax.annotation.Nullable;
  * C2 收尾（0.89.0）：工厂线程逐 tick 需求失败时发出——旧版 {@code FactoryRecipeFailureEvent}
  * （{@code TileFactoryController:293}）的对应物。
  *
- * <p>{@link #cause()} 是这次的失败键（本版由 {@code recipe.startFailure(...)} 产出；旧版是
+ * <p>{@link #cause()} 是这次的失败键（本版由当前 {@code recipe.tickFailure(...)} 产出；
+ * 只读诊断仍可付时使用通用 tick 结算失败原因，不猜测不透明处理器拒绝细节。旧版是
  * {@code thread.getStatus().getUnlocMessage()}，同一位置）。{@link #destructRecipe()} 默认 =
  * 配方的 {@code cancelIfPerTickFails}（旧版 {@code doesCancelRecipeOnPerTickFailure()}），监听器可
  * 按次改写：{@code true} = 清空该槽位（已付一次性输入不返还，槽位回到空闲、下次 tick 可再开工）；

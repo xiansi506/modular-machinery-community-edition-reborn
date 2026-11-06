@@ -84,6 +84,11 @@ public final class EnergyRequirement extends MachineRequirement {
         return value;
     }
 
+    /** Existing adapters round the final positive baked amount; runtime payments still use floor. */
+    public long bakedEnergyPerTick(RecipeModifiers modifiers) {
+        return EnergyMath.baked(energyPerTick, modifiers, ioType());
+    }
+
     /** What one tick of this craft draws, across every copy and accounting for a shortened duration.
      *
      * <p>0.105.0（E9 能量行）改为 public：旧版 {@code MMInfoProvider.getEnergyRequired :306-320}
@@ -141,15 +146,21 @@ public final class EnergyRequirement extends MachineRequirement {
         if (perCopy <= 0L) {
             return ceiling;
         }
-        // The duration multiplier scales what a copy costs per tick, so it belongs in the per-copy divisor.
-        long perCopyPerTick = EnergyMath.draw(perCopy, 1, durationMultiplier);
         long available;
         if (this.ioType() == IOType.INPUT) {
             available = ports.storedEnergy();
         } else {
             available = IngredientIo.insertCapacity(ports.energyOutputs());
         }
-        return (int) Math.min(ceiling, available / perCopyPerTick);
+        // Rounding/minimums apply once to the entire draw, not to each copy's divisor. This monotone
+        // exact search is an upper bound only; shared resource reservation still decides admission.
+        int low = 0, high = Math.max(0, ceiling);
+        while (low < high) {
+            int mid = low + (int) (((long) high - low + 1) / 2);
+            if (EnergyMath.draw(perCopy, mid, durationMultiplier) <= available) low = mid;
+            else high = mid - 1;
+        }
+        return low;
     }
 
     @Override

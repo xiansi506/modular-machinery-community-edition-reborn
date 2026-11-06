@@ -39,7 +39,32 @@ public final class MagicHatchScreen extends AbstractContainerScreen<MagicHatchMe
             graphics.drawString(font,Component.translatable("gui.modular_machinery_reborn.air.limits", format(menu.hatch.value(4)), format(menu.hatch.value(3))),x+8,y+60,0xFF404040,false);
         }
     }
-    private static String format(double n) { return n == Math.floor(n) ? GuiAmounts.compact((long)n) : String.format(Locale.ROOT,"%,.3f",n); }
+    /**
+     * Integral values use the shared {@link GuiAmounts#compact} shorthand; fractional values keep their
+     * three-decimal form. {@code compact} clamps sub-1000 values to 0 because every other caller shows a
+     * <b>non-negative stock</b>, so a negative integral reading would be labelled "0" — an information error,
+     * since negative will/air/pressure are legal states (P09). Negative integrals therefore go through
+     * {@link #compactSigned}, which keeps the minus sign and abbreviates the magnitude the same way.
+     * Boundaries: NaN/Infinity fail the {@code n == Math.floor(n)} test and fall into the decimal branch,
+     * which renders {@code Infinity}/{@code NaN} without throwing; magnitudes beyond 2^53 were already
+     * inexact the moment they lived in a double, and {@code Long.MIN_VALUE} abbreviates as {@code -9.2E}
+     * (its true magnitude exceeds {@code Long.MAX_VALUE} by one ulp — indistinguishable at shorthand width,
+     * exact value stays available via the hover tooltip).
+     */
+    private static String format(double n) {
+        if (n == Math.floor(n) && Double.isFinite(n)) {
+            long v = (long) n;
+            return v >= 0 ? GuiAmounts.compact(v) : compactSigned(v);
+        }
+        return String.format(Locale.ROOT, "%,.3f", n);
+    }
+
+    /** Negative shorthand: keeps the sign, abbreviates the magnitude with the shared non-negative rules. */
+    private static String compactSigned(long v) {
+        long magnitude = v == Long.MIN_VALUE ? Long.MAX_VALUE : -v;
+        String body = magnitude < 1000 ? Long.toString(magnitude) : GuiAmounts.compact(magnitude);
+        return "-" + body;
+    }
     @Override public void render(GuiGraphics graphics, int mouseX, int mouseY, float tick) {
         renderBackground(graphics); super.render(graphics,mouseX,mouseY,tick); renderTooltip(graphics,mouseX,mouseY);
         int count = menu.hatch.family() == MagicFamily.WILL ? 5 : 1;

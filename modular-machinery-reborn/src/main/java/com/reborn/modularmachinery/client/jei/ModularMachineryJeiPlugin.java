@@ -101,19 +101,43 @@ public final class ModularMachineryJeiPlugin implements IModPlugin {
     }
 
     /**
+     * JEI 关闭/重启时清空预览材料格的查询桥（{@code onRuntimeUnavailable} 的默认实现不会替本模组清理），
+     * 否则桥会继续把 R/U 与鼠标查询发往已经失效的旧运行时。再次 available 会覆盖回有效引用。
+     */
+    @Override
+    public void onRuntimeUnavailable() {
+        PreviewJeiActions.onRuntimeUnavailable();
+    }
+
+    /**
      * A blueprint is machine-specific: the original registered a subtype interpreter returning the machine's
      * registry name ({@code ModIntegrationJEI#registerItemSubtypes}), which is what makes "click this machine's
-     * blueprint to see its recipes" work. JEI 15.49's equivalent for NBT-carried identity is this one call.
+     * blueprint to see its recipes" work.
+     *
+     * <p>P10-20（0.121.34）: that interpreter returns <b>only the bound machine id</b>, like the original —
+     * the previous {@code useNbtForSubtypes} made the whole tag part of the identity, so renaming the same
+     * machine's blueprint (or any unrelated tag) silently dropped it from its own processing category. Blank
+     * blueprints, missing machine keys and malformed ids share one "no subtype" bucket; a well-formed but
+     * unregistered id forms its own bucket and never lands on a valid machine. The interpreter only reads the
+     * stack; the real item NBT is never modified.
      */
     @Override
     public void registerItemSubtypes(ISubtypeRegistration registration) {
-        registration.useNbtForSubtypes(ModItems.BLUEPRINT.get());
+        registration.registerSubtypeInterpreter(ModItems.BLUEPRINT.get(),
+                (mezz.jei.api.ingredients.subtypes.IIngredientSubtypeInterpreter<ItemStack>) (stack, context) -> {
+                    ResourceLocation machineId = BlueprintItem.machineOf(stack);
+                    return machineId == null
+                            ? mezz.jei.api.ingredients.subtypes.IIngredientSubtypeInterpreter.NONE
+                            : machineId.toString();
+                });
     }
 
     @Override
     public void registerGuiHandlers(mezz.jei.api.registration.IGuiHandlerRegistration registration) {
         registration.addGhostIngredientHandler(com.reborn.modularmachinery.client.RecipeEditorScreen.class,new RecipeEditorGhostHandler());
-        registration.addGuiScreenHandler(com.reborn.modularmachinery.client.RecipeEditorScreen.class,screen -> new mezz.jei.api.gui.handlers.IGuiProperties() {
+        registration.addGuiScreenHandler(com.reborn.modularmachinery.client.RecipeEditorScreen.class,screen -> {
+            screen.prepareJeiLayout();
+            return new mezz.jei.api.gui.handlers.IGuiProperties() {
             public Class<? extends net.minecraft.client.gui.screens.Screen> getScreenClass(){return screen.getClass();}
             public int getGuiLeft(){return screen.editorArea().getX();}
             public int getGuiTop(){return 0;}
@@ -121,6 +145,7 @@ public final class ModularMachineryJeiPlugin implements IModPlugin {
             public int getGuiYSize(){return screen.height;}
             public int getScreenWidth(){return screen.width;}
             public int getScreenHeight(){return screen.height;}
+            };
         });
     }
 

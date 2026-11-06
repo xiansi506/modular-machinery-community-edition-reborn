@@ -14,8 +14,11 @@ import net.minecraft.client.renderer.RenderType;
 import net.minecraft.client.renderer.block.BlockRenderDispatcher;
 import net.minecraft.client.renderer.texture.OverlayTexture;
 import net.minecraft.core.BlockPos;
+import org.joml.Matrix4d;
 import org.joml.Matrix4f;
+import org.joml.Vector3d;
 import org.joml.Vector3f;
+import org.joml.Vector4d;
 import org.joml.Vector4f;
 
 import java.util.List;
@@ -82,24 +85,29 @@ public final class StructurePreviewRenderer {
         // rays outside this square can still hit geometry visible near the viewport's sides.
 
         BlockPos size = preview.size();
-        float diagonal = (float) Math.sqrt(size.getX() * size.getX()
-                + size.getY() * size.getY() + size.getZ() * size.getZ());
+        // Square in long: a sparse structure near x=46340 overflows the int square-sum to a negative
+        // value, whose sqrt is NaN and kills the whole projection. Both pick and render share this rule.
+        float diagonal = (float) Math.sqrt((double) size.getX() * size.getX()
+                + (double) size.getY() * size.getY() + (double) size.getZ() * size.getZ());
         float cameraDistance = Math.max(diagonal * 0.55F,
                 Math.max(1.0F, diagonal * 1.18F) / Math.max(0.01F, zoom));
-        Matrix4f perspective = new Matrix4f().perspective((float) Math.toRadians(60.0F), 1.0F,
-                0.05F, Math.max(100.0F, cameraDistance * 8.0F));
-        Matrix4f view = cameraView(cameraDistance, yaw, pitch);
-        Matrix4f inverseViewProjection = perspective.mul(view).invert();
-        Vector3f near = unproject(inverseViewProjection, (float) nx, (float) ny, -1.0F);
-        Vector3f far = unproject(inverseViewProjection, (float) nx, (float) ny, 1.0F);
+        // The pick ray is built in double with the same camera convention: a sparse structure puts the
+        // camera tens of thousands of blocks out, where a float inverseVP lands the ray thousands of
+        // blocks off its aim and nothing can ever be picked. The scale stays the one the render uses.
+        Matrix4d perspective = new Matrix4d().perspective(Math.toRadians(60.0), 1.0,
+                0.05, Math.max(100.0, cameraDistance * 8.0));
+        Matrix4d view = cameraViewD(cameraDistance, yaw, pitch);
+        Matrix4d inverseViewProjection = perspective.mul(view).invert();
+        Vector3d near = unproject(inverseViewProjection, nx, ny, -1.0);
+        Vector3d far = unproject(inverseViewProjection, nx, ny, 1.0);
         if (near == null || far == null) {
             return null;
         }
 
-        Vector3f direction = far.sub(near).normalize();
-        float centerBlockX = (preview.min().getX() + preview.max().getX() + 1.0F) / 2.0F;
-        float centerBlockY = (preview.min().getY() + preview.max().getY() + 1.0F) / 2.0F;
-        float centerBlockZ = (preview.min().getZ() + preview.max().getZ() + 1.0F) / 2.0F;
+        Vector3d direction = far.sub(near).normalize();
+        double centerBlockX = (preview.min().getX() + preview.max().getX() + 1.0) / 2.0;
+        double centerBlockY = (preview.min().getY() + preview.max().getY() + 1.0) / 2.0;
+        double centerBlockZ = (preview.min().getZ() + preview.max().getZ() + 1.0) / 2.0;
         near.add(centerBlockX, centerBlockY, centerBlockZ);
 
         StructurePreview.Block closest = null;
@@ -116,15 +124,24 @@ public final class StructurePreviewRenderer {
         return closest;
     }
 
-    private static Vector3f unproject(Matrix4f inverse, float x, float y, float z) {
-        Vector4f point = new Vector4f(x, y, z, 1.0F).mul(inverse);
-        if (Math.abs(point.w) < 1.0E-7F) {
+    private static Vector3d unproject(Matrix4d inverse, double x, double y, double z) {
+        Vector4d point = new Vector4d(x, y, z, 1.0).mul(inverse);
+        if (Math.abs(point.w) < 1.0E-7) {
             return null;
         }
-        return new Vector3f(point.x / point.w, point.y / point.w, point.z / point.w);
+        return new Vector3d(point.x / point.w, point.y / point.w, point.z / point.w);
     }
 
-    private static double rayBox(Vector3f origin, Vector3f direction,
+    /** The pick camera as a world-to-camera matrix, the double twin of {@link #cameraView(float, float, float)}. */
+    private static Matrix4d cameraViewD(float distance, float yaw, float pitch) {
+        double horizontal = Math.toRadians(pitch);
+        double vertical = Math.toRadians(yaw);
+        Vector3d eye = new Vector3d(Math.cos(horizontal), Math.tan(vertical), Math.sin(horizontal))
+                .normalize().mul(distance);
+        return new Matrix4d().lookAt(eye, new Vector3d(), new Vector3d(0.0, 1.0, 0.0));
+    }
+
+    private static double rayBox(Vector3d origin, Vector3d direction,
                                  double minX, double minY, double minZ, double maxX, double maxY, double maxZ) {
         double near = 0.0;
         double far = Double.POSITIVE_INFINITY;
@@ -224,8 +241,9 @@ public final class StructurePreviewRenderer {
         // and the projection, rather than an X-axis half-turn, converts its image
         // to the GUI's top-left origin.  That is what keeps the visible top faces
         // lit like the in-world model instead of showing the dark underside.
-        float diagonal = (float) Math.sqrt(size.getX() * size.getX()
-                + size.getY() * size.getY() + size.getZ() * size.getZ());
+        // Square in long, the same rule pickBlockAt uses: an int square-sum overflows to NaN.
+        float diagonal = (float) Math.sqrt((double) size.getX() * size.getX()
+                + (double) size.getY() * size.getY() + (double) size.getZ() * size.getZ());
         // Keep the camera just outside the bounding sphere even at maximum zoom;
         // otherwise the near plane can enter a tall structure and make its front
         // blocks disappear while dragging/scrolling.

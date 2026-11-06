@@ -58,13 +58,12 @@ final class AdapterMinecraftFurnace {
             }
 
             // 数值全部先过修饰符（旧版 :60/:73/:78/:83 的四处 applyModifiers）。
-            int duration = Math.max(1, (int) Math.round(mods.applyDuration(BASE_DURATION)));
-            int inAmount = Math.max(0, (int) Math.round(mods.apply(RecipeModifier.Target.ITEM, IOType.INPUT,
-                    1, false)));
-            int outAmount = Math.max(0, (int) Math.round(mods.apply(RecipeModifier.Target.ITEM, IOType.OUTPUT,
-                    result.getCount(), false)));
-            long energy = Math.max(0, Math.round(mods.apply(RecipeModifier.Target.ENERGY, IOType.INPUT,
-                    BASE_ENERGY_PER_TICK, false)));
+            int duration = DynamicMachineAdapter.bakedInt(mods.applyDuration(BASE_DURATION), 1, "furnace duration");
+            int inAmount = DynamicMachineAdapter.bakedInt(mods.apply(RecipeModifier.Target.ITEM, IOType.INPUT,
+                    1, false), 0, "furnace input amount");
+            int outAmount = DynamicMachineAdapter.bakedInt(mods.apply(RecipeModifier.Target.ITEM, IOType.OUTPUT,
+                    result.getCount(), false), 0, "furnace output amount");
+            long energy = new EnergyRequirement(IOType.INPUT, BASE_ENERGY_PER_TICK).bakedEnergyPerTick(mods);
 
             List<MachineRequirement> requirements = new ArrayList<>(3);
             if (inAmount > 0) {

@@ -13,9 +13,12 @@ import com.reborn.modularmachinery.recipe.RecipeModifiers;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.util.RandomSource;
+import com.mojang.logging.LogUtils;
+import org.slf4j.Logger;
 
 import javax.annotation.Nullable;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -84,6 +87,10 @@ import java.util.Set;
  * {@code IDLE_TIME_OUT}, and the {@code max(1, …)} floor on the remaining parallelism.
  */
 public final class FactoryEngine {
+
+    private static final Logger LOGGER = LogUtils.getLogger();
+    private static final String TAG_NEXT_ORDINARY_IDENTITY = "nextOrdinaryIdentity";
+    private static final String TAG_NEXT_CORE_IDENTITY = "nextCoreIdentity";
 
     private final FactoryHost host;
 
@@ -229,15 +236,22 @@ public final class FactoryEngine {
     /** See {@link #hasIdleThread()} — the same test, named for the search that uses it. */
     public boolean canAccept() {
         for (FactoryThread thread : coreThreads.values()) if (thread.isIdle()) return true;
-        if (this.recipeThreads.size() < this.host.maxThreads()) {
-            return true;
+        return ordinaryAdmission(null);
+    }
+
+    /** Paid settlements drain after shrink; only a new batch needs current ordinary capacity. */
+    private boolean ordinaryAdmission(@Nullable FactoryThread replacing) {
+        int working = 0;
+        for (FactoryThread thread : recipeThreads) {
+            if (thread != replacing && thread.isWorking()) working++;
         }
-        for (FactoryThread thread : this.recipeThreads) {
-            if (thread.isIdle()) {
-                return true;
-            }
-        }
-        return false;
+        return working < Math.max(0, host.maxThreads());
+    }
+
+    private boolean admits(FactoryThread thread) {
+        return thread.isCoreThread()
+                ? host.coreThreads().stream().anyMatch(spec -> spec.name().equals(thread.threadName()))
+                : ordinaryAdmission(thread);
     }
 
     /**
@@ -270,17 +284,28 @@ public final class FactoryEngine {
             else unavailable.add(craft.recipeId());
             runnable = runnable(unavailable);
         }
+        Set<FactoryThread> triedIdle = new java.util.HashSet<>();
         while (!runnable.isEmpty()) {
-            FactoryThread target = nextFreeThread();
+            int previousCount = recipeThreads.size();
+            FactoryThread target = nextFreeThread(triedIdle);
             if (target == null) {
                 break;
             }
             ActiveCraft craft = nextCraft(target, runnable);
             if (craft == null) {
-                break;
+                // An existing slot may reject these recipes through its own recipe list/modifiers.
+                // Try later slots or one fresh unrestricted slot before declaring the factory blocked.
+                if (recipeThreads.size() > previousCount) {
+                    // A check callback may deliberately configure the new slot even when it vetoes start.
+                    if (!target.hasScriptRecipes() && target.scriptState().isEmpty()) recipeThreads.remove(target);
+                    break;
+                }
+                triedIdle.add(target);
+                continue;
             }
             if (begin(target, craft)) {
                 started++;
+                triedIdle.clear();
                 runnable = runnable(unavailable);
                 continue;
             }
@@ -317,7 +342,7 @@ public final class FactoryEngine {
                 // payments are recomputed when the thread starts; registry definitions remain untouched.
                 MachineRecipe candidate = recipe.executionCopy();
                 candidate.setParallelism(1);
-                MachineRecipe.StartPlan plan = candidate.prepareStart(groupPorts, modifiers);
+                MachineRecipe.StartPlan plan = candidate.prepareParallelStart(groupPorts, modifiers, availableParallelism(null));
                 if (candidate.canStart(groupPorts, plan) || threadRules) {
                     out.add(new Candidate(recipe, group));
                 }
@@ -334,22 +359,30 @@ public final class FactoryEngine {
 
     /** The slot the next recipe should go to: an idle ordinary thread first, otherwise a new one. */
     @Nullable
-    private FactoryThread nextFreeThread() {
-        for (FactoryThread thread : this.recipeThreads) {
-            if (thread.isIdle()) {
-                return thread;
-            }
+    private FactoryThread nextFreeThread(Set<FactoryThread> triedIdle) {
+        if (ordinaryAdmission(null)) {
+            FactoryThread idle = this.recipeThreads.stream()
+                    .filter(thread -> thread.isIdle() && !triedIdle.contains(thread))
+                    .min(java.util.Comparator.comparingInt(FactoryThread::ordinal)).orElse(null);
+            if (idle != null) return idle;
         }
         // A core thread that has nothing to do is a legitimate home too: the original's search task was offered
         // to `recipeThreadList` only, but a core thread with an empty recipe set behaves identically to an
         // ordinary one, and using it costs nothing. This is a deliberate, documented improvement over
         // `offerRecipe`, which left an idle core thread unused.
         for (FactoryThread thread : this.coreThreads.values()) {
-            if (thread.isIdle() && thread.recipeSet().isEmpty()) {
+            if (thread.isIdle() && thread.recipeSet().isEmpty() && !triedIdle.contains(thread)) {
                 return thread;
             }
         }
-        if (recipeThreads.size() >= host.maxThreads()) {
+        if (!ordinaryAdmission(null) || recipeThreads.size() >= host.maxThreads()) {
+            return null;
+        }
+        // `createdOrdinary` is the next unused identity. At MAX there is no safe non-negative number left
+        // (the displayed number is ordinal + 1), so refuse a new slot rather than overflow or reuse one.
+        if (this.createdOrdinary == Integer.MAX_VALUE) {
+            LOGGER.error("[{}] Factory ordinary-thread identity space is exhausted; refusing to create another slot.",
+                    com.reborn.modularmachinery.ModularMachineryReborn.MOD_ID);
             return null;
         }
         FactoryThread created = new FactoryThread(this.createdOrdinary++);
@@ -379,8 +412,10 @@ public final class FactoryEngine {
 
     /** Runs the start phase of {@code craft} on {@code thread} and announces it when it took. */
     private boolean begin(FactoryThread thread, ActiveCraft craft) {
-        if (!thread.accepts(craft.recipe())) return false;
-        if (!thread.begin(craft, this.host.ports().withGroup(craft.group()), this.host.random())) {
+        if (!thread.accepts(craft.recipe()) || !admits(thread)) return false;
+        if (craft.inputBinding().group(this.host.ports(), craft.group()) == null) return false;
+        if (!thread.begin(craft, craft.inputBinding().scope(this.host.ports(), craft.group()), this.host.random(),
+                () -> admits(thread))) {
             return false;
         }
         this.dirty = true;
@@ -397,15 +432,18 @@ public final class FactoryEngine {
     }
 
     private ActiveCraft prepareCraft(MachineRecipe definition, int group, FactoryThread thread) {
+        com.reborn.modularmachinery.machine.InputGroupBinding binding = com.reborn.modularmachinery.machine.InputGroupBinding.capture(host.ports(), group);
         HatchCollection ports = host.ports().withGroup(group);
         RecipeModifiers base = host.modifiers().andThen(thread.scriptState().modifiers());
         MachineRecipe recipe = definition.executionCopy();
         recipe.setExecutionTick(0);
         recipe.setParallelism(1);
-        MachineRecipe.StartPlan plan = recipe.prepareStart(ports, base);
+        MachineRecipe.StartPlan plan = recipe.prepareParallelStart(ports, base, availableParallelism(thread));
         if (!recipe.canStart(ports, plan)) return null;
         recipe.applyDurationMultiplier(plan.modifiers());
-        int parallelism = Math.max(1, recipe.parallelism(ports, plan, availableParallelism(thread)));
+        int computedParallelism = recipe.parallelism(ports, plan, availableParallelism(thread));
+        if (recipe.parallelSearchIncomplete()) return null;
+        int parallelism = Math.max(1, computedParallelism);
         var checkStart = MachineEvents.post(new com.reborn.modularmachinery.api.event.RecipeCheckEvent(
                 host.controller(), host.controller().machineId(), Phase.START, recipe, 0, recipe.duration(plan.modifiers()), parallelism).forThread(thread.ordinal()));
         if (checkStart.isCanceled()) return null;
@@ -422,7 +460,7 @@ public final class FactoryEngine {
         recipe.setParallelism(parallelism);
         base = host.modifiers().andThen(thread.scriptState().modifiers());
         if (thread.isCoreThread() && host.coreThreads().stream().noneMatch(spec -> spec.name().equals(thread.threadName()))) return null;
-        return new ActiveCraft(recipe, parallelism, group, base).withScriptModifiers(host.scriptModifiers().andThen(thread.scriptState().modifiers()));
+        return new ActiveCraft(recipe, parallelism, group, base).withInputBinding(binding).withScriptModifiers(host.scriptModifiers().andThen(thread.scriptState().modifiers()));
     }
 
     /**
@@ -431,8 +469,10 @@ public final class FactoryEngine {
      */
     public void tickThreads() {
         cleanIdleThreads();
-        for (FactoryThread thread : this.coreThreads.values()) {
-            tickThread(thread);
+        // Completion may retire a core, and callbacks may replace a slot. Preserve this tick's order
+        // without iterating a live map; a removed/replaced snapshot entry must not receive a stale tick.
+        for (FactoryThread thread : List.copyOf(this.coreThreads.values())) {
+            if (this.coreThreads.get(thread.threadName()) == thread) tickThread(thread);
         }
         for (FactoryThread thread : this.recipeThreads) {
             tickThread(thread);
@@ -451,7 +491,8 @@ public final class FactoryEngine {
             return;
         }
 
-        HatchCollection ports = this.host.ports().withGroup(craft.group());
+        if (craft.inputBinding().group(this.host.ports(), craft.group()) == null) return; // Paid source unavailable: pause, never rebind.
+        HatchCollection ports = craft.inputBinding().scope(this.host.ports(), craft.group());
         RecipeModifiers modifiers = effectiveModifiers(thread, craft);
         craft.withDuration(craft.recipe().duration(modifiers));
 
@@ -460,76 +501,84 @@ public final class FactoryEngine {
         craft.recipe().setParallelism(craft.parallelism());
         craft.recipe().applyDurationMultiplier(modifiers);
 
-        // C2 收尾（0.89.0）：本 tick 前发 Tick/START，可取消——取消 = 整 tick 跳过、什么都不扣
-        // （旧版 PreTick 的 isFailure 短路）。
-        FactoryRecipeTickEvent startEvent = MachineEvents.post(new FactoryRecipeTickEvent(
-                this.host.controller(), this.host.controller().machineId(), craft.recipe(), craft.progress(),
-                craft.duration(), craft.parallelism(), thread.ordinal(), Phase.START));
-        craft.recipe().setExecutionTick(craft.progress());
-        if (startEvent.isCanceled()) {
-            return;
-        }
-
-        int next = craft.progress() + 1;
-        if (next >= craft.duration() && !craft.recipe().canFinish(ports, modifiers)) {
-            // The craft would complete but its results do not fit. The original retried every 10 ticks
-            // (`thread.isWaitForFinish()` + `ticksExisted % 10 == 0`); the slot keeps its paid inputs and its
-            // progress and simply does not advance this tick.
-            return;
-        }
-        if (!craft.recipe().canTick(ports, modifiers)
-                || !craft.recipe().tick(ports, this.host.random(), modifiers)) {
-            // A per-tick requirement cannot be served. 0.89.0（C2 收尾）起走事件：默认值仍是配方的
-            // cancelIfPerTickFails（旧版 FactoryRecipeFailureEvent 的 destructRecipe 默认，
-            // TileFactoryController:293），监听器可按次改写——0.75.0–0.88.0 期间直接读字段的已记差异
-            // 就此收回。true = 清空槽位（回到空闲，下次可再开工）；false = 走机器 failure-action
-            // （已付一次性输入不返还、槽位保持武装——旧版行为）。
-            FactoryRecipeFailureEvent event = MachineEvents.post(new FactoryRecipeFailureEvent(
+        // As on the ordinary controller, reaching a reduced target needs no extra paid tick.
+        // Keep the persisted finish-only phase; unpaid delayed requirements are settled by finish.
+        if (craft.isComplete()) craft.recipe().markFinalTickPaid();
+        if (!craft.recipe().hasPaidFinalTick()) {
+            // C2 收尾（0.89.0）：本 tick 前发 Tick/START，可取消——取消 = 整 tick 跳过、什么都不扣
+            // （旧版 PreTick 的 isFailure 短路）。
+            FactoryRecipeTickEvent startEvent = MachineEvents.post(new FactoryRecipeTickEvent(
                     this.host.controller(), this.host.controller().machineId(), craft.recipe(), craft.progress(),
-                    craft.duration(), craft.parallelism(), thread.ordinal(),
-                    craft.recipe().startFailure(ports, modifiers), craft.recipe().cancelIfPerTickFails()));
-            if (event.destructRecipe()) {
-                thread.clear();
-                this.dirty = true;
-                this.host.onThreadIdle(thread);
+                    craft.duration(), craft.parallelism(), thread.ordinal(), Phase.START));
+            craft.recipe().setExecutionTick(craft.progress());
+            if (startEvent.isCanceled()) {
                 return;
             }
-            // Otherwise apply the machine's failure-action — the original's failed ioTick
-            // (RecipeCraftingContext:238-298) is exactly where ActiveMachineRecipe#doFailureAction:106-115
-            // ran, and a factory thread ticks the same object. The thread keeps the craft (it is armed by its
-            // slot, not by its progress), so even `reset` costs time and never a second set of one-shot
-            // inputs — the original's behaviour.
-            int kept = this.host.failureAction().afterFailedTick(craft.progress());
-            if (kept != craft.progress()) {
-                craft.setProgress(kept);
-                this.dirty = true;
-            }
-            return;
-        }
-        // B8: same ordering as the single-craft path -- processingCommands see the progress before this
-        // successful tick was counted.
-        this.host.runRecipeCommands(thread, craft.recipe(), FactoryHost.PHASE_PROCESSING, craft.progress());
-        // C2 收尾：本 tick 资源已扣、进度未加之前发 Tick/END，可取消——取消 = 资源留扣、进度不加
-        // （旧版 preventProgressing 的等价物；本引擎没有「回退已扣资源」的通道，差异只体现在进度上）。
-        FactoryRecipeTickEvent endEvent = MachineEvents.post(new FactoryRecipeTickEvent(
-                this.host.controller(), this.host.controller().machineId(), craft.recipe(), craft.progress(),
-                craft.duration(), craft.parallelism(), thread.ordinal(), Phase.END));
-        if (endEvent.isCanceled()) {
-            return;
-        }
-        craft.advance();
-        this.dirty = true;
 
-        if (!craft.isComplete()) {
+            long next = (long) craft.progress() + 1;
+            boolean tickReady = craft.recipe().canTick(ports, modifiers);
+            if (next >= craft.duration() && tickReady && !craft.recipe().canTickAndFinish(ports, modifiers)) {
+                // The craft would complete but its results do not fit. The original retried every 10 ticks
+                // (`thread.isWaitForFinish()` + `ticksExisted % 10 == 0`); the slot keeps its paid inputs and its
+                // progress and simply does not advance this tick.
+                return;
+            }
+            if (!tickReady || !craft.recipe().tick(ports, this.host.random(), modifiers)) {
+                // A per-tick requirement cannot be served. 0.89.0（C2 收尾）起走事件：默认值仍是配方的
+                // cancelIfPerTickFails（旧版 FactoryRecipeFailureEvent 的 destructRecipe 默认，
+                // TileFactoryController:293），监听器可按次改写——0.75.0–0.88.0 期间直接读字段的已记差异
+                // 就此收回。true = 清空槽位（回到空闲，下次可再开工）；false = 走机器 failure-action
+                // （已付一次性输入不返还、槽位保持武装——旧版行为）。
+                String cause = craft.recipe().tickFailure(ports, modifiers);
+                FactoryRecipeFailureEvent event = MachineEvents.post(new FactoryRecipeFailureEvent(
+                        this.host.controller(), this.host.controller().machineId(), craft.recipe(), craft.progress(),
+                        craft.duration(), craft.parallelism(), thread.ordinal(),
+                        cause == null ? MachineRecipe.FAILURE_TICK : cause, craft.recipe().cancelIfPerTickFails()));
+                if (event.destructRecipe()) {
+                    thread.clear();
+                    this.dirty = true;
+                    this.host.onThreadIdle(thread);
+                    return;
+                }
+                // Otherwise apply the machine's failure-action — the original's failed ioTick
+                // (RecipeCraftingContext:238-298) is exactly where ActiveMachineRecipe#doFailureAction:106-115
+                // ran, and a factory thread ticks the same object. The thread keeps the craft (it is armed by its
+                // slot, not by its progress), so even `reset` costs time and never a second set of one-shot
+                // inputs — the original's behaviour.
+                int kept = this.host.failureAction().afterFailedTick(craft.progress());
+                if (kept != craft.progress()) {
+                    craft.setProgress(kept);
+                    this.dirty = true;
+                }
+                return;
+            }
+            // B8: same ordering as the single-craft path -- processingCommands see the progress before this
+            // successful tick was counted.
+            this.host.runRecipeCommands(thread, craft.recipe(), FactoryHost.PHASE_PROCESSING, craft.progress());
+            // C2 收尾：本 tick 资源已扣、进度未加之前发 Tick/END，可取消——取消 = 资源留扣、进度不加
+            // （旧版 preventProgressing 的等价物；本引擎没有「回退已扣资源」的通道，差异只体现在进度上）。
+            FactoryRecipeTickEvent endEvent = MachineEvents.post(new FactoryRecipeTickEvent(
+                    this.host.controller(), this.host.controller().machineId(), craft.recipe(), craft.progress(),
+                    craft.duration(), craft.parallelism(), thread.ordinal(), Phase.END));
+            if (endEvent.isCanceled()) {
+                return;
+            }
+            craft.advance();
+            this.dirty = true;
+        }
+
+        if (!craft.isComplete() && !craft.recipe().hasPaidFinalTick()) {
             return;
         }
+        craft.recipe().markFinalTickPaid();
+        if (!craft.recipe().canFinish(ports, modifiers)) return;
         // C2 小件（0.91.0）：结算前发 ResultChanceCreateEvent，与单控制器同一点；不替换时用宿主随机。
         com.reborn.modularmachinery.api.event.ResultChanceCreateEvent chance =
                 MachineEvents.post(new com.reborn.modularmachinery.api.event.ResultChanceCreateEvent(
                         this.host.controller(), this.host.controller().machineId(), craft.recipe(),
                         craft.progress(), craft.duration(), craft.parallelism(), this.host.random()).forThread(thread.ordinal()));
         if (!craft.recipe().finish(ports, chance.random(), modifiers)) {
-            craft.setProgress(Math.max(0, craft.duration() - 1));
+            // Do not pay or emit the final tick again when finish is retried.
             return;
         }
         // B8: finishCommands run after the outputs have been settled.
@@ -553,11 +602,15 @@ public final class FactoryEngine {
      */
     private void tryRestart(FactoryThread thread, ActiveCraft finished) {
         MachineRecipe current = host.currentRecipe(finished.recipeId());
-        if (current == null || !thread.accepts(current) || (thread.isCoreThread()
-                && host.coreThreads().stream().noneMatch(spec -> spec.name().equals(thread.threadName())))) {
-            thread.clear(); dirty = true; host.onThreadIdle(thread); return;
+        boolean withdrawn = thread.isCoreThread()
+                && host.coreThreads().stream().noneMatch(spec -> spec.name().equals(thread.threadName()));
+        if (current == null || !admits(thread) || !thread.accepts(current) || withdrawn) {
+            thread.clear();
+            if (withdrawn) this.coreThreads.remove(thread.threadName(), thread);
+            dirty = true; host.onThreadIdle(thread); return;
         }
-        ActiveCraft again = prepareCraft(current, finished.group(), thread);
+        Integer currentGroup = finished.inputBinding().group(host.ports(), finished.group());
+        ActiveCraft again = currentGroup == null ? null : prepareCraft(current, currentGroup, thread);
         if (again != null && begin(thread, again)) return;
         thread.clear();
         this.dirty = true;
@@ -602,8 +655,15 @@ public final class FactoryEngine {
             wanted.add(spec.name());
             FactoryThread existing = this.coreThreads.get(spec.name());
             if (existing == null) {
-                this.coreThreads.put(spec.name(), new FactoryThread(spec, createdCore++));
-                this.dirty = true;
+                // `createdCore` is the next unused creation ordinal (the identity is -2-createdCore). At MAX
+                // there is no safe core identity left; skip the new preset rather than overflow or reuse one.
+                if (this.createdCore == Integer.MAX_VALUE) {
+                    LOGGER.error("[{}] Factory core-thread identity space is exhausted; '{}' cannot be created now.",
+                            com.reborn.modularmachinery.ModularMachineryReborn.MOD_ID, spec.name());
+                } else {
+                    this.coreThreads.put(spec.name(), new FactoryThread(spec, createdCore++));
+                    this.dirty = true;
+                }
             } else {
                 Set<ResourceLocation> wanted2 = Set.copyOf(spec.recipes());
                 if (!existing.hasScriptRecipes() && !existing.recipeSet().equals(wanted2)) {
@@ -678,8 +738,13 @@ public final class FactoryEngine {
      * Writes the ordinary and core threads, mirroring the original's {@code writeCustomNBT} keys
      * ({@code threadList} / {@code coreThreadList}) so an NBT dump of a factory controller reads the way the
      * original's did.
+     *
+     * <p>0.121.51 adds the slot identity on each entry and the next-identity high water marks on the engine.
+     * The high water marks are written even when no thread survives, so retired identities are not reused.
      */
     public void save(CompoundTag tag) {
+        tag.putInt(TAG_NEXT_ORDINARY_IDENTITY, this.createdOrdinary);
+        tag.putInt(TAG_NEXT_CORE_IDENTITY, this.createdCore);
         if (!this.recipeThreads.isEmpty()) {
             net.minecraft.nbt.ListTag list = new net.minecraft.nbt.ListTag();
             for (FactoryThread thread : this.recipeThreads) {
@@ -701,6 +766,12 @@ public final class FactoryEngine {
      * rather than dropped: the thread is a structural slot, and the recipe may simply be in a data pack that is
      * loading later.
      *
+     * <p>0.121.51 restores the slot identities and the next-identity high water marks. Missing identities (old
+     * saves) migrate deterministically in list/preset order; malformed or duplicate identities are ignored and
+     * the entry gets the next unused identity. Replaying the same snapshot is therefore idempotent, retired
+     * identities stay retired through the high water marks, and a counter at its maximum refuses a new slot
+     * instead of overflowing or reusing one.
+     *
      * @param resolve turns a saved recipe id back into a recipe, or {@code null} when it is unknown here
      */
     public void load(CompoundTag tag,
@@ -708,27 +779,117 @@ public final class FactoryEngine {
                      List<FactoryThreadModel.CoreThreadSpec> corePreset) {
         this.coreThreads.clear();
         this.recipeThreads.clear();
-        for (FactoryThreadModel.CoreThreadSpec spec : corePreset) {
-            this.coreThreads.put(spec.name(), new FactoryThread(spec, createdCore++));
-        }
+
+        // Restoration is determined by this snapshot, not by how often the live engine has read it.
+        // Keep the live allocation high water separately: migrating an old snapshot must neither consume
+        // fresh identities on every replay nor allow future new slots to reuse retired identities.
+        int nextOrdinary = readHighWater(tag, TAG_NEXT_ORDINARY_IDENTITY);
+        int nextCore = readHighWater(tag, TAG_NEXT_CORE_IDENTITY);
+
+        Map<Integer, Integer> coreOccurrences = new HashMap<>();
+        Map<Integer, Integer> ordinaryOccurrences = new HashMap<>();
+        Map<String, CompoundTag> savedCoreByName = new LinkedHashMap<>();
         if (tag.contains("coreThreadList")) {
             net.minecraft.nbt.ListTag list = tag.getList("coreThreadList", CompoundTag.TAG_COMPOUND);
             for (int i = 0; i < list.size(); i++) {
                 CompoundTag entry = list.getCompound(i);
-                FactoryThread thread = this.coreThreads.get(entry.getString(FactoryThread.TAG_CORE_THREAD_NAME));
-                if (thread != null) {
-                    restore(thread, entry, resolve);
+                Integer identity = FactoryThread.savedIdentity(entry, true);
+                if (identity != null) {
+                    coreOccurrences.merge(identity, 1, Integer::sum);
+                    nextCore = Math.max(nextCore, FactoryThread.coreCreationOrdinal(identity) + 1);
                 }
+                savedCoreByName.put(entry.getString(FactoryThread.TAG_CORE_THREAD_NAME), entry);
             }
         }
+
+        for (FactoryThreadModel.CoreThreadSpec spec : corePreset) {
+            CompoundTag entry = savedCoreByName.get(spec.name());
+            Integer identity = entry == null ? null : FactoryThread.savedIdentity(entry, true);
+            if (identity != null && coreOccurrences.getOrDefault(identity, 0) > 1) {
+                identity = null;
+            }
+            if (identity != null) {
+                FactoryThread thread = new FactoryThread(spec, FactoryThread.coreCreationOrdinal(identity));
+                this.coreThreads.put(spec.name(), thread);
+                restore(thread, entry, resolve);
+                continue;
+            }
+            if (nextCore == Integer.MAX_VALUE) {
+                LOGGER.error("[{}] Factory core-thread identity space is exhausted; '{}' was not restored.",
+                        com.reborn.modularmachinery.ModularMachineryReborn.MOD_ID, spec.name());
+                continue;
+            }
+            FactoryThread thread = new FactoryThread(spec, nextCore++);
+            this.coreThreads.put(spec.name(), thread);
+            if (entry != null) {
+                restore(thread, entry, resolve);
+            }
+        }
+
+        // A withdrawn declaration does not erase the batch it already paid for. Retain only a valid
+        // active execution; empty/invalid unknown slots are not declarations to resurrect. The normal
+        // restore path enforces current recipe ownership/fingerprint and preserves frozen payment state.
+        for (Map.Entry<String, CompoundTag> savedEntry : savedCoreByName.entrySet()) {
+            String name = savedEntry.getKey();
+            CompoundTag entry = savedEntry.getValue();
+            if (name.isBlank() || corePreset.stream().anyMatch(spec -> spec.name().equals(name))
+                    || FactoryThread.load(entry) == null) continue;
+            Integer identity = FactoryThread.savedIdentity(entry, true);
+            if (identity != null && coreOccurrences.getOrDefault(identity, 0) > 1) identity = null;
+            if (identity == null && nextCore == Integer.MAX_VALUE) {
+                LOGGER.error("[{}] Factory core-thread identity space is exhausted; retiring '{}' was not restored.",
+                        com.reborn.modularmachinery.ModularMachineryReborn.MOD_ID, name);
+                continue;
+            }
+            int creation = identity == null ? nextCore : FactoryThread.coreCreationOrdinal(identity);
+            FactoryThread thread = new FactoryThread(new FactoryThreadModel.CoreThreadSpec(name, List.of()), creation);
+            restore(thread, entry, resolve);
+            if (thread.isWorking()) {
+                this.coreThreads.put(name, thread);
+                if (identity == null) nextCore++;
+            }
+        }
+
         if (tag.contains("threadList")) {
             net.minecraft.nbt.ListTag list = tag.getList("threadList", CompoundTag.TAG_COMPOUND);
             for (int i = 0; i < list.size(); i++) {
-                FactoryThread thread = new FactoryThread(this.createdOrdinary++);
-                restore(thread, list.getCompound(i), resolve);
+                CompoundTag entry = list.getCompound(i);
+                Integer saved = FactoryThread.savedIdentity(entry, false);
+                if (saved != null) {
+                    ordinaryOccurrences.merge(saved, 1, Integer::sum);
+                    // Reserve every saved identity before assigning any missing/duplicate entry. Otherwise
+                    // an earlier fallback can steal a later valid identity (e.g. [missing, 0]).
+                    nextOrdinary = Math.max(nextOrdinary, saved + 1);
+                }
+            }
+            for (int i = 0; i < list.size(); i++) {
+                CompoundTag entry = list.getCompound(i);
+                Integer identity = FactoryThread.savedIdentity(entry, false);
+                if (identity != null && ordinaryOccurrences.getOrDefault(identity, 0) > 1) {
+                    identity = null;
+                }
+                if (identity != null) {
+                    nextOrdinary = Math.max(nextOrdinary, identity + 1);
+                } else if (nextOrdinary == Integer.MAX_VALUE) {
+                    LOGGER.error("[{}] Factory ordinary-thread identity space is exhausted; saved slot {} was not restored.",
+                            com.reborn.modularmachinery.ModularMachineryReborn.MOD_ID, i);
+                    continue;
+                } else {
+                    identity = nextOrdinary++;
+                }
+                FactoryThread thread = new FactoryThread(identity);
+                restore(thread, entry, resolve);
                 this.recipeThreads.add(thread);
             }
         }
+
+        this.createdOrdinary = Math.max(this.createdOrdinary, nextOrdinary);
+        this.createdCore = Math.max(this.createdCore, nextCore);
+    }
+
+    /** Snapshot-local migration starts at zero for legacy/malformed metadata; live high water is merged later. */
+    private static int readHighWater(CompoundTag tag, String key) {
+        return tag.contains(key, net.minecraft.nbt.Tag.TAG_INT) ? Math.max(0, tag.getInt(key)) : 0;
     }
 
     private void restore(FactoryThread thread, CompoundTag entry,
@@ -739,13 +900,17 @@ public final class FactoryEngine {
             return;
         }
         MachineRecipe recipe = resolve.apply(saved.recipeId());
-        if (recipe == null) {
+        if (recipe == null || !recipe.belongsTo(this.host.controller().machineId())
+                || !recipe.canRestoreExecutionState(entry.getCompound("scriptExecution"))) {
+            thread.scriptState().clearCraft();
             return;
         }
-        HatchCollection groupPorts = this.host.ports().withGroup(saved.group());
+        com.reborn.modularmachinery.machine.InputGroupBinding binding = com.reborn.modularmachinery.machine.InputGroupBinding.load(entry, saved.group());
+        HatchCollection groupPorts = binding.scope(this.host.ports(), saved.group());
+        if (!binding.resolved()) LOGGER.warn("Factory paid input group {} has no unambiguous saved source; preserving suspended work.", saved.group());
         RecipeModifiers effective = saved.modifiers() != null ? saved.modifiers()
                 : this.host.modifiers().andThen(recipe.catalystModifiers(groupPorts));
-        ActiveCraft craft = new ActiveCraft(recipe, saved.parallelism(), saved.group(), effective);
+        ActiveCraft craft = new ActiveCraft(recipe, saved.parallelism(), saved.group(), effective).withInputBinding(binding);
         if (entry.contains("scriptModifiers")) craft.withScriptModifiers(RecipeModifiers.load(entry.getList("scriptModifiers", net.minecraft.nbt.Tag.TAG_COMPOUND)));
         if (saved.duration() > 0) craft.withDuration(saved.duration());
         craft.setProgress(saved.progress());
@@ -779,6 +944,9 @@ public final class FactoryEngine {
         private final ResourceLocation recipeId;
         private final int parallelism;
         private final int group;
+        private com.reborn.modularmachinery.machine.InputGroupBinding inputBinding = com.reborn.modularmachinery.machine.InputGroupBinding.manual();
+        public com.reborn.modularmachinery.machine.InputGroupBinding inputBinding() { return inputBinding; }
+        ActiveCraft withInputBinding(com.reborn.modularmachinery.machine.InputGroupBinding value) { inputBinding = value; return this; }
         private final RecipeModifiers startBaseModifiers;
         private RecipeModifiers modifiers;
         private RecipeModifiers scriptModifiers = RecipeModifiers.EMPTY;
@@ -849,8 +1017,15 @@ public final class FactoryEngine {
             return this.progress >= this.duration;
         }
 
+        /**
+         * Saturates at {@link Integer#MAX_VALUE}: the next tick after the last payable tick must not wrap
+         * back to a negative progress. A craft already sitting at MAX goes through the existing final-tick /
+         * finish flow below instead of advancing again.
+         */
         void advance() {
-            this.progress++;
+            if (this.progress != Integer.MAX_VALUE) {
+                this.progress++;
+            }
         }
 
         void setProgress(int value) {

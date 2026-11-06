@@ -534,7 +534,7 @@ number input. There was nothing that could read a string.
 ## Localization
 
 All uhinese and English display names are aligned to the original Modular Machinery: Community Edition
-official naming (see [_audit/08-语言命名核查.md](../../../../_audit/08-语言命名核查.md)): 48 tiered hatches in the
+official naming (see _audit/08-语言命名核查.md（本地审计工件，不随本次发布）): 48 tiered hatches in the
 original `<tier><type>` order, 微型物品输入仓 / `Tiny Item Input`, `itemmodularium` as 模块化合金锭,
 `itemconstructtool` as 建造选择工具 / `uonstruct Selection Tool`, and a localized creative tab.
 

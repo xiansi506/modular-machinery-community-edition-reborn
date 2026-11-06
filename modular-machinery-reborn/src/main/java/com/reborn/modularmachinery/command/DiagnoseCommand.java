@@ -532,20 +532,35 @@ public final class DiagnoseCommand {
         return com.reborn.modularmachinery.machine.MachineStructures.runtimeStructure(controller, machine);
     }
 
-    /** 找到离命令执行者最近的控制器：先看脚下 8 格内，再看准星指向的方块。 */
+    /**
+     * 找到离命令执行者最近的控制器：8 格立方范围内最近者（距离相同按扫描顺序）。
+     *
+     * <p>P02-08（0.121.37，加载边界子项）：候选位置先经 {@link Level#isLoaded(BlockPos)} 检查——
+     * 该查询只读区块加载状态、不会创建区块；未加载位置的 {@code getBlockEntity} 会以
+     * {@code create=true} 请求 FULL 区块，把邻近区块拉进内存。扫描范围限定在 8 格立方，
+     * 当前改为只枚举现有已加载区块的BE集合，不再固定4913次逐位置lookup，也不建全局索引；
+     * 方法注释里的"准星指向"兜底当前并无实现，本批同样不新增。
+     */
     @Nullable
     private static MachineControllerBlockEntity findController(CommandSourceStack source, Level level) {
         BlockPos origin = BlockPos.containing(source.getPosition());
         MachineControllerBlockEntity best = null;
         double bestDistance = Double.MAX_VALUE;
-        for (int dx = -8; dx <= 8; dx++) {
-            for (int dy = -8; dy <= 8; dy++) {
-                for (int dz = -8; dz <= 8; dz++) {
-                    BlockPos at = origin.offset(dx, dy, dz);
-                    BlockEntity entity = level.getBlockEntity(at);
+        if (!(level instanceof net.minecraft.server.level.ServerLevel server)) return null;
+        for (int cx = (origin.getX() - 8) >> 4; cx <= (origin.getX() + 8) >> 4; cx++) {
+            for (int cz = (origin.getZ() - 8) >> 4; cz <= (origin.getZ() + 8) >> 4; cz++) {
+                var chunk = server.getChunkSource().getChunkNow(cx, cz);
+                if (chunk == null) continue;
+                for (BlockEntity entity : chunk.getBlockEntities().values()) {
+                    BlockPos at = entity.getBlockPos();
+                    if (entity.isRemoved() || entity.getLevel() != level
+                            || Math.abs((long) at.getX() - origin.getX()) > 8
+                            || Math.abs((long) at.getY() - origin.getY()) > 8
+                            || Math.abs((long) at.getZ() - origin.getZ()) > 8) continue;
                     if (entity instanceof MachineControllerBlockEntity controller) {
                         double distance = at.distSqr(origin);
-                        if (distance < bestDistance) {
+                        if (distance < bestDistance || distance == bestDistance && best != null
+                                && scanOrder(at, best.getBlockPos()) < 0) {
                             bestDistance = distance;
                             best = controller;
                         }
@@ -554,5 +569,13 @@ public final class DiagnoseCommand {
             }
         }
         return best;
+    }
+
+    /** The former dx/dy/dz loop's deterministic order, independent of chunk/map iteration order. */
+    private static int scanOrder(BlockPos a, BlockPos b) {
+        int x = Integer.compare(a.getX(), b.getX());
+        if (x != 0) return x;
+        int y = Integer.compare(a.getY(), b.getY());
+        return y != 0 ? y : Integer.compare(a.getZ(), b.getZ());
     }
 }

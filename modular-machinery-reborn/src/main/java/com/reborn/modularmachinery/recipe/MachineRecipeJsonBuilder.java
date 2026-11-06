@@ -398,6 +398,11 @@ public final class MachineRecipeJsonBuilder {
     }
 
     private static void addChance(JsonObject json, float chance) {
+        // NaN fails both comparisons below and would silently delete the field (parsing back as 1), so
+        // finiteness has to be checked before the range, and before any existing chance value is touched.
+        if (!Float.isFinite(chance)) {
+            throw new IllegalArgumentException("chance must be a finite number between 0 and 1, got " + chance);
+        }
         if (chance < 0.0F || chance > 1.0F) {
             throw new IllegalArgumentException("chance must be between 0 and 1, got " + chance);
         }

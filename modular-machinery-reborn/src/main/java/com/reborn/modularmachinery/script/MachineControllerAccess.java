@@ -61,7 +61,29 @@ public final class MachineControllerAccess {
     public List<BlockPos> getBlockPosInPattern() {
         return controller.scriptPatternPositions();
     }
-    public List<BlockState> getBlocksInPattern() { return getBlockPosInPattern().stream().map(getWorld()::getBlockState).toList(); }
+    public List<BlockState> getBlocksInPattern() {
+        List<BlockPos> positions = getBlockPosInPattern();
+        Level world = readableWorld(positions);
+        var states = new java.util.ArrayList<BlockState>(positions.size());
+        for (BlockPos pos : positions) {
+            if (world != getWorld() || readableWorld(List.of(pos)) != world) throw new IllegalStateException("Machine structure became unavailable");
+            states.add(world.getBlockState(pos));
+        }
+        return List.copyOf(states);
+    }
+
+    private Level readableWorld(List<BlockPos> positions) {
+        Level world = getWorld();
+        BlockPos own = getPos();
+        if (world == null || world.isClientSide || controller.isRemoved() || !world.isLoaded(own)
+                || world.getBlockEntity(own) != controller)
+            throw new IllegalStateException("Machine structure query requires the current loaded server controller");
+        for (BlockPos pos : positions) {
+            if (world.isOutsideBuildHeight(pos) || !world.isLoaded(pos))
+                throw new IllegalStateException("Machine structure position is unavailable: " + pos);
+        }
+        return world;
+    }
     public BlockPos rotateWithControllerFacing(BlockPos offset) {
         for (int i = 0; i < controller.rotationSteps(); i++) offset = new BlockPos(offset.getZ(), offset.getY(), -offset.getX());
         return offset;
@@ -135,7 +157,14 @@ public final class MachineControllerAccess {
     public long getTicksExisted() { return controller.scriptTicksExisted(); }
     public net.minecraft.core.Direction getFacing() { return getBlockState().getValue(net.minecraft.world.level.block.HorizontalDirectionalBlock.FACING); }
     public List<BlockPos> findBlocks(java.util.function.Predicate<BlockState> predicate) {
-        return getBlockPosInPattern().stream().filter(p -> predicate.test(getWorld().getBlockState(p))).toList();
+        List<BlockPos> positions = getBlockPosInPattern();
+        Level world = readableWorld(positions);
+        var found = new java.util.ArrayList<BlockPos>();
+        for (BlockPos pos : positions) {
+            if (world != getWorld() || readableWorld(List.of(pos)) != world) throw new IllegalStateException("Machine structure became unavailable");
+            if (predicate.test(world.getBlockState(pos))) found.add(pos);
+        }
+        return List.copyOf(found);
     }
     public final class ThreadAccess {
         private final FactoryThread thread;

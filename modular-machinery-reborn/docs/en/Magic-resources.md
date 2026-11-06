@@ -1,6 +1,8 @@
+> **Current safety behavior:** Since 0.121.85, a fractional WILL/EMBER recipe may start at an affordable parallel count even when one copy cannot move the balance. Nominal cost and existing movement precision are unchanged. Unknown/complex port plans or exhausted search budgets report incomplete and do not pay; lower the parallel ceiling or use supported local ports. [Verification](../归档/开发记录/已完成-2026-11-06/修复记录-剩余G3-0.121.85-2026-11-05.md). Offline validation only; no game deployment.
+
 # Magic resources: Botania, Nature’s Aura and Blood Magic 3 (0.121.0)
 
-For Minecraft 1.20.1 / Forge. Each integration is optional; its hatches and requirement types register only when that mod is installed. API checks used **Botania 1.20.1-455-FORGE**, **Nature’s Aura 39.4** and **Blood Magic 3.3.8-50**. Install their own dependencies as well. Both client and server must use protocol **12**.
+For Minecraft 1.20.1 / Forge. Each integration is optional; its hatches and requirement types register only when that mod is installed. API checks used **Botania 1.20.1-455-FORGE**, **Nature’s Aura 39.4** and **Blood Magic 3.3.8-50**. Install their own dependencies as well. Both client and server must use protocol **13**.
 
 Custom machines can consume and produce these resources. This does not import recipes from third-party machines such as the Blood Altar. Other magic integrations remain deferred.
 

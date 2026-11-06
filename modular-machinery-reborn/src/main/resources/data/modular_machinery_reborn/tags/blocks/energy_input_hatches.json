@@ -1,0 +1,10 @@
+{
+  "replace": false,
+  "values": [
+    "modular_machinery_reborn:energy_input_hatch",
+    {
+      "id": "modular_machinery_reborn:wireless_energy_input_hatch",
+      "required": false
+    }
+  ]
+}

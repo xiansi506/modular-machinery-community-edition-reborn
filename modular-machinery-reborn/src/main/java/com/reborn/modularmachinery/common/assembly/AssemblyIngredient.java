@@ -21,10 +21,9 @@ import java.util.Map;
  *   <li>候选来自 {@link MachinePattern}（{@code MachineStructures.ghostStructure} 的产物）
  *       而不是另存一份 BlockArray——扫描与虚影/诊断是同一份结构，不会各说各话；</li>
  *   <li>候选是 {@link BlockState} 列表（{@link BlockMatcher#representativeState()} 去重），
- *       物品形态在消耗时用 {@code state.getBlock().asItem()} 现取——1.20.1 的
- *       BlockItem 映射是稳定的，不需要随身带 ItemStack 元组；</li>
- *   <li>TE NBT 字段不存在：本版 {@code BlockMatcher} 只含方块与属性，候选不带 tile 数据
- *       ——旧版 {@code skipBlockContainNBT} 配置因此没有可判定的对象，有据不迁移。</li>
+ *       物品形态通过 {@code PropertyBlockItem.stackForState} 按实际等级取，普通方块保留原生映射；</li>
+ *   <li>材料记录不携带 tile 数据；结构 matcher 可以另有 NBT/checker 规则，但自动搭建不会
+ *       凭规则合成实体库存或伪造 NBT 满足它们。</li>
  * </ul>
  *
  * <p>液体格（候选 state 自带流体态，如水/熔岩块）单独标 {@link #fluidBlock}，

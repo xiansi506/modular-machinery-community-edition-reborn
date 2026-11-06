@@ -43,6 +43,10 @@ import java.util.Set;
  * <p>见 {@link #matchesSize}：太长的结构是<strong>不匹配</strong>而不是截断接受；以及回退一格之后还要再验一次
  * 收尾段。第二条的理由旧版写在注释里（{@code Prevent overlapping structures}），而它防的是「两段结构互相
  * 吃掉对方的格子」——在世界里表现为机器偶尔不成型，极难查。
+ *
+ * <p><b>有一处不照抄：</b>旧版在数满 {@code maxSize} 的那一格直接判超限，连「这一格其实是合法收尾段」
+ * 都不看，于是「{@code maxSize} 段 + 尾」这种合法结构反而失败（P07-06）。本版在那一格先辨认尾，命中就按
+ * 实际重复数成立；真正的 {@code maxSize+1} 段仍然拒绝。这是修正，不是旧行为的复制。
  */
 public final class DynamicPattern {
 
@@ -84,6 +88,12 @@ public final class DynamicPattern {
     public DynamicPattern(String name, Set<Direction> faces, int minSize, int maxSize,
                           MachinePattern part, @Nullable MachinePattern endPart,
                           BlockPos startOffset, BlockPos stepOffset) {
+        if (minSize < 0 || maxSize < minSize) {
+            throw new IllegalArgumentException("Dynamic pattern sizes require 0 <= minSize <= maxSize");
+        }
+        if (maxSize > 0 && BlockPos.ZERO.equals(stepOffset)) {
+            throw new IllegalArgumentException("Repeating dynamic pattern '" + name + "' requires a nonzero step offset");
+        }
         this.name = name;
         this.faces = Set.copyOf(faces);
         this.minSize = minSize;
@@ -166,6 +176,12 @@ public final class DynamicPattern {
      * @param rotationSteps 控制器朝向相对 NORTH 的逆时针四分之一圈数（北 0、西 1、南 2、东 3）
      */
     public MatchResult match(Level level, BlockPos controller, int rotationSteps) {
+        return inspect(level, controller, rotationSteps).match();
+    }
+
+    public record Inspection(MatchResult match, boolean unloaded) {}
+
+    public Inspection inspect(Level level, BlockPos controller, int rotationSteps) {
         Set<Direction> actual = trueFacing(this.faces, rotationSteps);
         BlockPos start = rotate(this.startOffset, rotationSteps);
         BlockPos step = rotate(this.stepOffset, rotationSteps);
@@ -180,10 +196,13 @@ public final class DynamicPattern {
         // （`DynamicPattern.matches` 末尾的 max(comparingInt(value))）。取最长而不是取第一个，
         // 是因为一台机器的长度是它自己的事实，不该取决于我们遍历方向的顺序。
         MatchResult best = MatchResult.NO_MATCH;
+        boolean unloaded = false;
         for (Direction face : actual) {
-            int size = matchesSize(pos -> part.matches(level, pos),
-                    pos -> endPart != null && endPart.matches(level, pos),
+            Measurement measured = measure(pos -> part.inspect(level, pos),
+                    pos -> endPart == null ? new MachinePattern.Inspection(false, false) : endPart.inspect(level, pos),
                     controller, start, step);
+            int size = measured.size();
+            unloaded |= measured.unloaded();
             // -1 是量失败，不是「比 0 小的一点」：先挡掉它，再谈下限。
             if (size < 0 || size < this.minSize) {
                 continue;
@@ -195,7 +214,7 @@ public final class DynamicPattern {
                 best = candidate;
             }
         }
-        return best;
+        return new Inspection(best, !best.isMatched() && unloaded);
     }
 
     /**
@@ -213,7 +232,11 @@ public final class DynamicPattern {
      *
      * <ol>
      *   <li>节数超过 {@code maxSize} 时返回 {@code -1}。<strong>过长的结构是不匹配，不是被截断接受</strong>——
-     *       如果截断接受，玩家可以把线无限接长而机器仍然成型，长度上限就形同虚设。</li>
+     *       如果截断接受，玩家可以把线无限接长而机器仍然成型，长度上限就形同虚设。<strong>唯一的边界例外
+     *       见下一项</strong>：数满上限的那一格如果本身就是合法收尾段，它不算第 {@code maxSize+1} 节。</li>
+     *   <li><b>（P07-06 修正，旧版没有）</b>达到 {@code maxSize} 时，先辨认<strong>该锚点</strong>上的收尾段：
+     *       命中就是「{@code maxSize} 节 + 尾」，返回 {@code maxSize}；不命中才返回 {@code -1}。
+     *       旧版与 0.121.44 及以前的本版都在这里不看尾就失败，把一个合法的最大长度结构判成超限。</li>
      *   <li>遇到不匹配时，先看<strong>当前这一格</strong>是不是收尾段；是的话节数就是已经数过的那些。</li>
      *   <li>当前这一格不是收尾段时，<strong>回退一格再验一次</strong>。旧版给这一步写的理由是
      *       {@code Prevent overlapping structures}：两个模式相邻时，一方的收尾段可能正好落在另一方重复段的位置上，
@@ -225,9 +248,10 @@ public final class DynamicPattern {
      *       （{@code MatchResult#isMatched} 只看面）。这一条与上一条合起来，就是勘测 X3 要恢复的语义。</li>
      * </ol>
      *
-     * <p>只有两种情形算<strong>量失败</strong>并返回 {@code -1}：数过 {@code maxSize} 节还没到头；有收尾段、
-     * 但当前格与回退格都不是它。旧版把这两种也返回 0，于是 {@code minSize: 0} 时它们会被当成「0 节成立」。
-     * 本版不照抄这一点（理由见 {@link #match}）：量失败不是一种长度。
+     * <p>只有两种情形算<strong>量失败</strong>并返回 {@code -1}：数过 {@code maxSize} 节之后的那一格既不是
+     * 收尾段、也不是重复段（真正的超限）；有收尾段、但当前格与回退格都不是它。旧版把这两种也返回 0，
+     * 于是 {@code minSize: 0} 时它们会被当成「0 节成立」。本版不照抄这一点（理由见 {@link #match}）：
+     * 量失败不是一种长度。
      *
      * @param partAt    某个位置是否是合法的重复段
      * @param endPartAt 某个位置是否是合法的收尾段（没有收尾段时恒为 false）
@@ -240,36 +264,68 @@ public final class DynamicPattern {
     public int matchesSize(java.util.function.Predicate<BlockPos> partAt,
                     java.util.function.Predicate<BlockPos> endPartAt,
                     BlockPos controller, BlockPos start, BlockPos step) {
+        return measure(at -> new MachinePattern.Inspection(partAt.test(at), false),
+                at -> new MachinePattern.Inspection(endPartAt.test(at), false), controller, start, step).size();
+    }
+
+    private record Measurement(int size, boolean unloaded) {}
+
+    /** Shared arithmetic for public predicates and real world inspection; no second diagnostic length algorithm. */
+    private Measurement measure(java.util.function.Function<BlockPos, MachinePattern.Inspection> partAt,
+                                java.util.function.Function<BlockPos, MachinePattern.Inspection> endPartAt,
+                                BlockPos controller, BlockPos start, BlockPos step) {
+        // Public predicate callers may supply a step other than the validated declaration's step.
+        if (this.maxSize > 0 && BlockPos.ZERO.equals(step)) return new Measurement(-1, false);
         BlockPos offset = controller.offset(start);
         int count = 0;
 
         while (true) {
-            if (partAt.test(offset)) {
-                count++;
-                if (count > this.maxSize) {
+            MachinePattern.Inspection part = partAt.apply(offset);
+            if (part.matched()) {
+                if (count >= this.maxSize) {
+                    // P07-06（0.121.45）：数到上限的这一格仍可能是**合法的收尾段**，而不是第 maxSize+1 个
+                    // 重复段。最小反例是「1 段 + 类型重叠的尾」：重复单元写任意熔炉、尾段也是熔炉但要求
+                    // NBT Count=1，世界第一炉 Count=2、第二炉 Count=1。第二炉同时符合重复段候选，旧代码
+                    // 在这里直接失败，收尾段检查根本没执行，于是合法的 maxSize 段结构不成型，而只把
+                    // maxSize 调大 1 就能量到同样的 1 节。
+                    //
+                    // 所以先辨认**这个锚点**上的尾：命中就是「maxSize 节 + 尾」，按实际重复数 count 成立
+                    // （expand(count) 把尾放在 start + count*step，正是这一格）。不命中才是真正的超限——
+                    // maxSize+1 个重复段且没有合法尾，仍必须拒绝，绝不截断成 maxSize 或 0 节。
+                    // 非上限位置的回退策略（下面那段 endPartAt(back)）不在这里复刻：上游的行为是
+                    // 「重复段优先、最长匹配优先」，只有数不动了才回退去看上一格。
+                    if (this.endPart != null) {
+                        MachinePattern.Inspection end = endPartAt.apply(offset);
+                        if (end.matched()) return new Measurement(count, false);
+                        return new Measurement(-1, end.unloaded());
+                    }
                     // 太长：不匹配，而不是截断接受。
-                    return -1;
+                    return new Measurement(-1, false);
                 }
+                count++;
                 offset = offset.offset(step);
                 continue;
             }
 
             // 这一格不是重复段。它要么是收尾段本身，要么是收尾段之后的那一格。
             if (this.endPart != null) {
-                if (endPartAt.test(offset)) {
-                    return count;
+                MachinePattern.Inspection end = endPartAt.apply(offset);
+                if (end.matched()) {
+                    return new Measurement(count, part.unloaded() && count < this.minSize);
                 }
                 // 回退一格再验一次——旧版注释里写的 Prevent overlapping structures。
                 BlockPos back = offset.subtract(step);
-                if (endPartAt.test(back)) {
-                    return count - 1;
+                MachinePattern.Inspection previousEnd = endPartAt.apply(back);
+                if (previousEnd.matched()) {
+                    return new Measurement(count - 1, part.unloaded() && count - 1 < this.minSize);
                 }
-                return -1;
+                return new Measurement(-1, part.unloaded() || end.unloaded() || previousEnd.unloaded());
             }
             // 没有收尾段：数到几节就是几节，0 节也成立。这就是旧版这一支的返回（它同样 return size，可能为 0），
             // 也是 minSize 缺省为 0 时「这段可有可无」的字面含义。0.62.9–0.63.1 在这里返回 -1，把「没有重复段」
             // 当成了失败，于是不写 minSize 的动态机器在世界里永远不成型（勘测 X3）。
-            return count;
+            // An unknown NEXT section is optional once a legal prefix exists. Before minSize it is required.
+            return new Measurement(count, part.unloaded() && count < this.minSize);
         }
     }
 
@@ -289,18 +345,25 @@ public final class DynamicPattern {
      * 对配方而言仍然是无标签的，只有作者显式命名过的部件才能被配方指认。
      *
      * @param size          重复几节（{@code match} 量出来的数）
-     * @param rotationSteps 控制器朝向相对 NORTH 的逆时针四分之一圈数；标签与偏移都按它旋转
+     * @param rotationSteps 控制器朝向相对 NORTH 的逆时针四分之一圈数；段内坐标、方块状态、规则与标签
+     *                      都取构造时缓存的同一份已旋转段，避免二次旋转
      */
     public MachinePattern expand(int size, int rotationSteps) {
         MachinePattern.Builder builder = MachinePattern.builder();
-        BlockPos offset = rotate(this.startOffset, rotationSteps);
-        BlockPos step = rotate(this.stepOffset, rotationSteps);
+        int turns = Math.floorMod(rotationSteps, 4);
+        BlockPos offset = rotate(this.startOffset, turns);
+        BlockPos step = rotate(this.stepOffset, turns);
 
+        // 段内位置、方块状态、NBT 规则和标签必须来自**同一份已旋转段**。此前这里只把 entry 坐标转过去、
+        // 却把原始 matcher 写回 builder，于是量长度一侧（match 用 partRotations）说 2 节、展开后的有效结构
+        // 却仍要求北向的定义状态——非北向机器「按预览搭对了也不成型」。旋转信息已经在构造时缓存，
+        // 这里不能再对坐标或 matcher 二次旋转。
+        MachinePattern part = this.partRotations[turns];
         for (int index = 0; index < size; index++) {
             if (index > 0) {
                 offset = offset.offset(step);
             }
-            addSection(builder, this.part, offset, rotationSteps, index, false);
+            addSection(builder, part, offset, index, false);
         }
 
         if (this.endPart != null) {
@@ -310,15 +373,16 @@ public final class DynamicPattern {
             // 量长度一侧从来是「收尾段顶在起点上算 0 节」，两侧对齐之后，玩家照预览搭出来的 0 节机器才既量得到、
             // 也拼得成——这是 X3 的另一半。
             BlockPos endAnchor = size == 0 ? offset : offset.offset(step);
-            addSection(builder, this.endPart, endAnchor, rotationSteps, 0, true);
+            addSection(builder, this.endPartRotations[turns], endAnchor, 0, true);
         }
         return builder.build();
     }
 
     private void addSection(MachinePattern.Builder builder, MachinePattern section, BlockPos offset,
-                            int rotationSteps, int index, boolean end) {
+                            int index, boolean end) {
         for (Map.Entry<BlockPos, List<BlockMatcher>> entry : section.positions().entrySet()) {
-            BlockPos pos = rotate(entry.getKey(), rotationSteps).offset(offset);
+            // section 已经按控制器朝向转过；这里只做「段内坐标 + 段起点」，不能再调 rotate。
+            BlockPos pos = entry.getKey().offset(offset);
             builder.add(pos, entry.getValue());
             builder.rule(pos, section.rule(entry.getKey()));
             String selectorTag = section.tag(entry.getKey());

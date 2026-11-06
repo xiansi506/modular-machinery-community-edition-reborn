@@ -328,6 +328,8 @@ public final class ModBlocks {
      * 而不是能力查询时的软开关。{@code ModList.get()} 在离线断言里可能是 {@code null}，因此包一层。
      */
     public static final boolean AE2_LOADED = detectAe2();
+    public static final boolean FLUX_NETWORKS_LOADED = ModList.get() != null
+            && ModList.get().isLoaded("fluxnetworks");
 
     private static boolean detectAe2() {
         try {
@@ -347,7 +349,7 @@ public final class ModBlocks {
         for (HatchKind kind : HatchKind.values()) {
             // The ME buses are registered below, and only when AE2 is present: their block entity class
             // references appeng types, which must not be loaded on a pack without AE2.
-            if (kind.isMeBus()) {
+            if (kind.isMeBus() || (kind.isWirelessEnergy() && !FLUX_NETWORKS_LOADED)) {
                 continue;
             }
             RegistryObject<Block> block = BLOCKS.register(kind.id(), () -> createHatchBlock(kind));
@@ -393,7 +395,15 @@ public final class ModBlocks {
     public static final RegistryObject<BlockEntityType<MachineHatchBlockEntity>> HATCH_ENTITY =
             BLOCK_ENTITIES.register("machine_hatch", () -> BlockEntityType.Builder.of(
                     MachineHatchBlockEntity::new,
-                    HATCH_BLOCKS.values().stream().map(RegistryObject::get).toArray(Block[]::new)).build(null));
+                    HATCH_BLOCKS.entrySet().stream().filter(e -> !e.getKey().isWirelessEnergy())
+                            .map(e -> e.getValue().get()).toArray(Block[]::new)).build(null));
+
+    public static final RegistryObject<BlockEntityType<?>> WIRELESS_ENERGY_INPUT_ENTITY = FLUX_NETWORKS_LOADED
+            ? com.reborn.modularmachinery.compat.fluxnetworks.FluxHatchRegistry.register(BLOCK_ENTITIES,
+                    HATCH_BLOCKS.get(HatchKind.WIRELESS_ENERGY_INPUT), true) : null;
+    public static final RegistryObject<BlockEntityType<?>> WIRELESS_ENERGY_OUTPUT_ENTITY = FLUX_NETWORKS_LOADED
+            ? com.reborn.modularmachinery.compat.fluxnetworks.FluxHatchRegistry.register(BLOCK_ENTITIES,
+                    HATCH_BLOCKS.get(HatchKind.WIRELESS_ENERGY_OUTPUT), false) : null;
 
     /**
      * C4（0.73.0）：ME 总线自己的方块实体类型，{@code null} when AE2 is absent.
@@ -535,6 +545,7 @@ public final class ModBlocks {
                 }
                 output.accept(ModItems.MODULARIUM.get());
                 output.accept(ModItems.CONSTRUCT_TOOL.get());
+                output.accept(ModItems.RECIPE_EDITOR.get());
                 output.accept(ModItems.MACHINE_PROJECTOR.get());
                 output.accept(ModItems.REDSTONE_SIGNAL.get());
                 output.accept(ModItems.WRENCH.get());
@@ -562,6 +573,7 @@ public final class ModBlocks {
             case ITEM_INPUT, ITEM_OUTPUT -> new MachineHatchBlock.ItemPort(kind, properties);
             case FLUID_INPUT, FLUID_OUTPUT -> new MachineHatchBlock.FluidPort(kind, properties);
             case ENERGY_INPUT, ENERGY_OUTPUT -> new MachineHatchBlock.EnergyPort(kind, properties);
+            case WIRELESS_ENERGY_INPUT, WIRELESS_ENERGY_OUTPUT -> new WirelessEnergyHatchBlock(kind, properties);
             // Only reached when AE2 is loaded; the ME block entity is the class that references appeng.
             case ME_ITEM_INPUT -> new MeItemBusBlock.Input(properties);
             case ME_ITEM_OUTPUT -> new MeItemBusBlock.Output(properties);

@@ -1,0 +1,20 @@
+{
+  "type": "minecraft:crafting_shapeless",
+  "conditions": [
+    {
+      "type": "forge:mod_loaded",
+      "modid": "fluxnetworks"
+    }
+  ],
+  "ingredients": [
+    {
+      "item": "modular_machinery_reborn:energy_input_hatch_normal"
+    },
+    {
+      "item": "fluxnetworks:flux_point"
+    }
+  ],
+  "result": {
+    "item": "modular_machinery_reborn:wireless_energy_input_hatch_normal"
+  }
+}

@@ -10,4 +10,4 @@ ME机械样板供应器（ME Machinery Pattern Provider）和 ME机械样板镜�
 
 **未实机、未部署、未提交／推送或创建 GitHub Release；本地实例仍 0.107.1。方块实体预览 NBT 渲染、客户端 GUI／动画脚本钩子与既有第三方后端缺口仍未完成，不能宣称旧版全部 API 一比一移植。**
 
-[高级脚本指南](../../../modular-machinery-reborn/docs/进阶/高级脚本指南.md) · [验证记录](../../../_audit/scripts-0.111.0/高级脚本更新.md) · [SHA256](SHA256.txt)
+[高级脚本指南](../../../modular-machinery-reborn/docs/进阶/高级脚本指南.md) · 验证记录（本地审计工件，不随本次发布） · [SHA256](SHA256.txt)

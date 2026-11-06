@@ -43,7 +43,8 @@ public final class ModNetwork {
     // 0.119.1: selection snapshots carry a dimension; generated NBT snapshots retain literal tag types.
     // 0.120.0: server-authoritative authoring actions and paged export previews.
     // 0.121.0: recipe editor validation tickets and bounded draft/export packets.
-    private static final String PROTOCOL_VERSION = "12";
+    // 0.121.59: lossless int menu slots and field-specific hatch group operations require both peers.
+    private static final String PROTOCOL_VERSION = "13";
     private static final int ID_PARALLEL_CONTROLLER_UPDATE = 0;
     private static final int ID_SMART_INTERFACE_UPDATE = 1;
     private static final int ID_SELECTION_SYNC = 2;

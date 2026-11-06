@@ -133,16 +133,7 @@ public class MachineHatchBlockEntity extends BlockEntity implements net.minecraf
 
         switch (this.kind.family()) {
             case ITEM -> {
-                itemStorage = new ItemStackHandler(Math.max(1, this.tier.itemSlots())) {
-                    @Override protected void onContentsChanged(int slot) {
-                        // 旧版只有输出总线在 {@code markNoUpdate()} 里置这个标记，输入总线没有。
-                        // 输出总线自己推动了物品，下一 tick 应立刻再试，而不是等 5–60 tick。
-                        if (MachineHatchBlockEntity.this.kind == HatchKind.ITEM_OUTPUT) {
-                            MachineHatchBlockEntity.this.inventoryChanged = true;
-                        }
-                        onStorageChanged(false);
-                    }
-                };
+                itemStorage = new HatchItems(Math.max(1, this.tier.itemSlots()));
             }
             case FLUID -> {
                 fluidStorage = new FluidTankWithGasPriority(Math.max(1, HatchConfig.fluidHatchCapacity(this.tier)));
@@ -167,6 +158,19 @@ public class MachineHatchBlockEntity extends BlockEntity implements net.minecraf
 
     public HatchKind kind() {
         return this.kind;
+    }
+
+    /** Backing recipe inventory has native slot rules; the external capability owns sided IO gates. */
+    private final class HatchItems extends com.reborn.modularmachinery.recipe.ResourceTransaction.NativeItems {
+        HatchItems(int slots) { super(slots); }
+        @Override public int candidateInsertLimit(int slot, net.minecraft.world.item.ItemStack current, net.minecraft.world.item.ItemStack offered) {
+            return isItemValid(slot, offered) ? offered.getCount() : 0;
+        }
+        @Override public int candidateExtractLimit(int slot, net.minecraft.world.item.ItemStack current, int requested) { return requested; }
+        @Override protected void onContentsChanged(int slot) {
+            if (MachineHatchBlockEntity.this.kind == HatchKind.ITEM_OUTPUT) inventoryChanged = true;
+            onStorageChanged(false);
+        }
     }
 
     /**
@@ -279,7 +283,7 @@ public class MachineHatchBlockEntity extends BlockEntity implements net.minecraf
         this.inventoryChanged = false;
         boolean moved = false;
         for (Direction face : Direction.values()) {
-            BlockEntity neighbor = this.level.getBlockEntity(this.worldPosition.relative(face));
+            BlockEntity neighbor = loadedNeighbor(this.worldPosition.relative(face));
             if (neighbor == null || isFamily(neighbor, HatchKind.Family.ITEM)) {
                 continue;
             }
@@ -302,7 +306,7 @@ public class MachineHatchBlockEntity extends BlockEntity implements net.minecraf
         this.inventoryChanged = false;
         boolean moved = false;
         for (Direction face : Direction.values()) {
-            BlockEntity neighbor = this.level.getBlockEntity(this.worldPosition.relative(face));
+            BlockEntity neighbor = loadedNeighbor(this.worldPosition.relative(face));
             if (neighbor == null || isFamily(neighbor, HatchKind.Family.ITEM)) {
                 continue;
             }
@@ -332,7 +336,7 @@ public class MachineHatchBlockEntity extends BlockEntity implements net.minecraf
             return;
         }
         for (Direction face : Direction.values()) {
-            BlockEntity neighbor = this.level.getBlockEntity(this.worldPosition.relative(face));
+            BlockEntity neighbor = loadedNeighbor(this.worldPosition.relative(face));
             if (neighbor == null || isFamily(neighbor, HatchKind.Family.ENERGY)) {
                 continue;
             }
@@ -346,6 +350,15 @@ public class MachineHatchBlockEntity extends BlockEntity implements net.minecraf
                 break;
             }
         }
+    }
+
+    @Nullable
+    private BlockEntity loadedNeighbor(BlockPos pos) {
+        if (level == null || level.isOutsideBuildHeight(pos) || !level.hasChunkAt(pos)) return null;
+        // Keep create=false on the actual lookup too, even if availability changes after the guard.
+        var chunk = level.getChunk(pos.getX() >> 4, pos.getZ() >> 4,
+                net.minecraft.world.level.chunk.ChunkStatus.FULL, false);
+        return chunk == null ? null : chunk.getBlockEntity(pos);
     }
 
     private static boolean isFamily(BlockEntity entity, HatchKind.Family family) {
@@ -419,10 +432,15 @@ public class MachineHatchBlockEntity extends BlockEntity implements net.minecraf
      * 但已有的流体读成 0、灌入一律收 0。等气体被抽空，流体那一半自动恢复可用。
      * 挡住的只是**读与灌**，不是那道墙：没有任何状态被丢掉，也就没有「看不见的液体」。
      */
-    private final class FluidTankWithGasPriority extends FluidTank {
+    private final class FluidTankWithGasPriority extends com.reborn.modularmachinery.recipe.ResourceTransaction.NativeTank {
 
         FluidTankWithGasPriority(int capacity) {
             super(capacity);
+        }
+
+        @Override public int candidateFillLimit(java.util.List<net.minecraftforge.fluids.FluidStack> contents,
+                                               net.minecraftforge.fluids.FluidStack offered) {
+            return gasBlocksFluid() ? 0 : offered.getAmount();
         }
 
         @Override protected void onContentsChanged() {
@@ -452,7 +470,9 @@ public class MachineHatchBlockEntity extends BlockEntity implements net.minecraf
         @Override public int fill(net.minecraftforge.fluids.FluidStack resource,
                                   net.minecraftforge.fluids.capability.IFluidHandler.FluidAction action) {
             // 灌不进去：气体占着这个罐。收 0 是「一点都没收」，管道据此就知道这里装不下。
-            return gasBlocksFluid() ? 0 : super.fill(resource, action);
+            // Saved fluid may exceed a reduced capacity. Refuse more without letting FluidTank.fill
+            // report negative reception or truncate the existing contents; draining remains available.
+            return gasBlocksFluid() || super.getFluidAmount() >= getCapacity() ? 0 : super.fill(resource, action);
         }
 
         /**
@@ -625,8 +645,12 @@ public class MachineHatchBlockEntity extends BlockEntity implements net.minecraf
         if (this.groupInput == enabled && this.groupId == clamped) {
             return;
         }
+        int previousGroup = effectiveGroup();
         this.groupInput = enabled;
         this.groupId = clamped;
+        if (level != null && previousGroup != effectiveGroup()) {
+            MachineControllerBlockEntity.inputProviderChanged(level, worldPosition);
+        }
         this.setChanged();
     }
 

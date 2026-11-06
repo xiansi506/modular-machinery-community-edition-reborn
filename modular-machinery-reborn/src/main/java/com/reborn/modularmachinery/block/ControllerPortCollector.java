@@ -52,8 +52,8 @@ final class ControllerPortCollector {
         java.util.IdentityHashMap<Object,Integer> allocated = new java.util.IdentityHashMap<>();
         com.reborn.modularmachinery.machine.MachineInputProvider.GroupAllocator groups = (identity, preferred) -> {
             Integer existing = allocated.get(identity); if (existing != null) return existing;
-            int value = preferred > 65535 && !usedGroups.contains(preferred) ? preferred : 65536;
-            while (usedGroups.contains(value)) value++;
+            int value = isolatedAddress(usedGroups, preferred);
+            if (value < 0) return -1;
             usedGroups.add(value); allocated.put(identity, value); return value;
         };
         for (BlockPos relative : effectivePattern.positions().keySet()) {
@@ -69,5 +69,15 @@ final class ControllerPortCollector {
         // …and the definition rides along for the declared type's own `notequal` message.
         builder.machine(machine);
         return builder.build();
+    }
+
+    /** Bounded by actual reservations; long arithmetic cannot wrap MAX_VALUE into a general/negative group. */
+    private static int isolatedAddress(Set<Integer> used, int preferred) {
+        if (preferred >= 65536 && !used.contains(preferred)) return preferred;
+        long attempts = (long) used.size() + 1L;
+        for (long candidate = 65536; candidate <= Integer.MAX_VALUE && attempts-- > 0; candidate++) {
+            if (!used.contains((int) candidate)) return (int) candidate;
+        }
+        return -1;
     }
 }

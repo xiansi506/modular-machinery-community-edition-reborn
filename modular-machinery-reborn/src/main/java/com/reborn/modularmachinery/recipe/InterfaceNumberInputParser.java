@@ -100,6 +100,10 @@ public final class InterfaceNumberInputParser {
             throw new JsonParseException("'" + key + "' in " + where + " must be a number. Write the value the "
                     + "machine's smart data interface has to hold, e.g. \"" + key + "\": 4.");
         }
-        return element.getAsFloat();
+        float value = element.getAsFloat();
+        if (!Float.isFinite(value)) {
+            throw new JsonParseException("'" + key + "' in " + where + " must be a finite float");
+        }
+        return value;
     }
 }

@@ -101,7 +101,7 @@ public final class FluidRequirement extends MachineRequirement {
     public boolean canSatisfy(HatchCollection ports, RecipeModifiers modifiers) {
         int total = modifiedAmount(modifiers) * this.parallelism();
         if (this.ioType() == IOType.INPUT) {
-            return total <= 0 || IngredientIo.countFluid(ports.fluidInputs(), this.fluid) >= total;
+            return total <= 0 || IngredientIo.countFluidLong(ports.fluidInputs(), this.fluid) >= total;
         }
         return total <= 0 || IngredientIo.canFillFluid(ports.fluidOutputs(), this.fluid, total);
     }
@@ -127,7 +127,7 @@ public final class FluidRequirement extends MachineRequirement {
             return ceiling;
         }
         if (this.ioType() == IOType.INPUT) {
-            return Math.min(ceiling, IngredientIo.countFluid(ports.fluidInputs(), this.fluid) / perCopy);
+            return (int) Math.min(ceiling, IngredientIo.countFluidLong(ports.fluidInputs(), this.fluid) / perCopy);
         }
         return Math.min(ceiling, IngredientIo.insertCapacity(ports.fluidOutputs(), this.fluid) / perCopy);
     }

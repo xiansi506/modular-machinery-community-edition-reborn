@@ -23,6 +23,19 @@ public final class ConstructSession {
     public void undo(){if(corner==null)selection.undo();corner=null;changed();}
     public void redo(){selection.redo();corner=null;changed();}
     public void clear(){selection.clear();corner=null;changed();}
+    private BlockPos suggestedOrigin;
+    private String suggestedId,suggestedName;
+    public boolean needsIdentitySuggestion(BlockPos origin){
+        return options.machineId().equals("custom:machine")
+                ||(Objects.equals(options.machineId(),suggestedId)&&!origin.equals(suggestedOrigin));
+    }
+    public void suggestMachineIdentity(BlockPos origin,String id,String name){
+        if(!needsIdentitySuggestion(origin))return;
+        String nextName=options.displayName().equals("Custom Machine")||Objects.equals(options.displayName(),suggestedName)?name:options.displayName();
+        ConstructOptions next=new ConstructOptions(options.mode(),options.operation(),options.ignoreAir(),options.states(),
+                options.matchingNbt(),options.previewNbt(),options.format(),id,nextName,options.replacements());
+        options=next;changed();suggestedOrigin=origin.immutable();suggestedId=id;suggestedName=name;
+    }
     public void click(Level world,BlockPos position){
         BlockPos pos=position.immutable();
         if(options.mode()==ConstructOptions.Mode.BOX&&corner==null){corner=pos;changed();return;}

@@ -89,7 +89,8 @@ public final class SmartInterfaceStore implements SmartInterfaceValueSource {
             }
         }
         for (SmartInterfaceType type : definition.smartInterfaces()) {
-            if (!this.values.containsKey(type.type())) {
+            Float value = this.values.get(type.type());
+            if (value == null || !Float.isFinite(value)) {
                 this.values.put(type.type(), type.defaultValue());
                 changed = true;
             }
@@ -140,7 +141,8 @@ public final class SmartInterfaceStore implements SmartInterfaceValueSource {
     }
 
     /**
-     * Restores what {@link #save} wrote. The values are the player's own input, so they are restored verbatim
+     * Restores finite numeric values from {@link #save}. Invalid old values are dropped so the next bind can
+     * restore the declared finite default. Valid values are restored verbatim
      * and <b>not</b> reconciled against the definition here: the definition may not be available during
      * {@code load}, and the first structure check calls {@link #bind} anyway.
      */
@@ -151,7 +153,10 @@ public final class SmartInterfaceStore implements SmartInterfaceValueSource {
         }
         CompoundTag smart = tag.getCompound(NBT_KEY);
         for (String type : smart.getAllKeys()) {
-            this.values.put(type, smart.getFloat(type));
+            if (smart.contains(type, net.minecraft.nbt.Tag.TAG_ANY_NUMERIC)) {
+                float value = smart.getFloat(type);
+                if (Float.isFinite(value)) this.values.put(type, value);
+            }
         }
     }
 

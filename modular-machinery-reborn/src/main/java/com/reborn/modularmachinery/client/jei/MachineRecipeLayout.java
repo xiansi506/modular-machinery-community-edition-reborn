@@ -200,7 +200,12 @@ final class MachineRecipeLayout {
         int widestTooltip = 0;
         for (MachineRecipe recipe : recipes) {
             int tipLength = 0;
-            for (List<String> tip : MachineRecipeText.tips(recipe)) {
+            // P10-12（0.121.37）：测量与绘制必须用**同一组文本**。旧代码这里只量
+            // {@code MachineRecipeText.tips}（能量/接口组），而 {@code MachineRecipeCategory.drawTips}
+            // 画的是 {@code tipGroupsWithRecipeTooltip}（额外含配方作者说明）——普通三行作者说明
+            // 就会从负 y 绘制并越过类别边界。现在测量改用同一工厂方法（含空组间距、逐配方取最大，
+            // 换行策略与绘制一致：逐行原样、不自动换行）。
+            for (List<String> tip : MachineRecipeText.tipGroupsWithRecipeTooltip(recipe)) {
                 for (String line : tip) {
                     widestTooltip = Math.max(widestTooltip, font.width(line));
                 }

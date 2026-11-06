@@ -21,9 +21,19 @@ import java.util.function.Supplier;
  * 物品 ghost / 流体标记 / 清空（客户端 → 服务端）。一格要么物品要么流体，服务端写入时互斥。
  *
  * <p>服务端验证：发件人正开着这台输入总线的界面、槽号 0..15、物品/流体真实存在
- * （物品经注册表 id 重建并夹到自身堆叠上限，防手写包塞超大数量当目标量；流体目标量夹到全池容量）。
- * 写回走 {@link MeBusAccess#setConfigItem}/{@link MeBusAccess#setConfigFluid}，
- * 由实现负责清退避/置脏/方块更新，客户端随 update tag 镜像刷新。
+ * （流体目标量夹到全池容量）。
+ *
+ * <p><b>物品格的身份来自服务端光标栈，不来自包里的注册名。</b>P02-01（0.121.46）：此前的 ITEM 分支用
+ * {@code new ItemStack(id)} 重建物品，于是自定义名、附魔、药水等 NBT 全部丢失；而下游
+ * {@link com.reborn.modularmachinery.block.MeItemBusLogic} 用 {@code ItemStack.isSameItemSameTags}
+ * 维持目标量、AE2 的 {@code AEItemKey} 也按标签认身份，配置会指向错误的变体。现在先核对请求的 id 与
+ * <strong>服务端菜单光标</strong>（{@link AbstractContainerMenu#getCarried()}，服务端权威）是同一物品，
+ * 再从光标栈<strong>深拷贝</strong>一份设为目标量；id 不一致、光标为空或菜单已变一律拒绝本次写入并保留
+ * 旧配置，绝不回退成无 NBT 的「近似物品」，也不移动或扣减光标/库存。
+ *
+ * <p>写回走 {@link MeBusAccess#setConfigItem}/{@link MeBusAccess#setConfigFluid}，
+ * 由实现负责清退避/置脏/方块更新，客户端随 update tag 镜像刷新。滚轮调整数量走独立的菜单动作
+ * （{@link com.reborn.modularmachinery.menu.MeConfigAmount}），不要求每次调数量都手持物品。
  */
 public final class MeFluidConfigPacket {
 
@@ -85,15 +95,11 @@ public final class MeFluidConfigPacket {
             switch (message.mode) {
                 case CLEAR -> bus.setConfigItem(message.slot, null);
                 case ITEM -> {
-                    if (message.id == null) {
+                    ItemStack ghost = cursorCopyFor(busMenu, message.id, message.amount);
+                    if (ghost == null) {
                         return;
                     }
-                    ItemStack proto = new ItemStack(BuiltInRegistries.ITEM.get(message.id));
-                    if (proto.isEmpty()) {
-                        return;
-                    }
-                    int count = Math.max(1, Math.min(message.amount, proto.getMaxStackSize()));
-                    bus.setConfigItem(message.slot, new ItemStack(proto.getItem(), count));
+                    bus.setConfigItem(message.slot, ghost);
                 }
                 case FLUID -> {
                     if (message.id == null) {
@@ -117,6 +123,33 @@ public final class MeFluidConfigPacket {
             }
         });
         context.setPacketHandled(true);
+    }
+
+    /**
+     * 把「请求的物品 id + 数量」落到服务端光标栈的一份深拷贝上；任何不一致都返回 {@code null}（拒绝写入）。
+     *
+     * <p>为什么以光标栈为准：P02-01 的客户端入口只有 {@code MeItemBusScreen.mouseClicked} 一处，它发的
+     * {@code carried} 就是 {@code menu.getCarried()}；服务端在同一菜单包里也持有同一份权威栈。包里只带
+     * id/count（协议 12 未改），所以身份与全部 NBT 必须从服务端这一份取——只发 id 再重建，等于把
+     * 「带自定义名的机器外壳」变成「同名白板」，下游按标签匹配就会去请求错误的变体。
+     *
+     * <p>{@code copyWithCount} 复制标签（1.20.1 的 {@code copy()} 会 {@code tag.copy()}），因此之后玩家
+     * 改动手上那叠物品不会连带改配置。
+     */
+    @Nullable
+    private static ItemStack cursorCopyFor(AbstractContainerMenu menu, @Nullable ResourceLocation requested,
+                                           int amount) {
+        if (requested == null) {
+            return null;
+        }
+        ItemStack carried = menu.getCarried();
+        if (carried.isEmpty()
+                || !requested.equals(net.minecraftforge.registries.ForgeRegistries.ITEMS.getKey(
+                        carried.getItem()))) {
+            return null;
+        }
+        int count = Math.max(1, Math.min(amount, carried.getMaxStackSize()));
+        return carried.copyWithCount(count);
     }
 
     /** 手持物品 → 物品 ghost（数量 = 手持数，右键 = 1）。 */

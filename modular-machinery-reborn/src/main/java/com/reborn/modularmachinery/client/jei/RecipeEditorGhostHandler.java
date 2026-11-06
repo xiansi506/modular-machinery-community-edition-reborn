@@ -12,6 +12,13 @@ import java.util.List;
 public final class RecipeEditorGhostHandler implements IGhostIngredientHandler<RecipeEditorScreen> {
     @Override public <I> List<Target<I>> getTargetsTyped(RecipeEditorScreen screen, ITypedIngredient<I> ingredient, boolean start) {
         Object value=ingredient.getIngredient();
+        String canvasKind=value instanceof ItemStack?"item":value instanceof FluidStack?"fluid":"gas";
+        String canvasGas=canvasKind.equals("gas")&&net.minecraftforge.fml.ModList.get().isLoaded("mekanism")?com.reborn.modularmachinery.compat.mekanism.MekanismEditorIngredient.id(value):null;
+        var slots=canvasKind.equals("gas")&&canvasGas==null?List.<RecipeEditorScreen.GhostSlot>of():screen.ghostSlots(canvasKind);
+        if(!slots.isEmpty())return slots.stream().<Target<I>>map(slot->new Target<I>(){
+            public Rect2i getArea(){return slot.area();}
+            public void accept(I dropped){screen.dropGhost(slot,canvasKind,canvasGas==null?dropped:canvasGas);}
+        }).toList();
         boolean accepted=value instanceof ItemStack&&screen.accepts("item") || value instanceof FluidStack&&screen.accepts("fluid");
         String gas=net.minecraftforge.fml.ModList.get().isLoaded("mekanism") ? com.reborn.modularmachinery.compat.mekanism.MekanismEditorIngredient.id(value) : null;
         if(!accepted && !(gas!=null&&screen.accepts("gas")))return List.of();

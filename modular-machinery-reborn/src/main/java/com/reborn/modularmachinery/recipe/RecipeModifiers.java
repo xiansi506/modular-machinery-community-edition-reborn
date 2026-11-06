@@ -122,7 +122,13 @@ public final class RecipeModifiers {
             if (modifier.affectsChance()) {
                 continue;
             }
-            if (modifier.target() != RecipeModifier.Target.DURATION) {
+            // P04-15（0.121.36）：null 目标是时长伪目标——{@code RecipeModifier.multiply(null, …)} 可以构造、
+            // 网络与存读档都保留它，{@link #apply} 的 null 路由也落到这里，旧版
+            // {@code RecipeCraftingContext#addModifier} 同样把 null 归入 REQUIREMENT_DURATION。
+            // 旧代码只筛显式 DURATION、静默跳过 null，与注释/旧版契约矛盾；现在 null 与显式
+            // DURATION 同等参与时长计算。具体目标（物品/能源等）不受影响——{@code matches} 对
+            // null/DURATION 目标本来就返回 false，不会混进需求值应用。
+            if (modifier.target() != RecipeModifier.Target.DURATION && modifier.target() != null) {
                 continue;
             }
             switch (modifier.operation()) {

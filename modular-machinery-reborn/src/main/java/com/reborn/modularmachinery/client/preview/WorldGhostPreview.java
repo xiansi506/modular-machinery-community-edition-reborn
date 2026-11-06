@@ -151,6 +151,7 @@ public final class WorldGhostPreview {
             return false;
         }
         pattern = structure;
+        rebuildStructuredLayers();
         attached = attachedPos.immutable();
         renderedLayer = NO_LAYER;
         dimension = level.dimension();
@@ -161,6 +162,7 @@ public final class WorldGhostPreview {
     /** 取消投影（走远 32 格、断线、再次对同一控制器使用投影仪、整机建成都会走到这里）。 */
     public static void clear() {
         pattern = null;
+        structuredLayers = List.of();
         attached = null;
         renderedLayer = NO_LAYER;
         dimension = null;
@@ -196,14 +198,20 @@ public final class WorldGhostPreview {
         if (renderedLayer == NO_LAYER) {
             if (pattern.matches(level, attached)) clear();
             else updateLayers(level);
-        } else if (hasLowerLayer() && !layerMatches(level, renderedLayer - 1)) {
+            return;
+        }
+        // P10-17（0.121.37）：回退检查不再只看紧邻下一层——旧逻辑 `layerMatches(renderedLayer - 1)`
+        // 对"Y=0 与 Y=2 之间隔空层"和"连续三层拆了最底层"都会漏（下层被拆但 renderedLayer-1 仍完整）。
+        // 现在按**实际有方块的层**（结构索引，start/clear/换结构时重建）从低到高找第一个未完成的层：
+        // 它比当前层低就重扫（回退到最低未完成层），比当前层高说明当前层已补齐（旧逻辑同效）；
+        // 等于当前层则保持投影。层枚举只走结构里真实存在的 y（不按 min..max 逐整数枚举坐标），
+        // 每层的完整性检查复用 {@link #layerMatches} 的既有语义。
+        int lowest = lowestIncompleteLayer(level);
+        if (lowest == NO_LAYER) {
+            if (pattern.matches(level, attached)) clear();
+            else updateLayers(level);
+        } else if (lowest != renderedLayer) {
             updateLayers(level);
-        } else if (layerMatches(level, renderedLayer)) {
-            if (pattern.matches(level, attached)) {
-                clear();
-            } else {
-                updateLayers(level);
-            }
         }
     }
 
@@ -258,26 +266,55 @@ public final class WorldGhostPreview {
         buffers.endBatch(GHOST_TYPE);
     }
 
-    /** 旧版 {@code hasLowerLayer :328-333}：结构最低层不高于当前层的上一层。 */
-    private static boolean hasLowerLayer() {
-        return pattern != null && pattern.min().getY() <= renderedLayer - 1;
+    /**
+     * P10-17（0.121.37）：结构里**实际有方块**的层（升序）。在 start/clear（即 {@code pattern}
+     * 赋值/清空）时重建，tick 只读它——不按 min..max 逐整数枚举坐标，也不建跨世界监听。
+     */
+    private static java.util.List<Integer> structuredLayers = List.of();
+
+    private static void rebuildStructuredLayers() {
+        if (pattern == null) {
+            structuredLayers = List.of();
+            return;
+        }
+        java.util.TreeSet<Integer> ys = new java.util.TreeSet<>();
+        for (BlockPos pos : pattern.positions().keySet()) {
+            ys.add(pos.getY());
+        }
+        structuredLayers = List.copyOf(ys);
     }
 
     /**
-     * 旧版 {@code updateLayers :335-348}：从最低层向上找第一个未放完整的层；
-     * 全部完整则 {@code renderedLayer = NO_LAYER}（此时渲染与推进都自然停摆，整机匹配交给 tick 清除）。
+     * 从低到高找第一个未放完整的实际层；全部完成返回 {@link #NO_LAYER}。
+     * 只遍历 {@link #structuredLayers}（结构真实存在的 y），每层复用 {@link #layerMatches}。
+     */
+    private static int lowestIncompleteLayer(ClientLevel level) {
+        for (int y : structuredLayers) {
+            if (!layerMatches(level, y)) {
+                return y;
+            }
+        }
+        return NO_LAYER;
+    }
+
+    /**
+     * 从低到高找第一个未放完整的层；全部完整则 {@code renderedLayer = NO_LAYER}
+     * （此时渲染与推进都自然停摆，整机匹配交给 tick 清除）。
+     *
+     * <p>P10-17 返工（0.121.38）：层枚举统一走 {@link #structuredLayers}（结构真实存在的 y，
+     * start/clear/换结构时重建）。0.121.37 只把回退检查切到了实际层索引，这里残留旧版
+     * {@code for (y = min..max)} 逐整数枚举——空层靠 {@link #layerMatches} 的「无条目即完整」
+     * 跳过，语义虽等价，但 Y=0 与 Y=10000 两层实块的结构会在 start 时做约一万次全位置表扫描。
+     * 现在与 {@link #lowestIncompleteLayer} 同一实现：扫描次数只随实际层数增长，
+     * 不随高度跨度增长；start/clear/换结构/回退/前进各入口全部经此收敛。不加载区块、
+     * 不建世界全局监听的边界不变。
      */
     private static void updateLayers(ClientLevel level) {
         renderedLayer = NO_LAYER;
         if (pattern == null || attached == null) {
             return;
         }
-        for (int y = pattern.min().getY(); y <= pattern.max().getY(); y++) {
-            if (!layerMatches(level, y)) {
-                renderedLayer = y;
-                return;
-            }
-        }
+        renderedLayer = lowestIncompleteLayer(level);
     }
 
     /**

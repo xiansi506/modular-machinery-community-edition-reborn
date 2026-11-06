@@ -146,9 +146,8 @@ public final class MachineLoader extends SimpleJsonResourceReloadListener {
     @Override
     protected void apply(Map<ResourceLocation, JsonElement> files, ResourceManager resourceManager,
                          ProfilerFiller profiler) {
-        // The config directory is merged last, so a pack author's file wins over a data pack file for the same
-        // 'registryname'. Both sources describe the same thing; the directory is the one that can also grant a
-        // dedicated controller block, because it is readable during mod construction.
+        // Variables keep the existing combined iteration: a config variable file with the same resource id
+        // replaces the data-pack value, and a later successfully parsed set wins for a repeated variable name.
         Map<ResourceLocation, JsonElement> all = new LinkedHashMap<>(files);
         all.putAll(MachineDirectory.readAll());
 
@@ -169,15 +168,34 @@ public final class MachineLoader extends SimpleJsonResourceReloadListener {
         // 波 4：把**解析用的那份 JSON** 一并留下。客户端要重建同一批定义，而重跑同一个
         // `MachineSchema.read` 是唯一能保证两边逐字段相同的办法——见 MachineRegistry#replace 的说明。
         Map<ResourceLocation, JsonElement> sources = new LinkedHashMap<>();
+        // 0.121.51: machine definitions are layered explicitly by logical id, not by the order in which two
+        // different file ids happen to arrive. Highest wins: script > config > data pack. Within one layer the
+        // existing rule stays "the later effective valid declaration wins"; both sides are named in the warning.
+        Map<ResourceLocation, String> winnerOrigins = new LinkedHashMap<>();
         List<String> failures = new ArrayList<>();
-        for (Map.Entry<ResourceLocation, JsonElement> entry : all.entrySet()) {
+        for (Map.Entry<ResourceLocation, JsonElement> entry : files.entrySet()) {
             if (isVariableFile(entry.getKey())) {
                 continue;
             }
             try {
                 MachineDefinition definition = readMachine(entry.getKey(), entry.getValue(), variables);
-                loaded.put(definition.id(), definition);
-                sources.put(definition.id(), entry.getValue());
+                putDefinition(loaded, sources, winnerOrigins, definition, entry.getKey(), entry.getValue(),
+                        "data pack file " + entry.getKey());
+            } catch (Exception exception) {
+                failures.add(entry.getKey().toString());
+                LOGGER.error("[{}] Failed to load machine definition {}", ModularMachineryReborn.MOD_ID,
+                        entry.getKey(), exception);
+            }
+        }
+        Map<ResourceLocation, JsonElement> configFiles = MachineDirectory.readAll();
+        for (Map.Entry<ResourceLocation, JsonElement> entry : configFiles.entrySet()) {
+            if (isVariableFile(entry.getKey())) {
+                continue;
+            }
+            try {
+                MachineDefinition definition = readMachine(entry.getKey(), entry.getValue(), variables);
+                putDefinition(loaded, sources, winnerOrigins, definition, entry.getKey(), entry.getValue(),
+                        "config file " + entry.getKey());
             } catch (Exception exception) {
                 failures.add(entry.getKey().toString());
                 LOGGER.error("[{}] Failed to load machine definition {}", ModularMachineryReborn.MOD_ID,
@@ -193,7 +211,10 @@ public final class MachineLoader extends SimpleJsonResourceReloadListener {
         // 所以它的 JSON 是现成的，从 stage 那边取回来即可（不在解析之后再反向生成一份——那是第二份真相）。
         sources.putAll(MachineDefinitions.stagedSources());
 
-        MachineRegistry.replace(loaded, sources);
+        // Refuse an unsendable candidate before replacing the last published registry. This is the
+        // existing machine packet's scale boundary, not the whole-reload transaction handled separately.
+        com.reborn.modularmachinery.network.MachineDefinitionSyncPacket.snapshot(loaded.values(), sources);
+        ReloadCycle.machines(loaded, sources);
         LOGGER.info("[{}] Loaded {} machine definition(s) from {} variable set(s){}",
                 ModularMachineryReborn.MOD_ID, loaded.size(), variables.size(),
                 failures.isEmpty() ? "" : ", " + failures.size() + " failed: " + failures);
@@ -299,9 +320,12 @@ public final class MachineLoader extends SimpleJsonResourceReloadListener {
 
     private static void readVariables(ResourceLocation id, JsonElement element, Map<String, List<String>> out) {
         com.google.gson.JsonObject root = MachineSchema.asObject(element, id);
+        Map<String, List<String>> parsed = new LinkedHashMap<>();
         for (Map.Entry<String, JsonElement> entry : root.entrySet()) {
-            out.put(entry.getKey(), readVariableValues(id, entry.getKey(), entry.getValue()));
+            parsed.put(entry.getKey(), readVariableValues(id, entry.getKey(), entry.getValue()));
         }
+        // A file reported as failed must not have already replaced earlier variables.
+        out.putAll(parsed);
     }
 
     /**
@@ -324,6 +348,28 @@ public final class MachineLoader extends SimpleJsonResourceReloadListener {
             values.add(item.getAsString());
         }
         return List.copyOf(values);
+    }
+
+    /**
+     * Stores one parsed definition and the exact JSON it was parsed from. A logical-id collision is a warning
+     * naming both origins and the winner; the winner JSON is always the JSON of that same winning definition.
+     */
+    private static void putDefinition(Map<ResourceLocation, MachineDefinition> loaded,
+                                      Map<ResourceLocation, JsonElement> sources,
+                                      Map<ResourceLocation, String> winnerOrigins,
+                                      MachineDefinition definition, ResourceLocation fileId, JsonElement sourceJson,
+                                      String origin) {
+        ResourceLocation id = definition.id();
+        String previous = winnerOrigins.get(id);
+        if (previous != null) {
+            LOGGER.warn("[{}] Logical machine id '{}' is declared by both {} and {}; the later effective "
+                            + "declaration wins: {}. Source precedence is KubeJS script > config > data pack, and "
+                            + "later valid declarations win within one source.",
+                    ModularMachineryReborn.MOD_ID, id, previous, origin, origin);
+        }
+        loaded.put(id, definition);
+        sources.put(id, sourceJson);
+        winnerOrigins.put(id, origin);
     }
 
     /**

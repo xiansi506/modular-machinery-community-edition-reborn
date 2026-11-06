@@ -95,6 +95,14 @@
     {
       "id": "modular_machinery_reborn:will_output_hatch",
       "required": false
+    },
+    {
+      "id": "modular_machinery_reborn:wireless_energy_input_hatch",
+      "required": false
+    },
+    {
+      "id": "modular_machinery_reborn:wireless_energy_output_hatch",
+      "required": false
     }
   ]
 }

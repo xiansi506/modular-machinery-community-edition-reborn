@@ -8,4 +8,4 @@
 
 文件 `modular-machinery-reborn-0.109.0.jar`，**1,182,571 字节**。SHA-256：`C14A6AF658B38FDA5DDF401B305723E1EB273F65197561A77197CD76A990E75D`。来源 `build/reobfJar/output.jar`。
 
-[使用说明](../../../modular-machinery-reborn/docs/使用说明.md) · [交接](../../../modular-machinery-reborn/docs/开发/交接-2026-10-23.md) · [验证记录](../../../_audit/provider-0.109.0/供应器机制更新.md) · [SHA256](SHA256.txt)
+[使用说明](../../../modular-machinery-reborn/docs/使用说明.md) · [交接](../../../modular-machinery-reborn/docs/开发/交接-2026-10-23.md) · 验证记录（本地审计工件，不随本次发布） · [SHA256](SHA256.txt)

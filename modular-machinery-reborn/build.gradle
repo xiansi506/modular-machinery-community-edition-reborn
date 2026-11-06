@@ -54,11 +54,13 @@ repositories {
         content { includeGroup 'software.bernie.geckolib' }
     }
     flatDir { dirs 'libs' }
+    maven { url = 'https://www.cursemaven.com'; content { includeGroup 'curse.maven' } }
 }
 
 dependencies {
     minecraft "net.minecraftforge:forge:${minecraft_version}-${forge_version}"
     if (use_local_deps.toBoolean()) {
+        compileOnly fg.deobf('libs:fluxnetworks:1.20.1-7.2.1.15')
         compileOnly fg.deobf('libs:kubejs:1.20.1')
         // 0.28.0: KubeJS's own API is not self-contained here — dev.latvian.mods.kubejs.event.EventHandler
         // extends dev.latvian.mods.rhino.BaseFunction, so every call to EventHandler#post needs Rhino on the
@@ -89,6 +91,7 @@ dependencies {
         // 与旧版 GeoBlockRenderer 的 preRender/actuallyRender 语义接近，且这个版本已在 libs/ 里核对过源码。
         compileOnly fg.deobf('libs:geckolib-forge-1.20.1:4.4.9')
     } else {
+        compileOnly fg.deobf('curse.maven:flux-networks-248020:5234697')
         // 与已验证的本地 API 版本一致；运行时可选不等于编译时可以缺少依赖。
         compileOnly fg.deobf('dev.latvian.mods:kubejs-forge:2001.6.5-build.26')
         compileOnly fg.deobf('dev.latvian.mods:rhino-forge:2001.2.3-build.10')

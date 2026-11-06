@@ -207,7 +207,7 @@ public final class IngredientArrayParser {
             throw new JsonParseException("An entry's 'amount' in " + where + " must be a number. Write how many "
                     + "of this item one copy of the craft consumes, e.g. \"amount\": 2.");
         }
-        int amount = element.getAsInt();
+        int amount = com.reborn.modularmachinery.util.JsonNumbers.integer(element, 1, IngredientArrayRequirement.MAX_AMOUNT, where + " entry.amount");
         if (amount < 1) {
             throw new JsonParseException("An entry's 'amount' in " + where + " is " + amount + ", but every copy "
                     + "has to consume at least 1. Write a whole number of at least 1.");
@@ -254,7 +254,7 @@ public final class IngredientArrayParser {
                     + "chosen item each copy of the craft consumes, e.g. \"amount\": 2. It applies to the whole "
                     + "group, which is where the original read it from.");
         }
-        int amount = element.getAsInt();
+        int amount = com.reborn.modularmachinery.util.JsonNumbers.integer(element, 1, IngredientArrayRequirement.MAX_AMOUNT, where + " amount");
         if (amount < 1) {
             throw new JsonParseException("'amount' in " + where + " is " + amount + ", but every copy has to "
                     + "consume at least 1. Write a whole number of at least 1, e.g. \"amount\": 2.");
@@ -277,7 +277,7 @@ public final class IngredientArrayParser {
             throw new JsonParseException("'chance' in " + where + " must be a number between 0 and 1. Write the "
                     + "probability that the group is consumed, e.g. \"chance\": 0.5.");
         }
-        float chance = element.getAsFloat();
+        float chance = com.reborn.modularmachinery.util.JsonNumbers.finiteFloat(element, where + " chance");
         if (chance < 0.0F || chance > 1.0F) {
             throw new JsonParseException("'chance' in " + where + " is " + chance + ", but it has to be between "
                     + "0 and 1. The original silently ignored a value outside that range "
@@ -318,15 +318,41 @@ public final class IngredientArrayParser {
                 + "need them, or put 'amount'/'chance'/'nbt' next to 'items' where the original read them.");
     }
 
-    /** The same refusal with a caller-supplied description of the accepted keys, for {@code catalyst}. */
+    /** The option keys both requirement kinds accept, spelled exactly as {@code MachineRequirementParser} reads them. */
+    private static final Set<String> COMMON_KEYS = Set.of("selector-tag", "parallelize-unaffected", "trigger-time",
+            "trigger-repeatable", "script-tooltip", "ignore-output-check");
+
+    private static boolean knownKey(String key, Set<String> allowed) {
+        return allowed.contains(key) || key.equals("type") || key.equals("io-type") || COMMON_KEYS.contains(key);
+    }
+
+    /**
+     * The same refusal with a caller-supplied description of the accepted keys, for {@code catalyst}.
+     *
+     * <p>Field names are checked against the <b>exact spelling the readers use</b>
+     * ({@code readAmount}/{@code readChance}/{@code readNbt} all query the original key). The old check compared a
+     * lower-cased copy, so {@code "Amount"}/ {@code "Chance"}/ {@code "NBT"} passed as "known" and were then
+     * silently dropped by the readers. Such keys are now rejected with a case-sensitivity hint; none of the
+     * allowed sets contains a mixed-case spelling, so nothing legitimate can collide with this.
+     */
     static void rejectUnknownKeys(JsonObject json, Set<String> allowed, Object where, String description) {
         Set<String> unknown = new LinkedHashSet<>();
+        Set<String> wrongCase = new LinkedHashSet<>();
         for (String key : json.keySet()) {
+            if (knownKey(key, allowed)) {
+                continue;
+            }
             String normalised = key.toLowerCase(Locale.ROOT);
-            if (!allowed.contains(normalised) && !normalised.equals("type") && !normalised.equals("io-type")
-                    && !Set.of("selector-tag", "parallelize-unaffected", "trigger-time", "trigger-repeatable", "script-tooltip", "ignore-output-check").contains(normalised)) {
+            if (knownKey(normalised, allowed)) {
+                wrongCase.add(key);
+            } else {
                 unknown.add(key);
             }
+        }
+        if (!wrongCase.isEmpty()) {
+            throw new JsonParseException("Field" + (wrongCase.size() == 1 ? " " : "s ") + wrongCase
+                    + " in " + where + " cannot be read: field names are case-sensitive and must be spelled in "
+                    + "lower case, exactly as this reader reads them. " + description);
         }
         if (!unknown.isEmpty()) {
             throw new JsonParseException("Unsupported " + (unknown.size() == 1 ? "field " : "fields ") + unknown

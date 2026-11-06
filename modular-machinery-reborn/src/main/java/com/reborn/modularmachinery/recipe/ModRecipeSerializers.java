@@ -51,7 +51,8 @@ public final class ModRecipeSerializers {
         public MachineRecipe fromJson(ResourceLocation id, JsonObject json) {
             List<String> machines = MachineRecipe.parseMachines(json, id);
             String registryName = json.has("registryName") ? json.get("registryName").getAsString() : id.getPath();
-            int recipeTime = json.has("recipeTime") ? json.get("recipeTime").getAsInt() : 100;
+            int recipeTime = json.has("recipeTime") ? com.reborn.modularmachinery.util.JsonNumbers.integer(
+                    json.get("recipeTime"), 1, Integer.MAX_VALUE, id + " recipeTime") : 100;
             if (recipeTime < 1) {
                 throw new JsonParseException("'recipeTime' of " + id + " must be at least 1");
             }
@@ -80,13 +81,35 @@ public final class ModRecipeSerializers {
                     }
                     // 需求的解析与 `selector-tag` 的挂载都在 MachineRequirementParser 里：它对每种需求类型
                     // 含义完全相同，所以整条路径只有一处。种类分派则交给 RequirementTypes 注册表。
-                    requirements.add(MachineRequirementParser.parse(element.getAsJsonObject(), id));
+                    try {
+                        requirements.add(MachineRequirementParser.parse(element.getAsJsonObject(), id));
+                    } catch (JsonParseException invalid) {
+                        throw new JsonParseException(id + " requirements[" + requirements.size() + "]: "
+                                + invalid.getMessage(), invalid);
+                    }
                 }
             }
-            return new MachineRecipe(id, machines, registryName, recipeTime, requirements,
+            MachineRecipe recipe = new MachineRecipe(id, machines, registryName, recipeTime, requirements,
                     parseMaxParallelism(json, id), MachineRecipe.parseCancelIfPerTickFails(json, id),
                     RecipeCommands.parse(json), MachineRecipe.parsePriority(json, id),
                     parseTooltips(json, id), adapterKey, adapterModifiers);
+            for (int i = 0; i < machines.size(); i++)
+                MachineRequirementParser.validateText(machines.get(i), "machine[" + i + "]", id);
+            MachineRequirementParser.validateText(registryName, "registryName", id);
+            for (int i = 0; i < recipe.tooltips().size(); i++)
+                MachineRequirementParser.validateText(recipe.tooltips().get(i), "tooltips[" + i + "]", id);
+            for (var commands : List.of(recipe.commands().startCommands(), recipe.commands().processingCommands(),
+                    recipe.commands().finishCommands())) {
+                for (int i = 0; i < commands.size(); i++)
+                    MachineRequirementParser.validateText(commands.get(i).command(), "commands[" + i + "]", id);
+            }
+            // Exercise the actual registered writers too, including currently installed requirement types.
+            FriendlyByteBuf probe = new FriendlyByteBuf(io.netty.buffer.Unpooled.buffer());
+            try { toNetwork(probe, recipe); }
+            catch (RuntimeException invalid) {
+                throw new JsonParseException(id + " recipe wire fields cannot be encoded: " + invalid.getMessage(), invalid);
+            } finally { probe.release(); }
+            return recipe;
         }
 
         /**
@@ -183,7 +206,7 @@ public final class ModRecipeSerializers {
                         + "number of copies, e.g. \"max-parallelism\": 8, or remove the field to let the "
                         + "machine's own max-parallelism decide.");
             }
-            int value = element.getAsInt();
+            int value = com.reborn.modularmachinery.util.JsonNumbers.integer(element, 1, Integer.MAX_VALUE, id + " max-parallelism");
             if (value < 1) {
                 throw new JsonParseException("'max-parallelism' of " + id + " is " + value + ", but a recipe may "
                         + "not run fewer than one copy. Write at least 1, or remove the field to let the "

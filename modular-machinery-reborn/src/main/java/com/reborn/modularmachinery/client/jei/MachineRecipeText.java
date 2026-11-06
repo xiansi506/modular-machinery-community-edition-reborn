@@ -87,12 +87,16 @@ final class MachineRecipeText {
                 .append(Component.translatable(KEY_DURATION_TICKS, recipe.recipeTime()));
     }
 
-    /** The summed rate of every energy requirement on one side, as the original's energy tips summed it. */
-    static long energyPerTick(MachineRecipe recipe, IOType ioType) {
-        long total = 0L;
+    /**
+     * The summed rate of every energy requirement on one side, as the original's energy tips summed it —
+     * but summed through a BigInteger so a legal total above {@link Long#MAX_VALUE} (e.g. MAX + 1) cannot
+     * wrap into a negative number that would make the whole display believe there is no energy demand.
+     */
+    public static java.math.BigInteger energyPerTickExact(MachineRecipe recipe, IOType ioType) {
+        java.math.BigInteger total = java.math.BigInteger.ZERO;
         for (MachineRequirement requirement : recipe.requirements()) {
             if (requirement instanceof EnergyRequirement energy && energy.ioType() == ioType) {
-                total += energy.energyPerTick();
+                total = total.add(java.math.BigInteger.valueOf(energy.energyPerTick()));
             }
         }
         return total;
@@ -147,8 +151,8 @@ final class MachineRecipeText {
 
     /** {@code TooltipEnergyInput#buildTooltip} / {@code TooltipEnergyOutput#buildTooltip}, verbatim. */
     static List<String> energyTip(MachineRecipe recipe, IOType ioType) {
-        long perTick = energyPerTick(recipe, ioType);
-        if (perTick <= 0L) {
+        java.math.BigInteger perTick = energyPerTickExact(recipe, ioType);
+        if (perTick.signum() <= 0) {
             return List.of();
         }
         // The display unit, and the original's own order of operations for it: scale the number, then abbreviate,
@@ -157,11 +161,28 @@ final class MachineRecipeText {
         EnergyDisplay display = ModConfig.energyDisplay();
         String unit = display.label();
         String label = Component.translatable(ioType == IOType.INPUT ? KEY_ENERGY_IN : KEY_ENERGY_OUT).getString();
+        java.math.BigInteger total = perTick.multiply(java.math.BigInteger.valueOf(recipe.recipeTime()));
         return List.of(
                 label + Component.translatable(KEY_ENERGY_TICK,
-                        DisplayNumbers.abbreviated(display.display(perTick)), unit).getString(),
+                        displayValue(perTick, display), unit).getString(),
                 Component.translatable(KEY_ENERGY_TOTAL,
-                        DisplayNumbers.abbreviated(display.display(perTick * recipe.recipeTime())), unit).getString());
+                        displayValue(total, display), unit).getString());
+    }
+
+    /**
+     * Values inside the long range keep the original's scale-then-abbreviate display. Anything beyond
+     * long is scaled by the unit's display multiplier EXACTLY (the original's multiply-and-floor, done in
+     * BigDecimal so no double pass can lose the digits) and printed as its precise value — never wrapped,
+     * saturated or hidden. The grouping is by the actual value against Long.MAX_VALUE, not by bit length.
+     */
+    private static String displayValue(java.math.BigInteger value, EnergyDisplay display) {
+        if (value.compareTo(java.math.BigInteger.valueOf(Long.MAX_VALUE)) <= 0) {
+            return DisplayNumbers.abbreviated(display.display(value.longValue()));
+        }
+        return new java.math.BigDecimal(value)
+                .multiply(java.math.BigDecimal.valueOf(display.multiplier()))
+                .setScale(0, java.math.RoundingMode.FLOOR)
+                .toBigInteger().toString();
     }
 
     /**

@@ -118,6 +118,30 @@ public final class MachinePattern {
         return builder.build();
     }
 
+    /**
+     * Adds single-block alternatives only at existing base positions. Rules and selectors still belong to
+     * the base part; optional modifier probes outside it never become required structure positions.
+     */
+    public MachinePattern withModifierAlternatives(List<MachineModifier> modifiers, int rotationSteps) {
+        Map<BlockPos, List<BlockMatcher>> alternatives = new LinkedHashMap<>();
+        for (MachineModifier modifier : modifiers) {
+            BlockPos at = modifier.rotatedOffset(rotationSteps);
+            if (positions.containsKey(at)) {
+                alternatives.computeIfAbsent(at, ignored -> new ArrayList<>()).addAll(modifier.acceptedAt(rotationSteps));
+            }
+        }
+        if (alternatives.isEmpty()) return this;
+        Builder builder = builder();
+        positions.forEach((at, accepted) -> {
+            builder.add(at, accepted);
+            List<BlockMatcher> extra = alternatives.get(at);
+            if (extra != null && !extra.isEmpty()) builder.add(at, extra);
+            builder.rule(at, rule(at));
+            builder.tag(at, tag(at));
+        });
+        return builder.build();
+    }
+
     public int partCount() {
         return this.positions.size();
     }
@@ -141,13 +165,34 @@ public final class MachinePattern {
                 && matchesRule(level, at, rules.get(at.subtract(controller))));
     }
 
+    /** Inspect the same required layout without treating an unavailable position as an observed wrong block. */
+    public record Inspection(boolean matched, boolean unloaded) {}
+
+    public Inspection inspect(Level level, BlockPos controller) {
+        for (BlockPos relative : positions.keySet()) {
+            if (!level.isLoaded(controller.offset(relative))) return new Inspection(false, true);
+        }
+        return new Inspection(matches(level, controller), false);
+    }
+
     private static boolean matchesRule(Level level, BlockPos at, com.google.gson.JsonObject rule) {
         if (rule == null || (!rule.has("nbt") && !rule.has("script-checker"))) return true;
         var entity = level.getBlockEntity(at);
         var nbt = entity == null ? new net.minecraft.nbt.CompoundTag() : entity.saveWithFullMetadata();
         if (rule.has("nbt") && !com.reborn.modularmachinery.recipe.NbtPredicate.parse(rule.get("nbt"), at).matches(nbt)) return false;
-        return !rule.has("script-checker") || level.isClientSide
-                || com.reborn.modularmachinery.script.ScriptHooks.checkBlock(rule.get("script-checker").getAsString(), level, at, level.getBlockState(at), nbt);
+        if (!rule.has("script-checker")) return true;
+        if (level.isClientSide) return true;
+        // P07-01（0.121.36）：token 求值前先校验类型（客户端跳过契约保持在前，行为与旧版一致）。
+        // 定义读取（MachineSchema）已在加载入口拒绝非法 script-checker，但程序化 Builder 或旧缓存
+        // 可能仍注入对象/null/数组——旧代码在这里直接 getAsString()，异常从参数求值阶段逃出匹配与
+        // 控制器 tick。现在这类规则在服务端受控拒绝：该部件匹配失败（结构不成立），既不抛出也不
+        // 吞成 true；合法 token 的求值与未注册 token 由 ScriptHooks 安全拒绝的既有语义不变。
+        com.google.gson.JsonElement token = rule.get("script-checker");
+        if (!token.isJsonPrimitive() || !token.getAsJsonPrimitive().isString()
+                || token.getAsString().isBlank()) {
+            return false;
+        }
+        return com.reborn.modularmachinery.script.ScriptHooks.checkBlock(token.getAsString(), level, at, level.getBlockState(at), nbt);
     }
 
     /**

@@ -72,7 +72,7 @@ public final class HatchGroupMenu extends AbstractContainerMenu {
         super(ModMenus.HATCH_GROUP.get(), id);
         this.hatch = hatch;
         this.clientSide = inventory.player.level().isClientSide();
-        addDataSlots(this.data);
+        addDataSlots(new IntContainerData(this.data, DATA_GROUP_ID));
     }
 
     public HatchGroupMenu(int id, Inventory inventory, FriendlyByteBuf buf) {
@@ -98,6 +98,6 @@ public final class HatchGroupMenu extends AbstractContainerMenu {
 
     @Override
     public boolean stillValid(Player player) {
-        return this.hatch != null && this.hatch.getBlockPos().closerToCenterThan(player.position(), 8.0);
+        return BlockEntityMenuAccess.stillValid(player, hatch);
     }
 }

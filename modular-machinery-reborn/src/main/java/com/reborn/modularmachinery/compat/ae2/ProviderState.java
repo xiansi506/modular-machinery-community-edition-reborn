@@ -25,13 +25,25 @@ public final class ProviderState {
     private AEItemKey activePattern;
     private int group = -1;
     private int[] groups = new int[36];
+    private UUID inputIncarnation = UUID.randomUUID();
+    private boolean identityNeedsSave = true;
+    private UUID lockCycle = UUID.randomUUID();
+    public UUID lockCycle() { return lockCycle; }
+    public void persistInputIdentity() { if(identityNeedsSave){identityNeedsSave=false;changed.run();} }
     public ProviderState(Runnable changed, Runnable topologyChanged, BooleanSupplier available) {
+        this(changed,topologyChanged,available,controller -> {});
+    }
+    public ProviderState(Runnable changed, Runnable topologyChanged, BooleanSupplier available,
+                         Consumer<com.reborn.modularmachinery.block.MachineControllerBlockEntity> consumed) {
         this.changed=changed; this.topologyChanged=topologyChanged;this.available=available;
         Arrays.fill(groups,-1);
-        shared=new ProviderBuffer(changed,()->available.getAsBoolean()&&!returnAll);
+        shared=new ProviderBuffer(changed,()->available.getAsBoolean()&&!returnAll,()->{
+            UUID observed=lockCycle;
+            return controller -> {if(locked&&observed.equals(lockCycle))consumed.accept(controller);};
+        });
         for(int i=0;i<isolated.length;i++){ final int slot=i; isolated[i]=new ProviderBuffer(changed,()->available.getAsBoolean()&&!returnAll&&!returning.get(slot)); }
-        manualItems=new ItemStackHandler(2){@Override protected void onContentsChanged(int slot){changed.run();}};
-        manualFluid=new FluidTank(Integer.MAX_VALUE){@Override protected void onContentsChanged(){changed.run();}};
+        manualItems=new com.reborn.modularmachinery.recipe.ResourceTransaction.NativeItems(2){@Override protected void onContentsChanged(int slot){changed.run();}};
+        manualFluid=new com.reborn.modularmachinery.recipe.ResourceTransaction.NativeTank(Integer.MAX_VALUE){@Override protected void onContentsChanged(){changed.run();}};
     }
     public WorkMode mode(){return mode;}
     public int group(){return group;}
@@ -43,7 +55,7 @@ public final class ProviderState {
         ProviderBuffer buffer=mode==WorkMode.ISOLATION_INPUT?isolated[slot]:shared;
         if(!buffer.accept(inputs))return false;
         activePattern=pattern;
-        if(mode==WorkMode.CRAFTING_LOCK_MODE)locked=true;
+        if(mode==WorkMode.CRAFTING_LOCK_MODE){lockCycle=UUID.randomUUID();locked=true;}
         changed.run();return true;
     }
     public boolean locked(){return locked;}
@@ -70,12 +82,22 @@ public final class ProviderState {
         }
     }
     public void appendInputs(HatchCollection.Builder builder,String tag,MachineInputProvider.GroupAllocator allocator){
+        appendInputs(builder,tag,allocator,new net.minecraft.resources.ResourceLocation("modular_machinery_reborn:unscoped"),net.minecraft.core.BlockPos.ZERO);
+    }
+    public void appendInputs(HatchCollection.Builder builder,String tag,MachineInputProvider.GroupAllocator allocator,
+                             net.minecraft.resources.ResourceLocation dimension,net.minecraft.core.BlockPos position){
+        persistInputIdentity();
         // Manual inputs are shared by every isolated pattern, as in the original provider.
         int manualGroup=mode==WorkMode.ISOLATION_INPUT?-1:group;
         builder.addItemPort(new GuardedItems(),true,tag,manualGroup);
         builder.addFluidPort(new GuardedFluid(),true,tag,manualGroup);
         if(mode==WorkMode.ISOLATION_INPUT){
-            for(int i=0;i<36;i++){int allocated=allocator.reserve(isolated[i],groups[i]);if(groups[i]!=allocated){groups[i]=allocated;changed.run();}append(builder,tag,allocated,isolated[i]);}
+            for(int i=0;i<36;i++){
+                int allocated=allocator.reserve(isolated[i],groups[i]);
+                if(allocated<0)continue; // Exhaustion must never turn an isolated buffer into general inputs.
+                builder.isolatedGroup(allocated,new InputGroupBinding.Key(inputIncarnation,i,dimension,position.asLong()));
+                append(builder,tag,allocated,isolated[i]);
+            }
         }else append(builder,tag,group,shared);
     }
     private static void append(HatchCollection.Builder builder,String tag,int group,ProviderBuffer buffer){
@@ -83,7 +105,9 @@ public final class ProviderState {
         Object gas=buffer.gas();if(gas!=null)builder.addGasPort(gas,true,tag,group);
     }
     public CompoundTag save(){
-        CompoundTag tag=new CompoundTag();tag.putInt("mode",mode.ordinal());tag.putInt("group",group);tag.putIntArray("groups",groups);
+        CompoundTag tag=new CompoundTag();tag.putInt("mode",mode.ordinal());tag.putInt("group",group);tag.putIntArray("groups",groups.clone());
+        tag.putUUID("input_incarnation",inputIncarnation);
+        tag.putUUID("lock_cycle",lockCycle);
         tag.putBoolean("locked",locked);tag.putBoolean("return_all",returnAll);tag.putLongArray("returning",returning.toLongArray());
         if(pendingMode!=null)tag.putInt("pending_mode",pendingMode.ordinal());
         if(activePattern!=null)tag.put("active",activePattern.toTagGeneric());
@@ -91,9 +115,12 @@ public final class ProviderState {
         tag.put("manual_items",manualItems.serializeNBT());tag.put("manual_fluid",manualFluid.writeToNBT(new CompoundTag()));return tag;
     }
     public void load(CompoundTag tag,int legacyMode,boolean legacyLock){
+        if(tag.hasUUID("lock_cycle"))lockCycle=tag.getUUID("lock_cycle");
+        if(tag.hasUUID("input_incarnation")){inputIncarnation=tag.getUUID("input_incarnation");identityNeedsSave=false;}
+        else identityNeedsSave=true; // Keep this object's generated identity stable across repeated legacy loads.
         mode=readMode(tag.contains("mode")?tag.getInt("mode"):legacyMode);locked=tag.contains("mode")?tag.getBoolean("locked"):legacyLock&&mode==WorkMode.CRAFTING_LOCK_MODE;
         group=tag.contains("group")?Math.max(-1,Math.min(65535,tag.getInt("group"))):-1;
-        groups=tag.getIntArray("groups");if(groups.length!=36){groups=new int[36];Arrays.fill(groups,-1);}
+        groups=tag.getIntArray("groups").clone();if(groups.length!=36){groups=new int[36];Arrays.fill(groups,-1);}
         pendingMode=tag.contains("pending_mode")?readMode(tag.getInt("pending_mode")):null;
         returnAll=tag.getBoolean("return_all");returning.clear();BitSet saved=BitSet.valueOf(tag.getLongArray("returning"));for(int i=0;i<36;i++)if(saved.get(i))returning.set(i);
         AEKey key=tag.contains("active")?AEKey.fromTagGeneric(tag.getCompound("active")):null;activePattern=key instanceof AEItemKey item?item:null;

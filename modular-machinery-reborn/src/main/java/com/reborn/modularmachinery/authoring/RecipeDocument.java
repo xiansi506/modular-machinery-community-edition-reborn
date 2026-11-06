@@ -1,9 +1,13 @@
 package com.reborn.modularmachinery.authoring;
 
 import com.google.gson.*;
+import com.google.gson.stream.JsonReader;
+import com.google.gson.stream.JsonToken;
 import com.reborn.modularmachinery.machine.MachineDefinition;
 import com.reborn.modularmachinery.recipe.*;
 import net.minecraft.resources.ResourceLocation;
+import java.io.IOException;
+import java.io.StringReader;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
@@ -12,6 +16,8 @@ import java.util.*;
 /** The editor retains source JSON; runtime objects are used for validation, never for lossy reserialization. */
 public final class RecipeDocument {
     public static final int MAX_SOURCE = 16000, MAX_BYTES = 24000, MAX_REQUIREMENTS = 64;
+    /** The deepest real container tree the editor reads: the root object counts as 1. */
+    public static final int MAX_DEPTH = 64;
     public static final Gson JSON = new GsonBuilder().setPrettyPrinting().disableHtmlEscaping().create();
     public static final List<String> TYPES = List.of("item", "fluid", "gas", "energy", "mana", "aura", "lifeessence", "will", "compressed_air", "ember");
     public enum Format { JSON, KUBEJS }
@@ -27,17 +33,61 @@ public final class RecipeDocument {
     public static JsonObject read(String source) {
         if (source.length() > MAX_SOURCE || source.getBytes(StandardCharsets.UTF_8).length > MAX_BYTES)
             throw new IllegalArgumentException("Recipe exceeds 16000 characters / 24000 UTF-8 bytes");
-        // Bound nesting before Gson, including malformed input. Quoted braces do not count.
-        int depth = 0; boolean quoted = false, escaped = false;
-        for (char c : source.toCharArray()) {
-            if (quoted) { if (escaped) escaped = false; else if (c == '\\') escaped = true; else if (c == '"') quoted = false; }
-            else if (c == '"') quoted = true;
-            else if (c == '{' || c == '[') { if (++depth > 64) throw new IllegalArgumentException("JSON nesting exceeds 64"); }
-            else if (c == '}' || c == ']') depth--;
-        }
+        checkDepth(source);
         JsonElement json = JsonParser.parseString(source);
         if (!json.isJsonObject()) throw new IllegalArgumentException("Recipe must be a JSON object");
         return json.getAsJsonObject();
+    }
+
+    /**
+     * P01-04（0.121.47）：深度上限必须与真正解析它的语法一致。
+     *
+     * <p>旧版在 {@code JsonParser} 之前自己扫字符，只认双引号字符串。而 {@code JsonParser}
+     * 用宽松的 {@code JsonReader} 解析（见 {@code JsonParser.parseReader(JsonReader)} 自己调
+     * {@code setLenient(true)}），同样接受单引号字符串、注释和未加引号的键名。于是一个装满
+     * {@code }} 的单引号值可以把计数压到负数，让 200 层嵌套“通过”上限 64 的读取——限制本身
+     * 失效，只是后面的规范化复检有时又挡住了它。
+     *
+     * <p>这里改用<b>解析器自己的 tokenizer</b>做深度检查：{@link JsonReader} 是迭代的（不会
+     * 递归），语法与随后的 {@code JsonParser} 完全同源，所以不存在“半解析器”与真实语法不一致
+     * 的缝。容器深度按真实结构计数（根对象计 1），在任何 {@code toString}／{@code deepCopy}／
+     * 表单构建／递归消费者之前完成，因此 16000 字符能表达的极深树不会先把栈走穿。
+     *
+     * <p>只做深度检查：接受／拒绝的语法边界仍由 {@code JsonParser} 决定，单引号、注释这些既有的
+     * 宽松写法不会被悄悄改成严格拒绝；错误仍是可恢复的受控异常，原文由调用方保留。
+     */
+    private static void checkDepth(String source) {
+        JsonReader reader = new JsonReader(new StringReader(source));
+        reader.setLenient(true); // the same setting JsonParser applies before it parses
+        int depth = 0;
+        try {
+            while (true) {
+                JsonToken token = reader.peek();
+                if (token == JsonToken.END_DOCUMENT) return;
+                // Plain comparisons, not a switch over the enum: a switch would add a synthetic
+                // RecipeDocument$1 class to the shipped jar for no behavioural gain.
+                if (token == JsonToken.BEGIN_OBJECT) {
+                    if (++depth > MAX_DEPTH) throw new IllegalArgumentException("JSON nesting exceeds " + MAX_DEPTH);
+                    reader.beginObject();
+                } else if (token == JsonToken.BEGIN_ARRAY) {
+                    if (++depth > MAX_DEPTH) throw new IllegalArgumentException("JSON nesting exceeds " + MAX_DEPTH);
+                    reader.beginArray();
+                } else if (token == JsonToken.END_OBJECT) {
+                    reader.endObject(); depth--;
+                } else if (token == JsonToken.END_ARRAY) {
+                    reader.endArray(); depth--;
+                } else if (token == JsonToken.NAME) {
+                    reader.nextName();
+                } else {
+                    reader.skipValue();
+                }
+            }
+        } catch (IOException error) {
+            // MalformedJsonException is an IOException; JsonParser reports the same class of failure.
+            throw new JsonSyntaxException(error);
+        } catch (IllegalStateException error) {
+            throw new JsonSyntaxException("Malformed JSON: " + error.getMessage(), error);
+        }
     }
 
     public static JsonObject create(String machine) {
@@ -65,6 +115,61 @@ public final class RecipeDocument {
         String type = req.get("type").getAsString(); int colon = type.indexOf(':');
         if (colon >= 0) type = type.substring(colon + 1);
         return type.endsWith("_pertick") ? type.substring(0, type.length()-8) : type;
+    }
+
+    /**
+     * P01-01（0.121.39）：表单结构校验——原文切回表单前，检查表单控件真正依赖的类型前提。
+     *
+     * <p>{@link #read} 只保证顶层是 JSON 对象；而 {@code RecipeEditorScreen} 的需求页会直接
+     * {@code getAsJsonArray("requirements")}、对每项 {@code getAsJsonObject()}、读
+     * {@code type} 的字符串、以及 {@code perTick}/{@code parallelize-unaffected} 的布尔——
+     * 语法合法但结构不符的原文（{@code requirements:[1]}、{@code {}}、{@code [{}]}、缺
+     * {@code type}、布尔字段写成数字/字符串等）会让这些直接读取抛出未捕获异常。此校验
+     * 在切换到表单页之前运行：返回 {@code null} 表示表单可显示；否则返回一条带
+     * {@code requirements[序号].字段} 位置的错误，屏幕据此留在原文页并完整保留原文。
+     *
+     * <p>只做表单可显示性的结构检查：不验证服务端配方语义（金额范围、资源存在性等仍由
+     * 验证回执负责），不触碰 NBT 数据、脚本字符串或未知高级需求的自定义键——未知但结构
+     * 合法的需求（对象 + 非空字符串 type）保持原样通过，原表单对它们的 rawHelp 入口不变。
+     */
+    public static String formStructureError(JsonObject root) {
+        if (!root.has("requirements")) return null;
+        JsonElement reqs = root.get("requirements");
+        if (!(reqs instanceof JsonArray array)) return "requirements must be a JSON array, got " + describe(reqs) + "; fix the raw source before opening the form";
+        for (int i = 0; i < array.size(); i++) {
+            JsonElement entry = array.get(i);
+            if (!(entry instanceof JsonObject req)) return "requirements[" + i + "] must be a JSON object, got " + describe(entry);
+            if (!req.has("type")) return "requirements[" + i + "].type is missing; write the requirement type as a string";
+            JsonElement type = req.get("type");
+            if (!(type instanceof JsonPrimitive primitive) || !primitive.isString() || primitive.getAsString().isBlank())
+                return "requirements[" + i + "].type must be a non-empty string, got " + describe(type);
+            // The form reads these booleans directly on every known requirement kind; a number or
+            // string there would throw outside the collect guard. Unknown kinds never reach that read.
+            if (TYPES.contains(kindOf(primitive.getAsString()))) {
+                for (String key : List.of("perTick", "parallelize-unaffected")) {
+                    if (req.has(key) && !(req.get(key) instanceof JsonPrimitive flag && flag.isBoolean()))
+                        return "requirements[" + i + "]." + key + " must be a boolean, got " + describe(req.get(key));
+                }
+            }
+        }
+        return null;
+    }
+
+    /** The kind of a type string without requiring an object — for the structural check above. */
+    private static String kindOf(String type) {
+        int colon = type.indexOf(':');
+        if (colon >= 0) type = type.substring(colon + 1);
+        return type.endsWith("_pertick") ? type.substring(0, type.length()-8) : type;
+    }
+
+    /** A short reader-facing name for a JSON value's type, used in locatable structure errors. */
+    private static String describe(JsonElement value) {
+        if (value == null || value.isJsonNull()) return "null";
+        if (value.isJsonObject()) return "an object";
+        if (value.isJsonArray()) return "an array";
+        if (value.getAsJsonPrimitive().isString()) return "a string";
+        if (value.getAsJsonPrimitive().isBoolean()) return "a boolean";
+        return "a number";
     }
     public static String resourceKey(String kind) {
         return switch (kind) { case "item", "fluid", "gas" -> kind; case "aura" -> "aura-type"; case "will" -> "will-type"; default -> ""; };
@@ -138,8 +243,9 @@ public final class RecipeDocument {
             if(!TYPES.contains(kind)) {result.add(req.get("type").getAsString()+": advanced requirement; see source and JEI after installation.");continue;}
             JsonElement raw = req.get(key); if (raw == null && kind.equals("ember")) raw = req.get("ember");
             if (raw == null && kind.equals("compressed_air")) raw = req.get("amount");
-            String amount = raw == null ? (kind.equals("item") ? "1" : "0") : raw.getAsString();
-            String total = perTick(req) && raw != null ? " | base total " + number(amount).multiply(number(duration)).stripTrailingZeros().toPlainString() + " " + unit(kind) : "";
+            // The fluid parser defaults an omitted amount to 1, the same default items get; the summary must not contradict it.
+            String amount = raw == null ? (kind.equals("item") || kind.equals("fluid") ? "1" : "0") : raw.getAsString();
+            String total = perTick(req) && (raw != null || kind.equals("fluid")) ? " | base total " + number(amount).multiply(number(duration)).stripTrailingZeros().toPlainString() + " " + unit(kind) : "";
             if (req.has("minAmount") || req.has("maxAmount")) { amount = (req.has("minAmount") ? req.get("minAmount") : amount) + ".." + (req.has("maxAmount") ? req.get("maxAmount") : amount); total = ""; }
             result.add(req.get("io-type").getAsString() + " " + kind + " " + (req.has(resource) ? req.get(resource).getAsString() + " " : "") + amount + " " + unit(kind) + (perTick(req) ? "/tick" : "/craft") + total
                 + (req.has("chance") ? " | chance " + req.get("chance") : "") + (req.has("selector-tag") ? " | selector " + req.get("selector-tag") : "") + (req.has("pressure") ? " | " + req.get("pressure") + " bar" : ""));

@@ -11,19 +11,19 @@ import java.util.List;
  * <p>The original kept a {@code Map<UpgradeType, MachineUpgrade> foundUpgrades} on
  * {@code TileUpgradeBus}, where the {@code MachineUpgrade} instance carried the stack size and lived on the bus
  * so that custom NBT could be read and written around every handler call
- * ({@code UpgradeMachineEventHandler.java:38-50}). This project has no handler layer and no per-instance state:
- * what the recipe engine needs is the upgrade's declaration plus its count, which is exactly this pair — plus,
+ * ({@code UpgradeMachineEventHandler.java:38-50}). Script handlers now receive these instance views:
+ * fixed declarations aggregate across slots, while each effective dynamic slot retains its own item data — plus,
  * for a <b>dynamic</b> upgrade, the opaque tag its carrier item holds.
  *
  * @param target     the declaration the carrier item resolved to
- * @param count      how many carrier items share this upgrade; at least 1
+ * @param count      effective carrier count (not physical inventory count); zero has no effect
  * @param customData the per-copy NBT of a dynamic upgrade, as carried by the carrier item; empty when the
  *                   declaration is not dynamic, and empty rather than {@code null} always
  */
 public record UpgradeStack(UpgradeTarget target, int count, CompoundTag customData) {
 
     public UpgradeStack {
-        count = Math.max(1, count);
+        count = Math.min(Math.max(0, count), target.upgrade().maxStackSize());
         customData = customData == null ? new CompoundTag() : customData.copy();
     }
 
@@ -84,25 +84,25 @@ public record UpgradeStack(UpgradeTarget target, int count, CompoundTag customDa
         public static final Bag EMPTY = new Bag(List.of());
 
         public Bag {
-            stacks = List.copyOf(stacks);
+            stacks = stacks.stream().filter(stack -> stack.count() > 0).toList();
         }
 
         public boolean isEmpty() {
             return this.stacks.isEmpty();
         }
 
-        /** How many upgrades the bus holds, i.e. one entry per distinct declaration. */
+        /** Fixed declaration aggregates plus effective dynamic slot views, in stable inventory order. */
         public int size() {
             return this.stacks.size();
         }
 
-        /** How many carrier items in total carry an upgrade. */
+        /** Effective copies, saturated for this legacy int accessor; physical inventory is unchanged. */
         public int itemCount() {
-            int total = 0;
+            long total = 0;
             for (UpgradeStack stack : this.stacks) {
                 total += stack.count();
             }
-            return total;
+            return (int) Math.min(Integer.MAX_VALUE, total);
         }
 
         /**

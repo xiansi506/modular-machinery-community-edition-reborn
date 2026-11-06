@@ -38,6 +38,11 @@ public final class PreviewJeiActions {
         PreviewJeiActions.runtime = jeiRuntime;
     }
 
+    /** JEI 运行时关闭时由插件回调清空；此后所有查询都安全回退宿主，直到新的运行时就绪。 */
+    public static void onRuntimeUnavailable() {
+        PreviewJeiActions.runtime = null;
+    }
+
     /**
      * 用给定的物品打开 JEI 的配方/用途页。
      *

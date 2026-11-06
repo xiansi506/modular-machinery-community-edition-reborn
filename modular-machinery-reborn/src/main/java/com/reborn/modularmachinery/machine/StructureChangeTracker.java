@@ -8,6 +8,7 @@ import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.event.level.BlockEvent;
 import net.minecraftforge.event.level.LevelEvent;
+import net.minecraftforge.event.level.ChunkEvent;
 
 import java.util.Map;
 import java.util.Set;
@@ -15,7 +16,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
- * Remembers which blocks changed since the last server tick, so a formed controller can skip its full
+ * Remembers current and previous tick block changes, so a formed controller can skip its full
  * structure match when nothing inside its bounds moved.
  *
  * <p>This is the 1.20.1 counterpart of the original's {@code MMWorldEventListener}
@@ -27,7 +28,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * {@link BlockEvent.EntityPlaceEvent}, {@link BlockEvent.FluidPlaceBlockEvent}).
  *
  * <p><b>It records exact positions, not chunks.</b> A position outside every machine's bounds is a few bytes and
- * is dropped at the next {@link TickEvent.ServerTickEvent} START; a position inside a machine's bounds is
+ * expires after a complete following server tick; a position inside a machine's bounds is
  * exactly what the original wanted. The difference from the original is therefore in the <i>shape</i> of the
  * superset, not in what a hit means: every recorded position was a real block change, so a hit is a real
  * reason to re-check. The one approximation is that {@code NeighborNotifyEvent} does not expose the original's
@@ -36,19 +37,21 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * ignored: structure matching is authoritative on the server, and a {@code ClientLevel} shares the dimension key
  * with the server level in single player.
  *
- * <p>Cleared at the start of every server tick, like the original's
- * {@code ServerTickEvent(Phase.START) -> changedChunks.clear()}.
+ * <p>At START, current changes become the retained generation and the older generation expires. This
+ * covers tasks processed between ticks and changes recorded after an earlier controller already ticked.
+ * Queries never consume marks, since multiple controllers may depend on the same position.
  */
 public final class StructureChangeTracker {
 
     private static final Map<ResourceKey<Level>, Set<Long>> CHANGES = new ConcurrentHashMap<>();
+    private static final Map<ResourceKey<Level>, Set<Long>> PREVIOUS_CHANGES = new ConcurrentHashMap<>();
     private static final AtomicBoolean REGISTERED = new AtomicBoolean(false);
 
     private StructureChangeTracker() {
     }
 
     /**
-     * Registers the four block listeners and the two lifecycle listeners on the Forge bus. Idempotent: the mod
+     * Registers block, chunk and level/tick lifecycle listeners on the Forge bus. Idempotent: the mod
      * constructor calls it once, and a future caller cannot install a second copy that doubles every mark.
      */
     public static void register() {
@@ -65,10 +68,12 @@ public final class StructureChangeTracker {
                 (BlockEvent.FluidPlaceBlockEvent event) -> record(event));
         MinecraftForge.EVENT_BUS.addListener(StructureChangeTracker::onServerTick);
         MinecraftForge.EVENT_BUS.addListener(StructureChangeTracker::onLevelUnload);
+        MinecraftForge.EVENT_BUS.addListener((ChunkEvent.Load event) -> onChunkChanged(event));
+        MinecraftForge.EVENT_BUS.addListener((ChunkEvent.Unload event) -> onChunkChanged(event));
     }
 
     /** Records one changed block. The dimension is part of the key because positions repeat across worlds. */
-    public static void mark(ResourceKey<Level> dimension, BlockPos pos) {
+    public static synchronized void mark(ResourceKey<Level> dimension, BlockPos pos) {
         if (dimension == null || pos == null) {
             return;
         }
@@ -80,11 +85,15 @@ public final class StructureChangeTracker {
      * corners may be given in either order; the loop compares the normalized bounds, so a caller does not have
      * to know which corner {@link MachinePattern#min()} returned.
      */
-    public static boolean isAreaChanged(ResourceKey<Level> dimension, BlockPos a, BlockPos b) {
+    public static synchronized boolean isAreaChanged(ResourceKey<Level> dimension, BlockPos a, BlockPos b) {
         if (dimension == null || a == null || b == null) {
             return false;
         }
-        Set<Long> changed = CHANGES.get(dimension);
+        return containsChange(CHANGES.get(dimension), a, b)
+                || containsChange(PREVIOUS_CHANGES.get(dimension), a, b);
+    }
+
+    private static boolean containsChange(Set<Long> changed, BlockPos a, BlockPos b) {
         if (changed == null || changed.isEmpty()) {
             return false;
         }
@@ -105,15 +114,17 @@ public final class StructureChangeTracker {
         return false;
     }
 
-    /** Forgets every dimension's changes. Called at {@link TickEvent.Phase#START}; also the test hook. */
-    public static void clearAll() {
+    /** Forgets both generations, for explicit cleanup and tests. */
+    public static synchronized void clearAll() {
         CHANGES.clear();
+        PREVIOUS_CHANGES.clear();
     }
 
     /** Forgets one dimension's changes, used when that level unloads. */
-    public static void clear(ResourceKey<Level> dimension) {
+    public static synchronized void clear(ResourceKey<Level> dimension) {
         if (dimension != null) {
             CHANGES.remove(dimension);
+            PREVIOUS_CHANGES.remove(dimension);
         }
     }
 
@@ -125,9 +136,18 @@ public final class StructureChangeTracker {
         }
     }
 
-    private static void onServerTick(TickEvent.ServerTickEvent event) {
+    private static synchronized void onServerTick(TickEvent.ServerTickEvent event) {
         if (event.phase == TickEvent.Phase.START) {
-            clearAll();
+            PREVIOUS_CHANGES.clear();
+            PREVIOUS_CHANGES.putAll(CHANGES);
+            CHANGES.clear();
+        }
+    }
+
+    private static void onChunkChanged(ChunkEvent event) {
+        if (event.getLevel() instanceof ServerLevel level) {
+            com.reborn.modularmachinery.block.MachineControllerBlockEntity.inputChunkChanged(
+                    level, event.getChunk().getPos());
         }
     }
 

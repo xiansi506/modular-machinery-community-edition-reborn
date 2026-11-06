@@ -1,3 +1,4 @@
 {
-  "modular_machinery_world_hiding": "coremods/world_hiding.js"
+  "modular_machinery_world_hiding": "coremods/world_hiding.js",
+  "modular_machinery_reload_cycle": "coremods/reload_cycle.js"
 }

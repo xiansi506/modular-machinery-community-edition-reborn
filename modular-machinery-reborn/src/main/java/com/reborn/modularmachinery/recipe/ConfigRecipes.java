@@ -2,6 +2,7 @@ package com.reborn.modularmachinery.recipe;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
+import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.mojang.logging.LogUtils;
 import com.reborn.modularmachinery.ModularMachineryReborn;
@@ -87,6 +88,11 @@ public final class ConfigRecipes {
                 } catch (IOException exception) {
                     LOGGER.error("[{}] Could not read recipe file {}", ModularMachineryReborn.MOD_ID, file,
                             exception);
+                } catch (RuntimeException exception) {
+                    // One broken file must not abort the whole directory scan: validate names the file and
+                    // the reason, this reports it and moves on to the remaining files.
+                    LOGGER.error("[{}] Skipping recipe file: {}", ModularMachineryReborn.MOD_ID,
+                            exception.getMessage(), exception);
                 }
             }
         } catch (IOException exception) {
@@ -97,48 +103,52 @@ public final class ConfigRecipes {
     }
 
     /**
-     * Checks the one field Minecraft itself insists on before this mod ever sees the recipe.
+     * Checks the one field Minecraft itself insists on before this mod ever sees the recipe, and rejects the
+     * file when it fails.
      *
      * <p>Vanilla's {@code RecipeManager} reads a root {@code type} to decide which serializer to hand the JSON to.
      * The original mod had no {@code type} at all, because it opened its recipe files itself — so a recipe
      * carried over unchanged from the original is dropped with nothing but a terse
      * {@code "Missing type, expected to find a string"}. This says what to write instead.
+     *
+     * <p>Every failure throws with the file path in the message, and {@link #readAll} skips exactly that one
+     * file: a single broken entry must not abort the whole directory scan.
      */
     private static void validate(Path file, byte[] data) {
         JsonObject root;
         try {
             root = GSON.fromJson(new String(data, StandardCharsets.UTF_8), JsonObject.class);
         } catch (RuntimeException exception) {
-            LOGGER.error("[{}] {} is not valid JSON and will not load", ModularMachineryReborn.MOD_ID, file,
-                    exception);
-            return;
+            throw new IllegalArgumentException(file + " is not valid JSON and will not load", exception);
         }
         if (root == null) {
-            LOGGER.error("[{}] {} is empty and will not load", ModularMachineryReborn.MOD_ID, file);
-            return;
+            throw new IllegalArgumentException(file + " is empty and will not load");
         }
         if (!root.has("type")) {
-            LOGGER.error("[{}] {} has no root 'type' field. Minecraft reads it to pick a recipe serializer and "
-                            + "drops the file before this mod sees it. Add \"type\": \"{}\" as the first field.",
-                    ModularMachineryReborn.MOD_ID, file, RECIPE_TYPE);
-            return;
+            throw new IllegalArgumentException(file + " has no root 'type' field. Minecraft reads it to pick a "
+                    + "recipe serializer and drops the file before this mod sees it. Add \"type\": \""
+                    + RECIPE_TYPE + "\" as the first field.");
         }
-        String type = root.get("type").getAsString();
-        if (!RECIPE_TYPE.equals(type)) {
-            LOGGER.error("[{}] {} declares type '{}'; machine recipes must use '{}'",
-                    ModularMachineryReborn.MOD_ID, file, type, RECIPE_TYPE);
+        JsonElement type = root.get("type");
+        // A non-string type (object/array/null/number/boolean) must not reach getAsString(): that is exactly
+        // the crash that used to escape this scan per file instead of being isolated to it.
+        if (!type.isJsonPrimitive() || !type.getAsJsonPrimitive().isString()) {
+            throw new IllegalArgumentException(file + " declares a non-string root 'type' (" + type
+                    + "); machine recipes must use the string \"" + RECIPE_TYPE + "\".");
+        }
+        String value = type.getAsString();
+        if (!RECIPE_TYPE.equals(value)) {
+            throw new IllegalArgumentException(file + " declares type '" + value + "'; machine recipes must use '"
+                    + RECIPE_TYPE + "'");
         }
     }
 
-    /** Contributes the directory as a required server data pack, when it holds anything. */
+    /** Registers a stable source even when empty; later repository reloads must discover the first recipe. */
     public static void onAddPackFinders(AddPackFindersEvent event) {
         if (event.getPackType() != PackType.SERVER_DATA) {
             return;
         }
         int found = readAll().size();
-        if (found == 0) {
-            return;
-        }
         LOGGER.info("[{}] Exposing {} recipe file(s) from {} as a data pack",
                 ModularMachineryReborn.MOD_ID, found, directory());
         event.addRepositorySource(packs -> packs.accept(Pack.create(

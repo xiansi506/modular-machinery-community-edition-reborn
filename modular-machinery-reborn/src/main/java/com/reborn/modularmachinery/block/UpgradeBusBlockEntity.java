@@ -91,6 +91,38 @@ public final class UpgradeBusBlockEntity extends BlockEntity implements MenuProv
 
     private final UpgradeBusTier tier;
     private final ItemStackHandler items;
+    private net.minecraftforge.common.util.LazyOptional<net.minecraftforge.items.IItemHandler> itemCapability =
+            net.minecraftforge.common.util.LazyOptional.of(() -> this.items());
+    private boolean capsValid = true;
+    private long inventoryRevision;
+    public long inventoryRevision() { return inventoryRevision ^ (isRemoved() ? Long.MIN_VALUE : 0L); }
+
+    @Override
+    public <T> net.minecraftforge.common.util.LazyOptional<T> getCapability(
+            net.minecraftforge.common.capabilities.Capability<T> capability,
+            @javax.annotation.Nullable net.minecraft.core.Direction side) {
+        if (capability == net.minecraftforge.common.capabilities.ForgeCapabilities.ITEM_HANDLER) {
+            return capsValid && !isRemoved() ? itemCapability.cast()
+                    : net.minecraftforge.common.util.LazyOptional.empty();
+        }
+        return super.getCapability(capability, side);
+    }
+
+    @Override
+    public void invalidateCaps() {
+        inventoryRevision++;
+        capsValid = false;
+        super.invalidateCaps();
+        itemCapability.invalidate();
+    }
+
+    @Override
+    public void reviveCaps() {
+        super.reviveCaps();
+        itemCapability.invalidate();
+        capsValid = true;
+        itemCapability = net.minecraftforge.common.util.LazyOptional.of(this::items);
+    }
 
     /** Controller position to machine name — the original's {@code boundedMachine}. */
     private final Map<BlockPos, ResourceLocation> boundMachines = new LinkedHashMap<>();
@@ -116,6 +148,7 @@ public final class UpgradeBusBlockEntity extends BlockEntity implements MenuProv
         // (BlockUpgradeBus.java:145-147), so the size is fixed for the block's lifetime.
         this.items = new ItemStackHandler(this.tier.maxUpgradeSlots()) {
             @Override protected void onContentsChanged(int slot) {
+                inventoryRevision++;
                 setChanged();
                 // The client builds its own upgrade list from the synced slot contents, so a change here is
                 // visible without any extra packet - the menu's slot sync carries it.
@@ -299,6 +332,7 @@ public final class UpgradeBusBlockEntity extends BlockEntity implements MenuProv
     @Override
     public void load(CompoundTag tag) {
         super.load(tag);
+        inventoryRevision++;
         if (tag.contains(TAG_INVENTORY)) {
             this.items.deserializeNBT(tag.getCompound(TAG_INVENTORY));
         }

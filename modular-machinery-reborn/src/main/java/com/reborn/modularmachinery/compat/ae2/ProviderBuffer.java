@@ -28,7 +28,13 @@ public final class ProviderBuffer implements ResourceTransaction.OpaquePort {
     private final Items items = new Items();
     private final Fluids fluids = new Fluids();
     private Object gas;
+    private Supplier<Consumer<com.reborn.modularmachinery.block.MachineControllerBlockEntity>> consumption = () -> controller -> {};
     public ProviderBuffer(Runnable changed, BooleanSupplier accessible) { this(changed, accessible, false); }
+    public ProviderBuffer(Runnable changed, BooleanSupplier accessible,
+                          Supplier<Consumer<com.reborn.modularmachinery.block.MachineControllerBlockEntity>> consumption) {
+        this(changed, accessible, false);
+        this.consumption = consumption;
+    }
     private ProviderBuffer(Runnable changed, BooleanSupplier accessible, boolean retainEmptyKeys) {
         this.changed=changed; this.accessible=accessible; this.retainEmptyKeys=retainEmptyKeys;
     }
@@ -56,7 +62,7 @@ public final class ProviderBuffer implements ResourceTransaction.OpaquePort {
     public long take(AEKey key,long requested,boolean execute) {
         if(!accessible() || requested<=0) return 0;
         long moved=Math.min(requested,amount(key));
-        if(moved>0&&execute){updateAmount(key,amount(key)-moved);changed();}
+        if(moved>0&&execute){observeConsumption();updateAmount(key,amount(key)-moved);changed();}
         return moved;
     }
     public long returnToNetwork(ToLongBiFunction<AEKey,Long> insert) {
@@ -72,9 +78,17 @@ public final class ProviderBuffer implements ResourceTransaction.OpaquePort {
         else contents.put(key,amount);
     }
     private void replaceContents(Map<AEKey,Long> values, ListTag missing) {
+        observeConsumption();
         contents.clear();
         values.forEach((key,n)->{if (n>0 || retainEmptyKeys) contents.put(key,n);});
         unresolved=missing.copy(); keyRevision++; changed();
+    }
+    private void observeConsumption() {
+        if (!com.reborn.modularmachinery.machine.PaidInputScope.capturing()) return;
+        Map<AEKey,Long> before = new LinkedHashMap<>(contents);
+        Consumer<com.reborn.modularmachinery.block.MachineControllerBlockEntity> owner = consumption.get();
+        com.reborn.modularmachinery.machine.PaidInputScope.observe(this,
+                () -> before.entrySet().stream().anyMatch(e -> amount(e.getKey()) < e.getValue()), owner);
     }
     public IItemHandler items() { return items; }
     public IFluidHandler fluids() { return fluids; }

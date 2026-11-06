@@ -14,6 +14,7 @@ import net.minecraft.server.packs.resources.ResourceManager;
 import net.minecraft.server.packs.resources.SimpleJsonResourceReloadListener;
 import net.minecraft.util.profiling.ProfilerFiller;
 import net.minecraft.world.item.Item;
+import net.minecraft.world.item.Items;
 import net.minecraftforge.registries.ForgeRegistries;
 import org.slf4j.Logger;
 
@@ -66,72 +67,37 @@ public final class UpgradeLoader extends SimpleJsonResourceReloadListener {
     @Override
     protected void apply(Map<ResourceLocation, JsonElement> files, ResourceManager resourceManager,
                          ProfilerFiller profiler) {
-        // The config directory is merged last so an author's file wins over a data pack file with the same name.
-        Map<ResourceLocation, JsonElement> all = new LinkedHashMap<>(files);
-        all.putAll(UpgradeDirectory.readAll());
-        all.putAll(com.reborn.modularmachinery.script.ScriptUpgradeDefinitions.files());
+        // 0.121.51: source precedence is explicit by logical upgrade id — script > config > data pack. Within
+        // one source the existing rule remains "the later effective valid declaration wins". Passing each layer
+        // in that order is what makes a low-priority alias unable to back-pressure a high-priority winner.
+        Map<ResourceLocation, JsonElement> configFiles = UpgradeDirectory.readAll();
+        Map<ResourceLocation, JsonElement> scriptFiles = com.reborn.modularmachinery.script.ScriptUpgradeDefinitions.files();
 
-        // Pass 1: types, seeded from the previous load and overwritten by whatever this load declares. Seeding
-        // is deliberate: it lets one pack declare an upgrade and another pack map an item to it, and it means
-        // editing a mapping while its type file is being edited does not fail. Marking what this load produced
-        // keeps a plain reload from being mistaken for two files colliding.
-        Map<ResourceLocation, UpgradeType> loadedTypes = new LinkedHashMap<>(UpgradeRegistry.all());
-        com.reborn.modularmachinery.script.ScriptUpgradeDefinitions.previousTypes().forEach(loadedTypes::remove);
+        // Pass 1 contains all current datapack/config/script declarations before any mappings are resolved.
+        // Cross-pack references therefore need no previous-load seed, which would resurrect removed types.
+        Map<ResourceLocation, UpgradeType> loadedTypes = new LinkedHashMap<>();
+        Map<ResourceLocation, String> typeWinners = new LinkedHashMap<>();
         List<String> typeFailures = new ArrayList<>();
-        Set<ResourceLocation> seenThisLoad = new LinkedHashSet<>();
-        int declarations = 0;
-        for (Map.Entry<ResourceLocation, JsonElement> entry : all.entrySet()) {
-            if (isItemFile(entry.getKey())) {
-                continue;
-            }
-            declarations++;
-            try {
-                UpgradeType type = readType(entry.getKey(), entry.getValue());
-                if (!seenThisLoad.add(type.id())) {
-                    LOGGER.warn("[{}] Two files both declare the upgrade '{}'; {} wins. Give one of them a "
-                                    + "different \"name\".",
-                            ModularMachineryReborn.MOD_ID, type.id(), entry.getKey());
-                }
-                loadedTypes.put(type.id(), type);
-            } catch (Exception exception) {
-                typeFailures.add(entry.getKey().toString());
-                LOGGER.error("[{}] Failed to load upgrade declaration {}", ModularMachineryReborn.MOD_ID,
-                        entry.getKey(), exception);
-            }
-        }
+        int declarations = loadTypes(files, "data pack", loadedTypes, typeWinners, typeFailures);
+        declarations += loadTypes(configFiles, "config", loadedTypes, typeWinners, typeFailures);
+        declarations += loadTypes(scriptFiles, "script", loadedTypes, typeWinners, typeFailures);
 
         // Pass 2: item mappings. Rebuilt from scratch rather than merged into the previous load, because an item
         // mapping that names an item that no longer exists, or simply disappeared with its pack, must not
-        // survive a reload — that is what "the registry describes what is loaded" means. Types are the one thing
-        // that does carry over (see pass 1), so a mapping may reference an upgrade another pack declared.
+        // survive a reload. A mapping may reference any type declared by the current sources in pass 1, and it
+        // resolves to the type winner from that pass.
         Map<ResourceLocation, UpgradeType> typesNow = Map.copyOf(loadedTypes);
         Map<Item, UpgradeTarget.Targets> loadedTargets = new LinkedHashMap<>();
         Map<Item, List<UpgradeTarget>> byItem = new LinkedHashMap<>();
         List<String> itemFailures = new ArrayList<>();
-        int mappings = 0;
-        for (Map.Entry<ResourceLocation, JsonElement> entry : all.entrySet()) {
-            if (!isItemFile(entry.getKey())) {
-                continue;
-            }
-            mappings++;
-            try {
-                Mapping mapping = readMapping(entry.getKey(), entry.getValue(), typesNow);
-                List<UpgradeTarget> merged = byItem.computeIfAbsent(mapping.item(), key -> new ArrayList<>());
-                // Two declarations for the same (item, upgrade) pair would be a duplicate; the later file wins,
-                // which is how the config directory wins over a data pack file that already held the same name.
-                merged.removeIf(target -> target.upgrade().id().equals(mapping.target().upgrade().id()));
-                merged.add(mapping.target());
-            } catch (Exception exception) {
-                itemFailures.add(entry.getKey().toString());
-                LOGGER.error("[{}] Failed to load upgrade item mapping {}", ModularMachineryReborn.MOD_ID,
-                        entry.getKey(), exception);
-            }
-        }
+        int mappings = loadMappings(files, "data pack", typesNow, byItem, itemFailures);
+        mappings += loadMappings(configFiles, "config", typesNow, byItem, itemFailures);
+        mappings += loadMappings(scriptFiles, "script", typesNow, byItem, itemFailures);
         for (Map.Entry<Item, List<UpgradeTarget>> entry : byItem.entrySet()) {
             loadedTargets.put(entry.getKey(), new UpgradeTarget.Targets(entry.getValue()));
         }
 
-        UpgradeRegistry.replace(loadedTypes, loadedTargets);
+        com.reborn.modularmachinery.machine.ReloadCycle.upgrades(loadedTypes, loadedTargets);
 
         LOGGER.info("[{}] Loaded {} upgrade declaration(s) and {} item mapping(s){}",
                 ModularMachineryReborn.MOD_ID, loadedTypes.size(), loadedTargets.size(),
@@ -158,8 +124,13 @@ public final class UpgradeLoader extends SimpleJsonResourceReloadListener {
 
         // A declaration that names a machine nothing defines is not an error — the pack holding that machine
         // may simply not be installed — but it is worth saying, because such an upgrade can never be used.
-        List<ResourceLocation> missing = UpgradeRegistry.unresolvedMachines(
-                machine -> MachineRegistry.byId(machine).isPresent());
+        List<ResourceLocation> missing = new ArrayList<>();
+        for (UpgradeType type : loadedTypes.values()) {
+            for (ResourceLocation machine : type.compatibleMachines())
+                if (!com.reborn.modularmachinery.machine.ReloadCycle.machineExists(machine) && !missing.contains(machine)) missing.add(machine);
+            for (ResourceLocation machine : type.incompatibleMachines())
+                if (!com.reborn.modularmachinery.machine.ReloadCycle.machineExists(machine) && !missing.contains(machine)) missing.add(machine);
+        }
         if (!missing.isEmpty()) {
             LOGGER.warn("[{}] {} upgrade declaration(s) name machine(s) that no loaded definition provides, so "
                             + "those upgrades can never be used there: {}. Check the spelling, or install the "
@@ -180,6 +151,63 @@ public final class UpgradeLoader extends SimpleJsonResourceReloadListener {
         return id.getPath().endsWith(ITEM_SUFFIX);
     }
 
+    /** Reads one source layer's type declarations into the shared winner tables; later valid entries win. */
+    private static int loadTypes(Map<ResourceLocation, JsonElement> sourceFiles, String layer,
+                                 Map<ResourceLocation, UpgradeType> loadedTypes,
+                                 Map<ResourceLocation, String> winners, List<String> failures) {
+        int declarations = 0;
+        for (Map.Entry<ResourceLocation, JsonElement> entry : sourceFiles.entrySet()) {
+            if (isItemFile(entry.getKey())) {
+                continue;
+            }
+            declarations++;
+            try {
+                UpgradeType type = readType(entry.getKey(), entry.getValue());
+                String previous = winners.get(type.id());
+                String winner = layer + " file " + entry.getKey();
+                if (previous != null) {
+                    LOGGER.warn("[{}] Logical upgrade id '{}' is declared by both {} and {}; the later effective "
+                                    + "declaration wins: {}. Source precedence is script > config > data pack, and "
+                                    + "later valid declarations win within one source.",
+                            ModularMachineryReborn.MOD_ID, type.id(), previous, winner, winner);
+                }
+                loadedTypes.put(type.id(), type);
+                winners.put(type.id(), winner);
+            } catch (Exception exception) {
+                failures.add(entry.getKey().toString());
+                LOGGER.error("[{}] Failed to load upgrade declaration {}", ModularMachineryReborn.MOD_ID,
+                        entry.getKey(), exception);
+            }
+        }
+        return declarations;
+    }
+
+    /** Reads one source layer's item mappings; a conflicting (item, upgrade) pair resolves to the later layer. */
+    private static int loadMappings(Map<ResourceLocation, JsonElement> sourceFiles, String layer,
+                                    Map<ResourceLocation, UpgradeType> typesNow,
+                                    Map<Item, List<UpgradeTarget>> byItem, List<String> failures) {
+        int mappings = 0;
+        for (Map.Entry<ResourceLocation, JsonElement> entry : sourceFiles.entrySet()) {
+            if (!isItemFile(entry.getKey())) {
+                continue;
+            }
+            mappings++;
+            try {
+                Mapping mapping = readMapping(entry.getKey(), entry.getValue(), typesNow);
+                List<UpgradeTarget> merged = byItem.computeIfAbsent(mapping.item(), key -> new ArrayList<>());
+                // Two declarations for the same (item, upgrade) pair are one carrier decision; the later layer
+                // wins, with later valid declarations winning inside a layer as before.
+                merged.removeIf(target -> target.upgrade().id().equals(mapping.target().upgrade().id()));
+                merged.add(mapping.target());
+            } catch (Exception exception) {
+                failures.add(entry.getKey().toString());
+                LOGGER.error("[{}] Failed to load upgrade item mapping {}", ModularMachineryReborn.MOD_ID,
+                        entry.getKey(), exception);
+            }
+        }
+        return mappings;
+    }
+
     // ------------------------------------------------------------------- types
 
     public static UpgradeType readType(ResourceLocation fileId, JsonElement element) {
@@ -198,7 +226,7 @@ public final class UpgradeLoader extends SimpleJsonResourceReloadListener {
                 throw new JsonParseException("In " + fileId + ": 'level' must be a number (a float, e.g. 1.5)."
                         + " It mirrors the original's UpgradeType.level, which the original never evaluated.");
             }
-            level = raw.getAsFloat();
+            level = com.reborn.modularmachinery.util.JsonNumbers.finiteFloat(raw, fileId + " level");
         }
 
         int maxStack = 1;
@@ -208,7 +236,7 @@ public final class UpgradeLoader extends SimpleJsonResourceReloadListener {
                 throw new JsonParseException("In " + fileId + ": 'max-stack' must be a whole number of at least "
                         + "1, e.g. 16. Leave the field out for a non-stackable upgrade.");
             }
-            maxStack = raw.getAsInt();
+            maxStack = com.reborn.modularmachinery.util.JsonNumbers.integer(raw, 1, Integer.MAX_VALUE, fileId + " max-stack");
             if (maxStack < 1) {
                 throw new JsonParseException("In " + fileId + ": 'max-stack' is " + maxStack
                         + ", but it must be at least 1. Leave the field out for a non-stackable upgrade.");
@@ -326,8 +354,8 @@ public final class UpgradeLoader extends SimpleJsonResourceReloadListener {
         String rawItem = requireString(root, "item", fileId);
         ResourceLocation itemId = ResourceLocation.tryParse(rawItem);
         Item item = itemId == null ? null : ForgeRegistries.ITEMS.getValue(itemId);
-        if (item == null) {
-            throw new JsonParseException("In " + fileId + ": '" + rawItem + "' is not a registered item. Use an "
+        if (item == null || item == Items.AIR) {
+            throw new JsonParseException("In " + fileId + ": '" + rawItem + "' does not resolve to a non-air registered item. Use an "
                     + "item registry name such as \"minecraft:golden_axe\", and make sure the mod that adds it "
                     + "is installed — an upgrade can only be attached to an item this game knows about.");
         }

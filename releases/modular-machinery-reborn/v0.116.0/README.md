@@ -8,4 +8,4 @@ ME 输入总线支持滚轮调节已有物品／流体／气体标记的目标�
 - SHA-256：`FA81A411C143EAE34FD67439075F4F506B0DAE2BDC67E78CB7F8DB8CD7584DB0`
 - 来源：`modular-machinery-reborn/build/reobfJar/output.jar`
 
-[使用说明](../../../modular-machinery-reborn/docs/联动/ME总线滚轮.md) · [验证记录](../../../_audit/me-scroll-0.116.0/ME滚轮更新.md)
+[使用说明](../../../modular-machinery-reborn/docs/联动/ME总线滚轮.md) · 验证记录（本地审计工件，不随本次发布）

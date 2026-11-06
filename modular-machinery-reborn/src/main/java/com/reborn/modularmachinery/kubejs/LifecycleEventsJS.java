@@ -20,6 +20,7 @@ import dev.latvian.mods.kubejs.event.EventExit;
 import dev.latvian.mods.kubejs.event.EventGroup;
 import dev.latvian.mods.kubejs.event.EventHandler;
 import dev.latvian.mods.kubejs.event.EventJS;
+import dev.latvian.mods.kubejs.event.EventResult;
 import dev.latvian.mods.kubejs.script.ScriptType;
 import dev.latvian.mods.kubejs.script.ScriptTypeHolder;
 import net.minecraft.core.BlockPos;
@@ -110,43 +111,49 @@ public final class LifecycleEventsJS {
         if (bridgeRegistered) return;
         bridgeRegistered = true;
         MinecraftForge.EVENT_BUS.addListener((com.reborn.modularmachinery.api.event.ResultChanceCreateEvent event) ->
-                RESULT_CHANCE.post((ScriptTypeHolder) ScriptType.SERVER, new ResultChanceEventJS(event)));
+                post(RESULT_CHANCE, new ResultChanceEventJS(event)));
         MinecraftForge.EVENT_BUS.addListener((com.reborn.modularmachinery.api.event.SmartInterfaceUpdateEvent event) ->
-                SMART_INTERFACE.post((ScriptTypeHolder) ScriptType.SERVER, new SmartInterfaceEventJS(event)));
+                post(SMART_INTERFACE, new SmartInterfaceEventJS(event)));
         MinecraftForge.EVENT_BUS.addListener((MachineStructureFormedEvent event) ->
-                STRUCTURE_FORMED.post((ScriptTypeHolder) ScriptType.SERVER,
-                        new ControllerEventJS(event)));
+                post(STRUCTURE_FORMED, new ControllerEventJS(event)));
         MinecraftForge.EVENT_BUS.addListener((MachineStructureUpdateEvent event) ->
-                STRUCTURE_UPDATED.post((ScriptTypeHolder) ScriptType.SERVER,
-                        new ControllerEventJS(event)));
+                post(STRUCTURE_UPDATED, new ControllerEventJS(event)));
         MinecraftForge.EVENT_BUS.addListener((MachineTickEvent event) ->
-                MACHINE_TICK.post((ScriptTypeHolder) ScriptType.SERVER,
-                        new MachineTickEventJS(event)));
+                post(MACHINE_TICK, new MachineTickEventJS(event)));
         MinecraftForge.EVENT_BUS.addListener((RecipeCheckEvent event) ->
-                RECIPE_CHECK.post((ScriptTypeHolder) ScriptType.SERVER,
-                        new RecipeCheckEventJS(event)));
+                post(RECIPE_CHECK, new RecipeCheckEventJS(event)));
         MinecraftForge.EVENT_BUS.addListener((RecipeStartEvent event) ->
-                RECIPE_START.post((ScriptTypeHolder) ScriptType.SERVER, new RecipeEventJS(event)));
+                post(RECIPE_START, new RecipeEventJS(event)));
         MinecraftForge.EVENT_BUS.addListener((RecipeTickEvent event) ->
-                RECIPE_TICK.post((ScriptTypeHolder) ScriptType.SERVER,
-                        new RecipeTickEventJS(event)));
+                post(RECIPE_TICK, new RecipeTickEventJS(event)));
         MinecraftForge.EVENT_BUS.addListener((RecipeFinishEvent event) ->
-                RECIPE_FINISH.post((ScriptTypeHolder) ScriptType.SERVER, new RecipeEventJS(event)));
+                post(RECIPE_FINISH, new RecipeEventJS(event)));
         MinecraftForge.EVENT_BUS.addListener((RecipeFailureEvent event) ->
-                RECIPE_FAILURE.post((ScriptTypeHolder) ScriptType.SERVER,
-                        new RecipeFailureEventJS(event)));
+                post(RECIPE_FAILURE, new RecipeFailureEventJS(event)));
         MinecraftForge.EVENT_BUS.addListener((FactoryRecipeStartEvent event) ->
-                FACTORY_RECIPE_START.post((ScriptTypeHolder) ScriptType.SERVER,
-                        new FactoryRecipeEventJS(event)));
+                post(FACTORY_RECIPE_START, new FactoryRecipeEventJS(event)));
         MinecraftForge.EVENT_BUS.addListener((FactoryRecipeTickEvent event) ->
-                FACTORY_RECIPE_TICK.post((ScriptTypeHolder) ScriptType.SERVER,
-                        new FactoryRecipeTickEventJS(event)));
+                post(FACTORY_RECIPE_TICK, new FactoryRecipeTickEventJS(event)));
         MinecraftForge.EVENT_BUS.addListener((FactoryRecipeFinishEvent event) ->
-                FACTORY_RECIPE_FINISH.post((ScriptTypeHolder) ScriptType.SERVER,
-                        new FactoryRecipeEventJS(event)));
+                post(FACTORY_RECIPE_FINISH, new FactoryRecipeEventJS(event)));
         MinecraftForge.EVENT_BUS.addListener((FactoryRecipeFailureEvent event) ->
-                FACTORY_RECIPE_FAILURE.post((ScriptTypeHolder) ScriptType.SERVER,
-                        new FactoryFailureEventJS(event)));
+                post(FACTORY_RECIPE_FAILURE, new FactoryFailureEventJS(event)));
+    }
+
+    private static void post(EventHandler handler, ControllerEventJS event) {
+        boolean[] failed = {false};
+        // KubeJS may log a callback exception and still return PASS. Observe its error callback too,
+        // then fail the native gate after the entire global listener batch has returned.
+        EventResult result = handler.post((ScriptTypeHolder) ScriptType.SERVER, null, event,
+                (js, container, error) -> { failed[0] = true; return error; });
+        if (!failed[0] && !result.error()) return;
+        if (event.backing instanceof RecipeCheckEvent check) {
+            check.setFailed("Global script callback failed: " + handler);
+        } else if (event.backing instanceof RecipeTickEvent tick) {
+            tick.preventProgressing("Global script callback failed: " + handler);
+        } else if (event.backing.isCancelable()) {
+            event.backing.setCanceled(true);
+        }
     }
 
     // ------------------------------------------------------------------ script-facing wrappers

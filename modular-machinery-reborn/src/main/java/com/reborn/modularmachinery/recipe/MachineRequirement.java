@@ -83,6 +83,11 @@ public abstract class MachineRequirement {
     public boolean triggered() { return triggered; }
     public void setTriggered(boolean value) { triggered = value; }
     public void setScriptOptions(com.google.gson.JsonObject options) {
+        for (String key : java.util.List.of("script-checker", "script-tooltip")) {
+            if (options.has(key) && options.get(key).isJsonPrimitive() && options.get(key).getAsJsonPrimitive().isString())
+                MachineRequirementParser.validateText(options.get(key).getAsString(), "options." + key, "requirement");
+        }
+        MachineRequirementParser.validateText(options.toString(), "options", "requirement");
         for (String key : java.util.List.of("script-checker", "script-tooltip")) if (options.has(key)
                 && (!options.get(key).isJsonPrimitive() || !options.get(key).getAsJsonPrimitive().isString()))
             throw new com.google.gson.JsonParseException(key + " must be a string");
@@ -97,9 +102,7 @@ public abstract class MachineRequirement {
         }
         if (options.has("trigger-time")) {
             var tick = options.get("trigger-time");
-            if (!tick.isJsonPrimitive() || !tick.getAsJsonPrimitive().isNumber() || tick.getAsDouble() < 0
-                    || tick.getAsDouble() > Integer.MAX_VALUE || tick.getAsDouble() != tick.getAsInt())
-                throw new com.google.gson.JsonParseException("trigger-time must be a non-negative integer");
+            com.reborn.modularmachinery.util.JsonNumbers.integer(tick, 0, Integer.MAX_VALUE, "trigger-time");
             if (perTick) throw new com.google.gson.JsonParseException("trigger-time is for one-shot requirements; remove perTick");
         }
         boolean itemOnly = options.has("script-checker") || options.has("script-modifiers")
@@ -279,8 +282,8 @@ public abstract class MachineRequirement {
      * is only ever asked after {@code canSatisfy} has already answered {@code false}, which keeps the two from
      * disagreeing (see {@code MachineRecipe#startFailure}).
      *
-     * <p>Only {@code interface_number_input} implements it today; every other requirement keeps the original's
-     * "just insufficient" behaviour of reporting a bare {@code idle}.
+     * <p>The method keeps its historical name but also supplies refusal messages after a tick-phase reserve.
+     * Requirements without a specific reason may return null; the recipe provides a generic tick fallback.
      */
     @javax.annotation.Nullable
     public String startFailure(HatchCollection ports) {

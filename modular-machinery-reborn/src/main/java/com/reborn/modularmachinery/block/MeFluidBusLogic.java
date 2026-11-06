@@ -33,12 +33,20 @@ public final class MeFluidBusLogic {
     /**
      * 输入总线的流体维持（按目标量）。{@code marks}/{@code amounts} 与配置格一一对应，
      * {@code marks[i] == null} 表示该格不是流体标记（跳过）。
+     *
+     * <p>P08-01（0.121.36）：标记数组是全部 16 个配置格（{@code MeItemBusBlockEntity.CONFIG_GRID}），
+     * 物理流体罐只有 9 格共享池——两个上界语义不同。旧代码把维护循环的上界错写成
+     * {@code tanks.tankCount()}，第 9～15 格的标记变成死配置（独立时永不维护，与 0～8 同流体时
+     * 又静默抬高目标）。现在标记遍历覆盖 {@code marks.length} 全部格；物理罐循环（补液容量探测、
+     * 灌入、送回、未标记回送）仍按实际罐数。{@code failures} 数组长度是物理罐格数，可能短于
+     * {@code marks}：高位标记没有独立退避计数（守卫使它们每次 tick 都照常检查），这不是退避
+     * 机制的重做，存档/菜单协议也未改动。
      */
     public static boolean tickInput(MeFluidTanks tanks, Fluid[] marks, int[] amounts, Storage storage,
                                     int[] failures, boolean fullCheck) {
         boolean moved = false;
         java.util.Set<Fluid> visited = new java.util.HashSet<>();
-        for (int entry = 0; entry < marks.length && entry < tanks.tankCount(); entry++) {
+        for (int entry = 0; entry < marks.length; entry++) {
             Fluid fluid = marks[entry];
             if (fluid == null || !visited.add(fluid)) {
                 continue;

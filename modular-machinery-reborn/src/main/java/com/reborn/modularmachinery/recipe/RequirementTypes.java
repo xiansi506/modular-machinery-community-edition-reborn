@@ -9,6 +9,7 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.crafting.Ingredient;
 import net.minecraft.world.level.material.Fluid;
+import net.minecraft.world.level.material.Fluids;
 import net.minecraftforge.fluids.FluidStack;
 import net.minecraftforge.registries.ForgeRegistries;
 
@@ -57,6 +58,39 @@ public final class RequirementTypes {
      * 与 {@code MachineRegistry.replace} 用 {@code LinkedHashMap} 保住机器匹配顺序是同一条理由。
      */
     private static final Map<ResourceLocation, RequirementType> BY_ID = new LinkedHashMap<>();
+    private static final ThreadLocal<Map<ResourceLocation, RequirementType>> STAGED = new ThreadLocal<>();
+    private static long revision;
+
+    private static Map<ResourceLocation, RequirementType> registry() {
+        Map<ResourceLocation, RequirementType> staged = STAGED.get();
+        return staged == null ? BY_ID : staged;
+    }
+
+    /** Publish one synchronous module's type changes only after all its registration callbacks succeed.
+     * Other Java/world side effects are outside this registry transaction. */
+    public static void registerAtomically(Runnable registration) {
+        if (STAGED.get() != null) throw new IllegalStateException("Nested requirement registration transaction");
+        long expectedRevision;
+        Map<ResourceLocation, RequirementType> staged;
+        synchronized (BY_ID) {
+            expectedRevision = revision;
+            staged = new LinkedHashMap<>(BY_ID);
+        }
+        STAGED.set(staged);
+        try {
+            registration.run();
+            synchronized (BY_ID) {
+                if (revision != expectedRevision) {
+                    throw new IllegalStateException("Requirement registry changed during module registration");
+                }
+                BY_ID.clear();
+                BY_ID.putAll(staged);
+                revision++;
+            }
+        } finally {
+            STAGED.remove();
+        }
+    }
 
     // ------------------------------------------------------------------ 内置六种
 
@@ -99,15 +133,18 @@ public final class RequirementTypes {
      * @return 注册进去的那一个，方便把 {@code TYPE} 建成常量
      */
     public static RequirementType register(RequirementType type) {
-        ResourceLocation id = type.id();
-        RequirementType existing = BY_ID.putIfAbsent(id, type);
-        if (existing != null) {
-            throw new IllegalStateException("Requirement type '" + id + "' is already registered by "
-                    + existing.getClass().getName() + "; a type may only be registered once, because the id is "
-                    + "what a recipe file's 'type' field resolves to and two types under one id would make the "
-                    + "same file mean two different things on two starts. Pick another id.");
+        synchronized (BY_ID) {
+            ResourceLocation id = type.id();
+            RequirementType existing = registry().putIfAbsent(id, type);
+            if (existing != null) {
+                throw new IllegalStateException("Requirement type '" + id + "' is already registered by "
+                        + existing.getClass().getName() + "; a type may only be registered once, because the id is "
+                        + "what a recipe file's 'type' field resolves to and two types under one id would make the "
+                        + "same file mean two different things on two starts. Pick another id.");
+            }
+            if (STAGED.get() == null) revision++;
+            return type;
         }
-        return type;
     }
 
     /**
@@ -124,23 +161,33 @@ public final class RequirementTypes {
      */
     @Nullable
     public static RequirementType deregister(@Nullable ResourceLocation id) {
-        return id == null ? null : BY_ID.remove(id);
+        synchronized (BY_ID) {
+            RequirementType removed = id == null ? null : registry().remove(id);
+            if (removed != null && STAGED.get() == null) revision++;
+            return removed;
+        }
     }
 
     /** 已经注册的每一种需求，按注册顺序；给报错消息与诊断用。 */
     public static List<RequirementType> all() {
-        return List.copyOf(BY_ID.values());
+        synchronized (BY_ID) {
+            return List.copyOf(registry().values());
+        }
     }
 
     /** 已经注册的 id，按注册顺序，形如 {@code [modular_machinery_reborn:item, …]}。 */
     public static String ids() {
-        return BY_ID.keySet().toString();
+        synchronized (BY_ID) {
+            return registry().keySet().toString();
+        }
     }
 
     /** 按全限定 id 查一种需求，没有时返回 {@code null}。 */
     @Nullable
     public static RequirementType byId(@Nullable ResourceLocation id) {
-        return id == null ? null : BY_ID.get(id);
+        synchronized (BY_ID) {
+            return id == null ? null : registry().get(id);
+        }
     }
 
     /**
@@ -179,7 +226,7 @@ public final class RequirementTypes {
         // `modularmachinery:item` 是旧模组 id，它在这一步就归一到本模组的 `item`，与改动前完全一样
         // （改动前连"这一步"都没有，命名空间一律被丢弃）。
         ResourceLocation normalized = ResourceLocation.tryParse(ModularMachineryReborn.MOD_ID + ":" + path);
-        RequirementType type = normalized == null ? null : BY_ID.get(normalized);
+        RequirementType type = byId(normalized);
         if (type != null) {
             return type;
         }
@@ -191,7 +238,7 @@ public final class RequirementTypes {
         // 症状是"未知需求类型"，而注册表的日志里明明列着它。这一步是本波第一版漏掉的东西，
         // 抓出它的是复现器里「模块注册的 kind 现在能被解析到吗」那一条。
         ResourceLocation literal = colon >= 0 ? ResourceLocation.tryParse(trimmed) : null;
-        return literal == null ? null : BY_ID.get(literal);
+        return byId(literal);
     }
 
     /**
@@ -211,11 +258,11 @@ public final class RequirementTypes {
     public static List<ResourceLocation> removeUnavailable(Predicate<String> isLoaded) {
         List<ResourceLocation> removed = new java.util.ArrayList<>();
         // 先快照再摘：在遍历 BY_ID 的过程中删它，就是一边读一边改的那类错误。
-        for (Map.Entry<ResourceLocation, RequirementType> entry : List.copyOf(BY_ID.entrySet())) {
-            String required = entry.getValue().requiresModid();
+        for (RequirementType type : all()) {
+            String required = type.requiresModid();
             if (required != null && !isLoaded.test(required)) {
-                deregister(entry.getKey());
-                removed.add(entry.getKey());
+                deregister(type.id());
+                removed.add(type.id());
             }
         }
         return removed;
@@ -253,9 +300,9 @@ public final class RequirementTypes {
         public MachineRequirement read(JsonObject json, IOType ioType, Object where) {
             Ingredient ingredient = LegacyIngredients.parse(
                     MachineRequirementParser.string(json, "item", where), String.valueOf(where));
-            int amount = json.has("amount") ? json.get("amount").getAsInt() : 1;
-            int min = json.has("minAmount") ? json.get("minAmount").getAsInt() : amount;
-            int max = json.has("maxAmount") ? json.get("maxAmount").getAsInt() : amount;
+            int amount = json.has("amount") ? com.reborn.modularmachinery.util.JsonNumbers.integer(json.get("amount"), 0, Integer.MAX_VALUE, where + " amount") : 1;
+            int min = json.has("minAmount") ? com.reborn.modularmachinery.util.JsonNumbers.integer(json.get("minAmount"), 0, Integer.MAX_VALUE, where + " minAmount") : amount;
+            int max = json.has("maxAmount") ? com.reborn.modularmachinery.util.JsonNumbers.integer(json.get("maxAmount"), 0, Integer.MAX_VALUE, where + " maxAmount") : amount;
 
             // The original read nbt and nbt-display only when nbt was present, and read nbt-display only
             // inside that branch (RequirementTypeItem.java:95-119). A lone nbt-display was therefore ignored;
@@ -352,11 +399,20 @@ public final class RequirementTypes {
             String fluidId = MachineRequirementParser.string(json, "fluid", where);
             ResourceLocation key = ResourceLocation.tryParse(fluidId);
             Fluid fluid = key == null ? null : ForgeRegistries.FLUIDS.getValue(key);
-            if (fluid == null) {
-                throw new JsonParseException("Unknown fluid '" + fluidId + "' in " + where);
+            // Forge resolves missing keys to EMPTY; checking only null accepts invalid resources.
+            // Check the resolved value so existing registry aliases to usable fluids remain valid.
+            if (fluid == null || fluid == Fluids.EMPTY) {
+                throw new JsonParseException("Unknown or empty fluid '" + fluidId + "' in " + where);
             }
-            int amount = json.has("amount") ? json.get("amount").getAsInt() : 1;
-            boolean perTick = json.has("perTick") && json.get("perTick").getAsBoolean();
+            int amount = json.has("amount") ? com.reborn.modularmachinery.util.JsonNumbers.integer(json.get("amount"), 0, Integer.MAX_VALUE, where + " amount") : 1;
+            boolean perTick = false;
+            if (json.has("perTick")) {
+                var flag = json.get("perTick");
+                if (!flag.isJsonPrimitive() || !flag.getAsJsonPrimitive().isBoolean()) {
+                    throw new JsonParseException("'perTick' must be true or false in " + where);
+                }
+                perTick = flag.getAsBoolean();
+            }
             return new FluidRequirement(ioType, new FluidStack(fluid, 1), amount,
                     MachineRequirementParser.chance(json), perTick);
         }
@@ -391,7 +447,18 @@ public final class RequirementTypes {
 
         @Override
         public MachineRequirement read(JsonObject json, IOType ioType, Object where) {
-            long perTick = json.has("energyPerTick") ? json.get("energyPerTick").getAsLong() : 0L;
+            var rate = json.get("energyPerTick");
+            if (rate == null || !rate.isJsonPrimitive() || !rate.getAsJsonPrimitive().isNumber()) {
+                throw new JsonParseException("'energyPerTick' must be a numeric non-negative long in " + where);
+            }
+            long perTick;
+            try {
+                perTick = rate.getAsBigDecimal().longValueExact();
+                if (perTick < 0L) throw new ArithmeticException("negative rate");
+            } catch (ArithmeticException | NumberFormatException exception) {
+                throw new JsonParseException("'energyPerTick' must be an exact non-negative long in " + where,
+                        exception);
+            }
             return new EnergyRequirement(ioType, perTick);
         }
 
@@ -485,14 +552,11 @@ public final class RequirementTypes {
             for (int index = 0; index < entries; index++) {
                 int amount = buf.readVarInt();
                 int matches = buf.readVarInt();
-                ItemStack first = ItemStack.EMPTY;
+                List<ItemStack> alternatives = new java.util.ArrayList<>(matches);
                 for (int match = 0; match < matches; match++) {
-                    ItemStack stack = buf.readItem();
-                    if (match == 0) {
-                        first = stack;
-                    }
+                    alternatives.add(buf.readItem());
                 }
-                parsed.add(IngredientArrayEntry.ofItem(first, amount, chance));
+                parsed.add(IngredientArrayEntry.ofAlternatives(alternatives, amount, chance));
             }
             return new IngredientArrayRequirement(parsed, chance, nbt);
         }

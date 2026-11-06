@@ -6,4 +6,4 @@
 
 1,293,432 字节，SHA-256 `79EDAABB99BDF85A695D43B26A10617653D05A01A65153781A74ADD095498FEF`。来源 `build/reobfJar/output.jar`。**未实机、未部署、未上传**；实际 GUI、资源包和 OpenGL 动画效果待验收。世界内成型组件隐藏、工厂能量信息聚合，以及暂缓的第三方适配器、能量／魔法后端仍待后续。
 
-[客户端指南](../../../modular-machinery-reborn/docs/进阶/客户端脚本指南.md) · [完整示例](../../../modular-machinery-reborn/examples/client-scripts/README.md) · [验证记录](../../../_audit/client-scripts-0.113.0/客户端脚本更新.md) · [SHA256](SHA256.txt)
+[客户端指南](../../../modular-machinery-reborn/docs/进阶/客户端脚本指南.md) · [完整示例](../../../modular-machinery-reborn/examples/client-scripts/README.md) · 验证记录（本地审计工件，不随本次发布） · [SHA256](SHA256.txt)

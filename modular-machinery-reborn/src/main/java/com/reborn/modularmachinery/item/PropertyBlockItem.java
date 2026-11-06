@@ -6,6 +6,8 @@ import net.minecraft.ChatFormatting;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Item;
+import net.minecraft.world.item.Items;
 import net.minecraft.world.item.TooltipFlag;
 import net.minecraft.world.item.context.BlockPlaceContext;
 import net.minecraft.world.level.Level;
@@ -15,6 +17,9 @@ import net.minecraft.world.level.block.state.properties.EnumProperty;
 
 import javax.annotation.Nullable;
 import java.util.List;
+import java.util.Map;
+import java.util.IdentityHashMap;
+import java.util.ArrayList;
 
 /**
  * Block item for the "one block, many variants" families of the original mod.
@@ -31,6 +36,9 @@ import java.util.List;
  * </ul>
  */
 public class PropertyBlockItem extends BlockItem {
+
+    /** Forge's ordinary block-item map has only one slot per block, not one per variant. */
+    private static final Map<Block, List<PropertyBlockItem>> VARIANTS = new IdentityHashMap<>();
 
     private final String descriptionId;
     private final EnumProperty<?> property;
@@ -55,6 +63,45 @@ public class PropertyBlockItem extends BlockItem {
     }
 
     @Override
+    public void registerBlocks(Map<Block, Item> blockToItem, Item item) {
+        super.registerBlocks(blockToItem, item);
+        synchronized (VARIANTS) {
+            List<PropertyBlockItem> variants = VARIANTS.computeIfAbsent(getBlock(), block -> new ArrayList<>());
+            if (!variants.contains(this)) variants.add(this);
+        }
+    }
+
+    @Override
+    public void removeFromBlockToItemMap(Map<Block, Item> blockToItem, Item item) {
+        super.removeFromBlockToItemMap(blockToItem, item);
+        synchronized (VARIANTS) {
+            List<PropertyBlockItem> variants = VARIANTS.get(getBlock());
+            if (variants != null) {
+                variants.remove(this);
+                if (variants.isEmpty()) VARIANTS.remove(getBlock());
+            }
+        }
+    }
+
+    /** Shared material/icon lookup. Do not synthesize block-entity or inventory NBT from a structure rule. */
+    public static ItemStack stackForState(@Nullable BlockState state) {
+        if (state == null || state.isAir()) return ItemStack.EMPTY;
+        synchronized (VARIANTS) {
+            List<PropertyBlockItem> variants = VARIANTS.get(state.getBlock());
+            if (variants != null) {
+                for (PropertyBlockItem variant : variants) {
+                    if (state.hasProperty(variant.property) && state.getValue(variant.property).equals(variant.value))
+                        return new ItemStack(variant);
+                }
+                // An unsupported tier must not silently consume whichever item registered last.
+                return ItemStack.EMPTY;
+            }
+        }
+        Item item = state.getBlock().asItem();
+        return item == Items.AIR ? ItemStack.EMPTY : new ItemStack(item);
+    }
+
+    @Override
     public String getDescriptionId() {
         return this.descriptionId;
     }
@@ -76,6 +123,9 @@ public class PropertyBlockItem extends BlockItem {
         if (this.value instanceof HatchTier tier && this.getBlock() instanceof MachineHatchBlock hatch) {
             tooltip.add(MachineHatchBlock.capacityComponent(hatch.kind(), tier).copy()
                     .withStyle(ChatFormatting.GRAY));
+            if (hatch.kind().isWirelessEnergy()) tooltip.add(Component.translatable(
+                    hatch.kind().isInput() ? "tooltip.modular_machinery_reborn.wireless_input"
+                            : "tooltip.modular_machinery_reborn.wireless_output").withStyle(ChatFormatting.GRAY));
         }
     }
 

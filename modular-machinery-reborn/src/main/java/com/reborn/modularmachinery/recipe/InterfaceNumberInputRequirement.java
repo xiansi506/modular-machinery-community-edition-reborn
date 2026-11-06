@@ -65,6 +65,9 @@ public final class InterfaceNumberInputRequirement extends MachineRequirement {
         // INPUT and not per-tick: the original built it with IOType.INPUT and it belongs to the start phase,
         // which is the phase the controller checks before paying for anything.
         super(IOType.INPUT, false);
+        if (!Float.isFinite(minValue) || !Float.isFinite(maxValue)) {
+            throw new IllegalArgumentException("Interface bounds must be finite");
+        }
         this.type = type;
         this.minValue = minValue;
         this.maxValue = maxValue;
@@ -74,6 +77,19 @@ public final class InterfaceNumberInputRequirement extends MachineRequirement {
     /** The original's {@code addSmartInterfaceDataInput(type, value)} overload: min and max are the same. */
     public InterfaceNumberInputRequirement(String type, float value) {
         this(type, value, value, null);
+    }
+
+    /**
+     * Server-side definition copy, in the same family as {@code ItemRequirement#definitionCopy()}.
+     *
+     * <p>The wire body for this type carries only the selector, type and range; {@code notEqual} is a
+     * programmatic/definition-side message and has never been part of that wire format. A copy made here
+     * therefore keeps the <b>original nullable field</b>: an explicit override stays explicit, and a null
+     * copy continues to read the declared machine type's message (or the default key) at execution time.
+     * Baking {@link #notEqualKey()} into the copy would change that fallback semantics.
+     */
+    InterfaceNumberInputRequirement definitionCopy() {
+        return new InterfaceNumberInputRequirement(this.type, this.minValue, this.maxValue, this.notEqual);
     }
 
     public String interfaceType() {

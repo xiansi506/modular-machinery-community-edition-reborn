@@ -113,7 +113,7 @@ public final class MachineControllerMenu extends AbstractContainerMenu {
         super(ModMenus.MACHINE_CONTROLLER.get(), id);
         this.machine = machine;
         addSlot(new BlueprintSlot(machine.items(), MachineControllerBlockEntity.BLUEPRINT_SLOT, 151, 8));
-        addDataSlots(data);
+        addDataSlots(new IntContainerData(data, 0, 1, 6, 7, 8, 9));
         for (int row = 0; row < 3; row++) {
             for (int col = 0; col < 9; col++) {
                 addSlot(new Slot(inv, col + row * 9 + 9, 8 + col * 18, PLAYER_INVENTORY_Y + row * 18));
@@ -189,6 +189,7 @@ public final class MachineControllerMenu extends AbstractContainerMenu {
 
     @Override
     public ItemStack quickMoveStack(Player player, int index) {
+        if (!stillValid(player)) return ItemStack.EMPTY;
         Slot slot = this.slots.get(index);
         if (!slot.hasItem()) {
             return ItemStack.EMPTY;
@@ -223,7 +224,7 @@ public final class MachineControllerMenu extends AbstractContainerMenu {
 
     @Override
     public boolean stillValid(Player player) {
-        return machine.getBlockPos().closerToCenterThan(player.position(), 8.0);
+        return BlockEntityMenuAccess.stillValid(player, machine);
     }
 
     /** The original's {@code SlotBlueprint}: only blueprints may go in. */

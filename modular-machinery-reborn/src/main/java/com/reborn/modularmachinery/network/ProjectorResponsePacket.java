@@ -69,8 +69,10 @@ public final class ProjectorResponsePacket {
     public static void handle(ProjectorResponsePacket message, Supplier<NetworkEvent.Context> contextSupplier) {
         NetworkEvent.Context context = contextSupplier.get();
         context.enqueueWork(() -> {
-            // descriptor → matcher 的解析在公共类里做，坏描述符只丢对应位置——
+            // descriptor → matcher 的解析在公共类里做，坏描述符只丢对应候选——
             // 服务端刚序列化出来的数据不该坏，这里只是不让一次编码事故踢掉连接。
+            // 某个位置的候选全部无效（或原本就空）时整个位置跳过：Builder.add 明确拒绝
+            // 空候选列表（JsonParseException），把空列表塞给它会让一个坏位置毁掉全部后续位置。
             MachinePattern.Builder builder = MachinePattern.builder();
             boolean any = false;
             for (Map.Entry<BlockPos, List<String>> entry : message.descriptors.entrySet()) {
@@ -82,6 +84,9 @@ public final class ProjectorResponsePacket {
                     } catch (Exception e) {
                         // 单条描述符坏：丢弃该候选，其余照常。
                     }
+                }
+                if (matchers.isEmpty()) {
+                    continue;
                 }
                 builder.add(entry.getKey(), matchers);
             }

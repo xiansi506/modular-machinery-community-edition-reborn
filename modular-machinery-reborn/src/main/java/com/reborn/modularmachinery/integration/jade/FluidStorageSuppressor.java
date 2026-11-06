@@ -63,9 +63,6 @@ public final class FluidStorageSuppressor implements JadeTooltipCollectedCallbac
     /** Jade 提示里方块名所在的行（第 0 行）。 */
     private static final int ROW_NAME = 0;
 
-    /** Jade 通用流体容量条通常位于仓名下面一行。 */
-    private static final int ROW_FLUID = 1;
-
     /** 回调被调用的次数。 */
     private static final AtomicInteger CALLED = new AtomicInteger();
 
@@ -153,19 +150,28 @@ public final class FluidStorageSuppressor implements JadeTooltipCollectedCallbac
             }
             return;
         }
-        if (tooltip.size() <= ROW_FLUID) {
-            return;
-        }
 
-        List<IElement> left = tooltip.get(ROW_FLUID, IElement.Align.LEFT);
-        List<IElement> right = tooltip.get(ROW_FLUID, IElement.Align.RIGHT);
-        if (left == null || right == null) {
+        // P10-19（0.121.34）：不再按固定下标清空整行。Jade 11 的原生流体内容带官方归属 tag
+        // （Identifiers.UNIVERSAL_FLUID_STORAGE / _DETAILED，即 jade:fluid_storage[.detailed]），
+        // 而第三方插在相邻行的元素（例如别的模组状态、Mekanism 气体条）有各自不同的 tag。
+        // 固定下标的 left/right.clear() 在「其他模组状态插进标题与流体行之间」的混排里
+        // 会删掉别人的行、留下真正的旧流体行。现在逐元素只删除确认归属的原生流体内容，
+        // 同一行左右两侧的其余元素原样保留；新条写回被删内容所在的行。没有可确认归属的
+        // 旧流体内容时不动任何行（空罐/气体场景已提前返回，这里也不会有新条可画）。
+        List<IElement> targetLeft = null;
+        List<IElement> targetRight = null;
+        for (int row = 0; row < tooltip.size(); row++) {
+            List<IElement> left = tooltip.get(row, IElement.Align.LEFT);
+            List<IElement> right = tooltip.get(row, IElement.Align.RIGHT);
+            boolean hit = stripLegacyFluidElements(left) | stripLegacyFluidElements(right);
+            if (hit) {
+                targetLeft = left;
+                targetRight = right;
+            }
+        }
+        if (targetLeft == null && targetRight == null) {
             return;
         }
-        // Jade 11.13.3 returns the live row lists here. Its public API has no remove-line method, and
-        // remove(uid) cannot remove elements that were added without a tag.
-        left.clear();
-        right.clear();
 
         int capacity = Math.max(1, hatch.fluidTank().getCapacity());
         FluidView view = FluidView.readDefault(FluidView.writeDefault(
@@ -180,9 +186,39 @@ public final class FluidStorageSuppressor implements JadeTooltipCollectedCallbac
         IElement bar = tooltip.getElementHelper().progress(view.ratio, label,
                 tooltip.getElementHelper().progressStyle().overlay(view.overlay), BoxStyle.DEFAULT, true);
         bar.align(IElement.Align.LEFT).tag(OWN_MARKER);
-        left.add(bar);
+        List<IElement> host = targetLeft != null ? targetLeft : targetRight;
+        host.add(bar);
         lastReport = "客户端自有流体条 " + fluid.getFluid().builtInRegistryHolder().key().location()
                 + " " + fluid.getAmount() + "/" + capacity + " mB";
+    }
+
+    /**
+     * 从一行的一侧移除确认归属 Jade 原生流体条的元素，保留该侧其余元素。
+     *
+     * <p>Jade 的 {@code tooltip.get(row, align)} 返回的是**活列表**，所以可以逐元素
+     * {@code iterator.remove()}——这正是「移除自己的元素而非整个 list」的实现。
+     * 只有 tag 恰好是 {@code Identifiers.UNIVERSAL_FLUID_STORAGE}（或 detailed 变体）的元素才算
+     * Jade 原生流体内容；无 tag 元素与其他任何 tag（第三方状态、气体条、本模组已处理标记）一律不动。
+     */
+    private static boolean stripLegacyFluidElements(List<IElement> elements) {
+        if (elements == null || elements.isEmpty()) {
+            return false;
+        }
+        boolean removed = false;
+        for (java.util.Iterator<IElement> it = elements.iterator(); it.hasNext(); ) {
+            IElement element = it.next();
+            if (isLegacyFluidTag(element.getTag())) {
+                it.remove();
+                removed = true;
+            }
+        }
+        return removed;
+    }
+
+    /** Jade 11 原生流体内容的官方归属 tag（常量来自 Jade 自己的 {@code Identifiers}，不猜名称）。 */
+    private static boolean isLegacyFluidTag(net.minecraft.resources.ResourceLocation tag) {
+        return snownee.jade.api.Identifiers.UNIVERSAL_FLUID_STORAGE.equals(tag)
+                || snownee.jade.api.Identifiers.UNIVERSAL_FLUID_STORAGE_DETAILED.equals(tag);
     }
 
     /**

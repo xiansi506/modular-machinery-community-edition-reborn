@@ -169,6 +169,10 @@ public final class FactoryControllerScreen extends AbstractContainerScreen<Facto
     private static final int WHITE = 0xFFFFFF;
     private static final int ROW_TEXT = 0x222222;
     private static final int LINE = 10;
+    /** The original's {@code y += 12} after the thread label ({@code :155}). */
+    private static final int LABEL_LINE = 12;
+    /** What a shortened row closes with; measured, never appended blind (see {@link #statusLines}). */
+    private static final String ELLIPSIS = "…";
     /** The original's {@code if (tmp != offsetY) offsetY += 5} spacer ({@code :230-232}). */
     private static final int SPACER_GAP = 5;
     /** The original's {@code offsetY += 15} after a name or status block. */
@@ -374,41 +378,173 @@ public final class FactoryControllerScreen extends AbstractContainerScreen<Facto
         drawRecipeStatus(graphics, thread, offsetY + ROW_TEXT_Y);
     }
 
-    /** {@code GuiFactoryController#drawRecipeStatus} ({@code :141-187}). */
+    /**
+     * {@code GuiFactoryController#drawRecipeStatus} ({@code :141-187}), bounded to its own 86×32 row.
+     *
+     * <p>P10-04（0.121.48）：旧实现把 {@code font.split} 的全部结果一股脑画出来。脚本状态可以有
+     * 20 行，长状态会越过 86×32 的队列元素、盖住后面的行，第六行还会越过面板底边——右侧信息块
+     * 的 scissor 在另一个绘制阶段，保护不到这里。现在每一行都有：
+     *
+     * <ul>
+     *   <li><b>独立内容区</b>：元素矩形（去掉 2 px 文字内缩）就是这个元素能用的全部空间；</li>
+     *   <li><b>行数预算</b>：标签占 {@link #LABEL_LINE}，工作且有进度时再留 {@link #LINE} 给进度行，
+     *       剩下的才是状态行数（{@link #statusLineBudget(boolean)}）；</li>
+     *   <li><b>省略</b>：状态超出预算时最后一行以「…」收尾，标签过长也同样截断；</li>
+     *   <li><b>裁剪兜底</b>：整行内容在元素矩形内 scissor，任何测量误差都不会画到邻行或面板外。
+     *       {@code pushPose}/{@code popPose} 与 {@code enableScissor}/{@code disableScissor} 各自在
+     *       {@code finally} 里归还本方法取得的那一层，异常时也不会漏掉。</li>
+     * </ul>
+     *
+     * <p>被省略的完整状态由 {@link #shortenedStatusAt(double, double)} 在真实 {@code render} 命中
+     * 入口提供悬浮提示（见 {@link #render}），滚动后命中的是当前可见行，不是画的时候存下的快照。
+     *
+     * <p>线程标签、并行标签、{@code progress * 100 / duration} 的 long 乘法、分页/滚动与线程身份
+     * 都没有改变；每个元素仍然从 {@link #RECIPE_QUEUE_OFFSET_Y} 起按 33 px 下移。
+     */
     private void drawRecipeStatus(GuiGraphics graphics, FactoryThread thread, int panelY) {
         RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, 1.0F);
 
-        graphics.pose().pushPose();
-        graphics.pose().translate(this.leftPos, this.topPos, 0.0F);
-        graphics.pose().scale(FONT_SCALE, FONT_SCALE, 1.0F);
+        // Clipping happens in real GUI space: enableScissor does not consult the pose stack, and this
+        // method runs from renderBg, i.e. before AbstractContainerScreen translates by (leftPos, topPos).
+        int clipLeft = this.leftPos + RECIPE_QUEUE_OFFSET_X;
+        int clipTop = this.topPos + panelY;
+        int clipRight = clipLeft + FACTORY_ELEMENT_WIDTH;
+        int clipBottom = this.topPos + panelY - ROW_TEXT_Y + FACTORY_ELEMENT_HEIGHT;
+        graphics.enableScissor(clipLeft, clipTop, clipRight, clipBottom);
+        try {
+            graphics.pose().pushPose();
+            try {
+                graphics.pose().translate(this.leftPos, this.topPos, 0.0F);
+                graphics.pose().scale(FONT_SCALE, FONT_SCALE, 1.0F);
 
-        int x = ROW_LABEL_X;
-        int y = (int) (panelY / FONT_SCALE);
+                int x = ROW_LABEL_X;
+                int y = (int) (panelY / FONT_SCALE);
 
-        String label = threadLabel(thread);
-        if (thread.isWorking() && thread.parallelism() > 1) {
-            // The original appended the parallelism in the same parentheses form (:162-170).
-            label = label + " (" + Component.translatable(CONTROLLER_KEY + "parallelism",
-                    thread.parallelism()).getString() + ")";
+                String label = threadLabel(thread);
+                if (thread.isWorking() && thread.parallelism() > 1) {
+                    // The original appended the parallelism in the same parentheses form (:162-170).
+                    label = label + " (" + Component.translatable(CONTROLLER_KEY + "parallelism",
+                            thread.parallelism()).getString() + ")";
+                }
+                graphics.drawString(this.font, ellipsize(label), x, y, ROW_TEXT, false);
+                y += LABEL_LINE;
+
+                boolean progress = thread.isWorking() && thread.duration() > 0;
+                for (FormattedCharSequence line : statusLines(statusText(thread), statusLineBudget(progress))) {
+                    graphics.drawString(this.font, line, x, y, ROW_TEXT, false);
+                    y += LINE;
+                }
+
+                if (progress) {
+                    // long before multiplying: progress can legally exceed 21474836, where int*100 overflows.
+                    long percent = (long) thread.progress() * 100 / thread.duration();
+                    graphics.drawString(this.font, Component.translatable(
+                            CONTROLLER_KEY + "status.crafting.progress", percent + "%"), x, y, ROW_TEXT, false);
+                }
+            } finally {
+                graphics.pose().popPose();
+            }
+        } finally {
+            graphics.disableScissor();
         }
-        graphics.drawString(this.font, label, x, y, ROW_TEXT, false);
-        y += 12;
+    }
 
+    /** The status text of a row: the script's own string when set, otherwise the translated state. */
+    private Component statusText(FactoryThread thread) {
         ControllerStatus status = thread.isWorking() ? ControllerStatus.CRAFTING : ControllerStatus.IDLE;
-        for (FormattedCharSequence line : this.font.split(
-                thread.scriptState().status().isEmpty() ? Component.translatable(status.translationKey())
-                        : Component.literal(thread.scriptState().status()), ROW_WRAP_WIDTH)) {
-            graphics.drawString(this.font, line, x, y, ROW_TEXT, false);
-            y += LINE;
-        }
+        return thread.scriptState().status().isEmpty() ? Component.translatable(status.translationKey())
+                : Component.literal(thread.scriptState().status());
+    }
 
-        if (thread.isWorking() && thread.duration() > 0) {
-            int percent = thread.progress() * 100 / thread.duration();
-            graphics.drawString(this.font, Component.translatable(
-                    CONTROLLER_KEY + "status.crafting.progress", percent + "%"), x, y, ROW_TEXT, false);
-        }
+    /**
+     * How many status lines a row can print: the element's content height minus the label and, while a
+     * craft is running, minus the progress line. At least one line is always kept so a long status can
+     * still show its beginning plus the ellipsis.
+     */
+    public static int statusLineBudget(boolean hasProgress) {
+        int content = (int) ((FACTORY_ELEMENT_HEIGHT - ROW_TEXT_Y) / FONT_SCALE);
+        int reserved = LABEL_LINE + (hasProgress ? LINE : 0);
+        return Math.max(1, (content - reserved) / LINE);
+    }
 
-        graphics.pose().popPose();
+    /** The row's element rectangle in panel pixels, for the harness and for hit testing. */
+    public static int[] queueRowRect(int index) {
+        return new int[] {RECIPE_QUEUE_OFFSET_X, RECIPE_QUEUE_OFFSET_Y + index * (FACTORY_ELEMENT_HEIGHT + 1),
+                FACTORY_ELEMENT_WIDTH, FACTORY_ELEMENT_HEIGHT};
+    }
+
+    /** The status lines a row prints: at most {@code budget}, the last one shortened with an ellipsis. */
+    private List<FormattedCharSequence> statusLines(Component text, int budget) {
+        List<FormattedCharSequence> lines = this.font.split(text, ROW_WRAP_WIDTH);
+        if (lines.size() <= budget) {
+            return lines;
+        }
+        // Re-wrap a shortened plain prefix so the ellipsis itself is measured, not appended blind.
+        String full = text.getString();
+        int lo = 0, hi = full.length();
+        while (lo < hi) {
+            int mid = (lo + hi + 1) >>> 1;
+            if (this.font.split(Component.literal(full.substring(0, mid) + ELLIPSIS), ROW_WRAP_WIDTH).size() <= budget) {
+                lo = mid;
+            } else {
+                hi = mid - 1;
+            }
+        }
+        if (lo > 0 && Character.isHighSurrogate(full.charAt(lo - 1))) {
+            lo--;
+        }
+        return this.font.split(Component.literal(full.substring(0, lo) + ELLIPSIS), ROW_WRAP_WIDTH);
+    }
+
+    /** A single line that does not fit the row width is cut and closed with an ellipsis. */
+    private String ellipsize(String text) {
+        if (this.font.width(text) <= ROW_WRAP_WIDTH) {
+            return text;
+        }
+        return this.font.plainSubstrByWidth(text, ROW_WRAP_WIDTH - this.font.width(ELLIPSIS)) + ELLIPSIS;
+    }
+
+    /**
+     * The full status of the queue row under the mouse when the row had to shorten it, else {@code null}.
+     *
+     * <p>This is the hit test the real {@link #render} uses: it reads the current {@link #scroll} and the
+     * current thread list, so after scrolling the tooltip belongs to the row that is visible now. The
+     * shortening decision calls the same {@link #statusLineBudget(boolean)} and the same
+     * {@code font.split} the drawing path uses, so “shortened” cannot drift from what was drawn.
+     */
+    @Nullable
+    public Component shortenedStatusAt(double mouseX, double mouseY) {
+        List<FactoryThread> threads = threads();
+        int localX = (int) mouseX - this.leftPos;
+        int localY = (int) mouseY - this.topPos;
+        if (localX < RECIPE_QUEUE_OFFSET_X || localX >= RECIPE_QUEUE_OFFSET_X + FACTORY_ELEMENT_WIDTH) {
+            return null;
+        }
+        int rows = Math.min(MAX_PAGE_ELEMENTS, Math.max(0, threads.size() - this.scroll));
+        for (int i = 0; i < rows; i++) {
+            int[] rect = queueRowRect(i);
+            if (localY < rect[1] || localY >= rect[1] + rect[3]) {
+                continue;
+            }
+            FactoryThread thread = threads.get(this.scroll + i);
+            Component text = statusText(thread);
+            int budget = statusLineBudget(thread.isWorking() && thread.duration() > 0);
+            return this.font.split(text, ROW_WRAP_WIDTH).size() > budget ? text : null;
+        }
+        return null;
+    }
+
+    /**
+     * The tooltip pass. It is a real override of the screen's render step, so the queue gets the same mouse
+     * coordinates every other hover in this screen sees; nothing is cached from the drawing pass.
+     */
+    @Override
+    public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
+        super.render(graphics, mouseX, mouseY, partialTick);
+        Component shortened = shortenedStatusAt(mouseX, mouseY);
+        if (shortened != null) {
+            graphics.renderTooltip(this.font, shortened, mouseX, mouseY);
+        }
     }
 
     /**
@@ -419,7 +555,9 @@ public final class FactoryControllerScreen extends AbstractContainerScreen<Facto
     private String threadLabel(FactoryThread thread) {
         if (thread.isCoreThread()) {
             String name = thread.threadName();
-            return name == null ? "" : name;
+            // A declared name that is a language key prints translated (the original's I18n.hasKey test);
+            // a missing key falls back to its own raw text, so literal names pass through unchanged.
+            return name == null ? "" : Component.translatable(name).getString();
         }
         return Component.translatable(KEY + "thread", thread.threadNumber()).getString();
     }

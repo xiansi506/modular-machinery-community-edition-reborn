@@ -122,6 +122,7 @@ public final class UpgradeBusMenu extends AbstractContainerMenu {
      */
     @Override
     public ItemStack quickMoveStack(Player player, int index) {
+        if (!stillValid(player)) return ItemStack.EMPTY;
         Slot slot = this.slots.get(index);
         if (!slot.hasItem()) {
             return ItemStack.EMPTY;
@@ -157,6 +158,6 @@ public final class UpgradeBusMenu extends AbstractContainerMenu {
 
     @Override
     public boolean stillValid(Player player) {
-        return this.bus.getBlockPos().closerToCenterThan(player.position(), 8.0);
+        return BlockEntityMenuAccess.stillValid(player, bus);
     }
 }

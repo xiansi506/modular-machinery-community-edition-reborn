@@ -26,7 +26,7 @@ public record ConstructOptions(Mode mode, StructureSelection.Operation operation
             String descriptor=limited(to,256);BlockMatcher.parse(descriptor);checked.put(id.toString(),descriptor);
         });replacements=Collections.unmodifiableMap(checked);
     }
-    public static ConstructOptions defaults(){return new ConstructOptions(Mode.SINGLE,StructureSelection.Operation.TOGGLE,true,"*","","",Format.FRAGMENT,"custom:machine","Custom Machine",Map.of());}
+    public static ConstructOptions defaults(){return new ConstructOptions(Mode.SINGLE,StructureSelection.Operation.TOGGLE,true,"*","","",Format.JSON,"custom:machine","Custom Machine",Map.of());}
     private static String limited(String value,int limit){if(value==null||value.length()>limit)throw new IllegalArgumentException("Tool option exceeds "+limit+" characters");return value.trim();}
     public static List<String> paths(String text){
         if(text.isBlank())return List.of();

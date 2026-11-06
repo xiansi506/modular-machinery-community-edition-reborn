@@ -72,8 +72,16 @@ public final class RecipeAdapterLoader extends SimplePreparableReloadListener<Vo
             return;
         }
 
-        List<MachineRecipe> generated =
-                RecipeAdapterRegistry.generateAll(declarations, this.recipes, this.registryAccess);
+        List<MachineRecipe> generated;
+        try {
+            // 校验生成轮全部 ID 后才发布；冲突时尚未修改 manager，原配方和占位均保留。
+            generated = RecipeAdapterRegistry.generateAll(declarations, this.recipes, this.registryAccess,
+                    com.reborn.modularmachinery.machine.ReloadCycle::machineExists);
+        } catch (IllegalArgumentException conflict) {
+            LOGGER.error("[{}] Recipe adapters rejected; original RecipeManager retained: {}",
+                    ModularMachineryReborn.MOD_ID, conflict.getMessage());
+            return;
+        }
         LOGGER.info("[{}] Recipe adapters: {} declaration(s) generated {} recipe(s); placeholder(s) removed",
                 ModularMachineryReborn.MOD_ID, declarations.size(), generated.size());
 

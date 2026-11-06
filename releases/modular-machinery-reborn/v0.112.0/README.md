@@ -8,4 +8,4 @@
 
 1,268,932 字节，SHA-256 `5D23FAB3279C2539C0301CF33E931129361B78FD9A714E6681A3245AD530F197`。来源 `build/reobfJar/output.jar`。**未实机、未部署、未上传**。真实 OpenGL／资源包／第三方渲染器效果须游戏验收；世界投影仪继续画方块模型。
 
-[使用示例](../../../modular-machinery-reborn/examples/preview-nbt/README.md) · [验证记录](../../../_audit/preview-nbt-0.112.0/预览NBT更新.md) · [SHA256](SHA256.txt)
+[使用示例](../../../modular-machinery-reborn/examples/preview-nbt/README.md) · 验证记录（本地审计工件，不随本次发布） · [SHA256](SHA256.txt)

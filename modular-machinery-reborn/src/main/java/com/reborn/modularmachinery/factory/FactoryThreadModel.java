@@ -44,13 +44,14 @@ public final class FactoryThreadModel {
      * from ({@code AbstractMachine.java:24}).
      *
      * <p>M6e-2 moved the number into the config ({@code factory-system.default-factory-max-thread}), so this is
-     * the value that key contributes rather than a literal. {@code MachineDefinition.DEFAULT_MAX_THREADS} reads
-     * the same key, so the loader's fallback and the model's fallback cannot drift apart.
+     * the first-load snapshot of that key rather than a literal. Kept for API compatibility only; internal
+     * parser/model/controller fallbacks query the current config on use.
      *
      * <p>The original's field is initialised to {@code 20} but its config read defaults to {@code 10} and
      * overwrites the field, so {@code 10} is the observable default; see
      * {@link com.reborn.modularmachinery.config.ModConfig#factoryDefaultMaxThread()}.
      */
+    @Deprecated // Legacy snapshot for external callers; live fallbacks query ModConfig.
     public static final int DEFAULT_MAX_THREADS =
             com.reborn.modularmachinery.config.ModConfig.factoryDefaultMaxThread();
 
@@ -60,8 +61,9 @@ public final class FactoryThreadModel {
      *
      * <p>It defaults to {@code false} in the original as well, so "a machine has a factory only when its
      * definition says so" is the faithful reading. M6e-2 made it the config key
-     * {@code factory-system.enable-factory-controller-bydefault}; this constant is what that key contributes.
+     * {@code factory-system.enable-factory-controller-bydefault}; this legacy constant snapshots its first value.
      */
+    @Deprecated // Legacy snapshot, not a live configuration getter.
     public static final boolean DEFAULT_HAS_FACTORY =
             com.reborn.modularmachinery.config.ModConfig.factoryControllerEnabledByDefault();
 
@@ -98,7 +100,7 @@ public final class FactoryThreadModel {
      */
     public static int maxThreads(MachineDefinition definition) {
         if (definition == null) {
-            return DEFAULT_MAX_THREADS;
+            return com.reborn.modularmachinery.config.ModConfig.factoryDefaultMaxThread();
         }
         return Math.max(0, definition.maxThreads());
     }

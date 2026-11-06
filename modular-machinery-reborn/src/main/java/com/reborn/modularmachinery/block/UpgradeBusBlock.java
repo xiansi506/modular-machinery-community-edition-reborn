@@ -4,7 +4,6 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.player.Player;
-import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.EntityBlock;
@@ -80,21 +79,13 @@ public final class UpgradeBusBlock extends Block implements EntityBlock {
                 };
     }
 
-    /**
-     * The original spilled the bus's contents when it was broken ({@code BlockUpgradeBus#breakBlock},
-     * {@code :57-70}).
-     *
-     * <p>1.20.1 moved the block item drop to the loot table ({@code data/modular_machinery_reborn/
-     * loot_tables/blocks/upgrade_bus.json}); the inventory is not in that table, so it is spilled here. The
-     * block item has already been spawned by {@code super.playerDestroy} at this point, carrying the tier the
-     * blockstate holds, so only the slots are added.
-     */
+    /** Spill contents on actual replacement, including non-player removal, exactly once. */
     @Override
-    public void playerDestroy(Level level, Player player, BlockPos pos, BlockState state,
-                              @Nullable BlockEntity blockEntity, ItemStack tool) {
-        super.playerDestroy(level, player, pos, state, blockEntity, tool);
-        if (blockEntity instanceof UpgradeBusBlockEntity bus) {
+    public void onRemove(BlockState state, Level level, BlockPos pos, BlockState newState, boolean moving) {
+        if (!state.is(newState.getBlock())
+                && level.getBlockEntity(pos) instanceof UpgradeBusBlockEntity bus) {
             ItemStackDrops.pop(level, pos, bus.items());
         }
+        super.onRemove(state, level, pos, newState, moving);
     }
 }

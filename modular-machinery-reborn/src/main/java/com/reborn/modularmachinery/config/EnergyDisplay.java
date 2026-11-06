@@ -29,13 +29,13 @@ import java.util.Locale;
 public enum EnergyDisplay implements StringRepresentable {
 
     /** The default, and what Forge's own energy unit is. */
-    FE("FE", 1.0D),
+    FE("FE", 1.0D, 1L),
     /** The label only: the original divides by nothing, so RF is 1:1. */
-    RF("RF", 1.0D),
+    RF("RF", 1.0D, 1L),
     /** IC2's EU — a display scale of one quarter. */
-    IC2_EU("EU", 0.25D),
+    IC2_EU("EU", 0.25D, 4L),
     /** GregTech's EU, same scale, and the same label as IC2's in the original's own language file. */
-    GT_EU("EU", 0.25D);
+    GT_EU("EU", 0.25D, 4L);
 
     /** What the config file calls each value — the original's own spellings, so old notes still apply. */
     private final String configName;
@@ -46,10 +46,20 @@ public enum EnergyDisplay implements StringRepresentable {
     /** Display-only scale, copied from the original's {@code EnergyType}. */
     private final double multiplier;
 
-    EnergyDisplay(String label, double multiplier) {
+    /**
+     * 同一比例的<strong>整数</strong>表示：1（FE/RF，原样输出）或 4（EU，除以 4 并向下取整）。
+     *
+     * <p>P10-21（0.121.46）：显示值必须从 {@code long} 直接算，不能先乘 {@code double}。{@code (long)}
+     * 与 {@code (double)} 互转会丢低位：{@code 2^53+1} 变成 {@code 2^53}，{@code 10^18-1} 先被舍入成
+     * {@code 10^18}，缩写因此跨到 E。这里只保留一个整数除数，比例的语义与 {@link #multiplier()} 完全一致。
+     */
+    private final long divisor;
+
+    EnergyDisplay(String label, double multiplier, long divisor) {
         this.configName = name();
         this.label = label;
         this.multiplier = multiplier;
+        this.divisor = divisor;
     }
 
     /** The value's spelling in the config file, e.g. {@code IC2_EU}. */
@@ -91,9 +101,17 @@ public enum EnergyDisplay implements StringRepresentable {
      *
      * <p>{@code floor} rather than rounding, because the original floored — an 8192 FE hatch reads {@code 2048 EU}
      * and a 100 FE/t draw reads {@code 25 EU/t}, with no value ever rounded up past what is really there.
+     *
+     * <p><b>整数运算，不经过 {@code double}（P10-21）。</b>FE/RF 的乘数是 1，因此原样返回：{@code 2^53+1}
+     * 仍然是 {@code 2^53+1}，{@code 10^18-1} 仍然落在 P 段而不是被舍入成 {@code 10^18} 跨到 E。两个 EU
+     * 单位仍然按 1/4 显示，但用 {@link Math#floorDiv(long, long)}——负数也向负无穷取整，不会像
+     * {@code /} 那样朝零截断（{@code -3 FE} 显示为 {@code -1 EU}，不是 {@code 0}）。
      */
     public long display(long stored) {
-        return (long) Math.floor(stored * this.multiplier);
+        if (this.divisor == 1L) {
+            return stored;
+        }
+        return Math.floorDiv(stored, this.divisor);
     }
 
     /**

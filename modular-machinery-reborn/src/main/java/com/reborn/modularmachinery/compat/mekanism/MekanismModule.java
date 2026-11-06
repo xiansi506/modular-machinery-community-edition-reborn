@@ -250,12 +250,9 @@ public final class MekanismModule implements CompatModule {
         /**
          * 读出 {@code gas} 字段并解析成一个真实的气体。
          *
-         * <p><b>命名空间规则与全项目的其它需求种类一致：两次查找。</b>先按本模组的命名空间试
-         * （于是 {@code "gas": "oxygen"} 这种裸写也能用），失败再按写出来的那个命名空间原样试
-         * ——与 {@code RequirementTypes#byName} 的两次查找同一条理由与同一个顺序。
-         *
-         * <p>顺序不能反：先问本模组命名空间，才能让一个裸写的气体名解析到它该去的地方，
-         * 而不是先去撞一个可能存在的同名外来注册。
+         * <p>完整资源 ID 只查写出的命名空间，不允许本模组的同路径气体遮蔽它。只有裸名称
+         * 保留历史顺序：先查本模组命名空间，再按 ResourceLocation 的 Minecraft 默认命名空间查找。
+         * 需求种类的旧名称别名由 RequirementTypes 处理，不改变气体资源本身的注册身份。
          */
         private static Gas requireGas(JsonObject json, Object where) {
             String raw = rawString(json, "gas", where);
@@ -269,9 +266,10 @@ public final class MekanismModule implements CompatModule {
                 throw new JsonParseException("'gas' in " + where + " is '" + raw + "', which is not a valid "
                         + "resource location. Write a gas id, e.g. \"gas\": \"mekanism:oxygen\".");
             }
-            Gas gas = lookup(ModularMachineryReborn.MOD_ID + ":" + literal.getPath());
+            Gas gas = trimmed.indexOf(':') < 0
+                    ? lookup(ModularMachineryReborn.MOD_ID + ":" + literal.getPath()) : null;
             if (gas == null) {
-                gas = lookup(trimmed);
+                gas = lookup(literal.toString());
             }
             if (gas == null) {
                 throw new JsonParseException("Unknown Mekanism gas '" + raw + "' in " + where + ". Gases are a "
@@ -335,7 +333,7 @@ public final class MekanismModule implements CompatModule {
                 throw new JsonParseException("'amount' in " + where + " must be a number. Write how many mB one "
                         + "copy of the craft consumes or produces, e.g. \"amount\": 1000.");
             }
-            int amount = element.getAsInt();
+            int amount = com.reborn.modularmachinery.util.JsonNumbers.integer(element, 1, Integer.MAX_VALUE, where + " amount");
             if (amount < 1) {
                 throw new JsonParseException("'amount' in " + where + " is " + amount + ", but every copy has to "
                         + "consume or produce at least 1 mB. The original clamped this to 0 and then behaved as "
@@ -359,7 +357,7 @@ public final class MekanismModule implements CompatModule {
                 throw new JsonParseException("'chance' in " + where + " must be a number between 0 and 1. "
                         + "Write the probability that this requirement is settled, e.g. \"chance\": 0.5.");
             }
-            float chance = element.getAsFloat();
+            float chance = com.reborn.modularmachinery.util.JsonNumbers.finiteFloat(element, where + " chance");
             if (chance < 0.0F || chance > 1.0F) {
                 throw new JsonParseException("'chance' in " + where + " is " + chance + ", but it has to be "
                         + "between 0 and 1. The original silently ignored a value outside that range "

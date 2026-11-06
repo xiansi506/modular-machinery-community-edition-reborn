@@ -212,7 +212,7 @@ public final class IngredientArrayRequirement extends MachineRequirement {
             if (stillWanted <= 0) {
                 break;
             }
-            served += Math.min(stillWanted, entry.availableIn(handlers, this.nbt) / perCopy);
+            served += (int) Math.min(stillWanted, entry.availableInLong(handlers, this.nbt) / perCopy);
         }
         return served;
     }
@@ -261,9 +261,9 @@ public final class IngredientArrayRequirement extends MachineRequirement {
             if (stillWanted <= 0) {
                 break;
             }
-            int fromThisEntry = Math.min(stillWanted, entry.availableIn(handlers, this.nbt) / perCopy);
+            int fromThisEntry = (int) Math.min(stillWanted, entry.availableInLong(handlers, this.nbt) / perCopy);
             if (fromThisEntry > 0 && !IngredientIo.extract(handlers,
-                    stack -> entry.matches(stack, this.nbt), fromThisEntry * perCopy)) return false;
+                    stack -> entry.matches(stack, this.nbt), Math.multiplyExact(fromThisEntry, perCopy))) return false;
             served += fromThisEntry;
         }
         return served == copies && transaction.commit();

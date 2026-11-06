@@ -34,8 +34,31 @@ public class MagicRequirement extends MachineRequirement {
     private double total(RecipeModifiers modifiers, int count) {
         double value = Math.max(0, modifiers.apply(this, amount, false));
         if (perTick()) value *= durationMultiplier;
-        if (family.integerUnits()) value = Math.floor(value);
-        return value * count;
+        value *= count;
+        // Integer resources settle a whole demand. Do not round each copy down before combining it,
+        // or a positive compensated cost can vanish. Explicit/modified zero stays a legal zero.
+        if (family.integerUnits() && value > 0) value = Math.max(1, Math.floor(value));
+        return value;
+    }
+    /** Pure cost classification for candidate search; same arithmetic as payment, no ports or script callbacks.
+     * A fixed requirement remains checked in shared reservations, but its cost does not vary with N. */
+    public final boolean hasCandidateDependentFractionalCost(RecipeModifiers modifiers) {
+        return !family.integerUnits() && isParallelizable() && total(modifiers, 1) != 0;
+    }
+    public final double parallelSearchCost(RecipeModifiers modifiers, int count) { return total(modifiers, count); }
+    public record ParallelPort(MagicPort.Key key, MagicPort.Access access, double minimum, double maximum) {}
+    /** Read-only, in the same order and with the same visibility/readiness rules as real transfer. */
+    public final java.util.List<ParallelPort> parallelSearchPorts(HatchCollection ports) {
+        java.util.List<ParallelPort> result = new java.util.ArrayList<>();
+        java.util.Set<Object> seen = new java.util.HashSet<>();
+        for (MagicPort port : ports.magicPorts()) {
+            if (port.family() != family || port.input() != (ioType() == IOType.INPUT)) continue;
+            MagicPort.Access access = port.access(variant);
+            if (access == null || !access.valid() || !portReady(access) || !seen.add(access.identity())) continue;
+            result.add(new ParallelPort(new MagicPort.Key(family, access.identity(), variant), access,
+                    Math.max(minimum, access.minimum()), Math.min(maximum, access.maximum())));
+        }
+        return result;
     }
     private boolean transfer(HatchCollection ports, RecipeModifiers modifiers, int count, boolean simulate) {
         double remaining = total(modifiers, count);

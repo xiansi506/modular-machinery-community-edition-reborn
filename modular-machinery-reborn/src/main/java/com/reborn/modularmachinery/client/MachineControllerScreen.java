@@ -157,8 +157,11 @@ public final class MachineControllerScreen extends AbstractContainerScreen<Machi
             submitValueField();
             return true;
         }
-        if (this.valueField != null && this.valueField.isVisible()
-                && this.valueField.keyPressed(keyCode, scanCode, modifiers)) {
+        if (this.valueField != null && this.valueField.isVisible() && keyCode != InputConstants.KEY_ESCAPE
+                // While the field is focused it owns the typing keys: a plain letter like E is not an
+                // EditBox command, but the container's inventory key must not close the screen out from
+                // under it. ESC keeps its existing close path (the original's GuiContainerSmartInterface).
+                && (this.valueField.keyPressed(keyCode, scanCode, modifiers) || this.valueField.canConsumeInput())) {
             return true;
         }
         return super.keyPressed(keyCode, scanCode, modifiers);
@@ -411,12 +414,14 @@ public final class MachineControllerScreen extends AbstractContainerScreen<Machi
                 }
                 counter.take();
                 y += LINE;
-                for (FormattedCharSequence line : wrap(blueprint)) {
-                    if (!counter.take()) {
-                        break;
+                // P10-05（0.121.40）：名称条目在测量里是 row(pNameLines,15) 的**一个条目**——预算按
+                // 条目消费一次，然后画它的全部行。此前每行 take 一次，多行名称的后半会被预算
+                // 误截（测量接受了条目，绘制却只画前几行）。
+                if (counter.take()) {
+                    for (FormattedCharSequence line : wrap(blueprint)) {
+                        graphics.drawString(font, line, x, y, WHITE, true);
+                        y += LINE;
                     }
-                    graphics.drawString(font, line, x, y, WHITE, true);
-                    y += LINE;
                 }
                 y += 15;
             } else if (!menu.formedValue()) {
@@ -435,24 +440,24 @@ public final class MachineControllerScreen extends AbstractContainerScreen<Machi
                 }
                 counter.take();
                 y += LINE;
-                for (FormattedCharSequence line : wrap(found)) {
-                    if (!counter.take()) {
-                        break;
+                // P10-05：名称与额外信息各自是 row(nLines,0) 的一个条目——预算按条目消费一次、
+                // 画全部行（换行行数由同一 wrap 得出，与 payload 的测量一致）。
+                if (counter.take()) {
+                    for (FormattedCharSequence line : wrap(found)) {
+                        graphics.drawString(font, line, x, y, WHITE, true);
+                        y += LINE;
                     }
-                    graphics.drawString(font, line, x, y, WHITE, true);
-                    y += LINE;
                 }
                 if (machine != null) {
                     List<Component> extra = extraInfo(machine);
                     if (!extra.isEmpty()) {
                         y += 5;
-                        for (Component info : extra) {
-                            for (FormattedCharSequence line : wrap(info)) {
-                                if (!counter.take()) {
-                                    break;
+                        if (counter.take()) {
+                            for (Component info : extra) {
+                                for (FormattedCharSequence line : wrap(info)) {
+                                    graphics.drawString(font, line, x, y, WHITE, true);
+                                    y += LINE;
                                 }
-                                graphics.drawString(font, line, x, y, WHITE, true);
-                                y += LINE;
                             }
                         }
                     }
@@ -463,6 +468,10 @@ public final class MachineControllerScreen extends AbstractContainerScreen<Machi
                             Component.translatable(KEY + "structure.none")), x, y, WHITE, true);
                 }
             }
+            // P10-05：row(0,15) 是纯间隔条目——测量把空条目也算一个预算名额，这里对应消耗，
+            // 否则后面所有条目的 take 都会错一位（结构段之后的 15px 间隔是 infoRows 里唯一的
+            // 纯间隔条目；其余 y+=15 都是条目自身的 gap，不占名额）。
+            counter.take();
             y += 15;
 
             // M6d-b: the smart data interface's value, and why the craft is refusing to start. The original
@@ -474,12 +483,12 @@ public final class MachineControllerScreen extends AbstractContainerScreen<Machi
                 graphics.drawString(font, Component.translatable(KEY + "status"), x, y, WHITE, true);
             }
             y += LINE;
-            for (FormattedCharSequence line : wrap(Component.translatable(menu.status().translationKey()))) {
-                if (!counter.take()) {
-                    break;
+            // P10-05：状态值是 row(pStatusLines,15) 的一个条目——按条目消费、画全部换行行。
+            if (counter.take()) {
+                for (FormattedCharSequence line : wrap(Component.translatable(menu.status().translationKey()))) {
+                    graphics.drawString(font, line, x, y, WHITE, true);
+                    y += LINE;
                 }
-                graphics.drawString(font, line, x, y, WHITE, true);
-                y += LINE;
             }
             y += 15;
 
@@ -508,7 +517,8 @@ public final class MachineControllerScreen extends AbstractContainerScreen<Machi
             }
 
             if (menu.progressValue() > 0) {
-                int percent = menu.progressValue() * 100 / menu.maxProgressValue();
+                // long before multiplying: progress can legally exceed 21474836, where int*100 overflows.
+                long percent = (long) menu.progressValue() * 100 / menu.maxProgressValue();
                 if (counter.take()) {
                     graphics.drawString(font, Component.translatable(KEY + "status.crafting.progress",
                             percent + "%"), x, y, WHITE, true);
@@ -658,15 +668,24 @@ public final class MachineControllerScreen extends AbstractContainerScreen<Machi
         }
         y += LINE;
 
-        for (String line : new String[] {type.header(), type.footer()}) {
-            if (line.isEmpty()) {
-                continue;
-            }
-            for (FormattedCharSequence wrapped : wrap(Component.translatable(line))) {
-                if (counter.take()) {
-                    graphics.drawString(font, wrapped, x, y, WHITE, true);
+        // P10-05：header/footer 合起来是 row(interfaceLines-1,5) 的一个条目——预算按条目
+        // 消费一次，空行跳过但计入 y（payload 测量时也把空行排除在行数外）。
+        if (counter.take()) {
+            for (String line : new String[] {type.header(), type.footer()}) {
+                if (line.isEmpty()) {
+                    continue;
                 }
-                y += LINE;
+                for (FormattedCharSequence wrapped : wrap(Component.translatable(line))) {
+                    graphics.drawString(font, wrapped, x, y, WHITE, true);
+                    y += LINE;
+                }
+            }
+        } else {
+            for (String line : new String[] {type.header(), type.footer()}) {
+                if (line.isEmpty()) {
+                    continue;
+                }
+                y += LINE * wrap(Component.translatable(line)).size();
             }
         }
         return y + 5;

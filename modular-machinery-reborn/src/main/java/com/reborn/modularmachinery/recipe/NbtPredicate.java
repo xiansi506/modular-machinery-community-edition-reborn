@@ -300,24 +300,46 @@ public final class NbtPredicate {
             if (list.isEmpty() || list.getElementType() != this.elementType) {
                 return false;
             }
-            List<Tag> remaining = new ArrayList<>(list.size());
-            for (Tag element : list) {
-                remaining.add(element);
+            if (this.elements.size() > list.size()) return false;
+            boolean[][] edges = new boolean[this.elements.size()][list.size()];
+            for (int i = 0; i < this.elements.size(); i++) {
+                for (int j = 0; j < list.size(); j++) edges[i][j] = this.elements.get(i).matches(list.get(j));
             }
-            for (Node expected : this.elements) {
-                int found = -1;
-                for (int i = 0; i < remaining.size(); i++) {
-                    if (expected.matches(remaining.get(i))) {
-                        found = i;
-                        break;
-                    }
-                }
-                if (found < 0) {
-                    return false;
-                }
-                remaining.remove(found);
+            int[] owner = new int[list.size()], matched = new int[this.elements.size()];
+            java.util.Arrays.fill(owner, -1);
+            java.util.Arrays.fill(matched, -1);
+            for (int i = 0; i < this.elements.size(); i++) {
+                if (!augment(edges, i, owner, matched)) return false;
             }
             return true;
+        }
+
+        /** Iterative augmenting paths find a full one-to-one allocation, without permutations or recursion. */
+        private static boolean augment(boolean[][] edges, int root, int[] owner, int[] matched) {
+            int[] via = new int[owner.length], queue = new int[matched.length];
+            java.util.Arrays.fill(via, -1);
+            int head = 0, tail = 0;
+            queue[tail++] = root;
+            while (head < tail) {
+                int expected = queue[head++];
+                for (int actual = 0; actual < owner.length; actual++) {
+                    if (!edges[expected][actual] || via[actual] != -1) continue;
+                    via[actual] = expected;
+                    if (owner[actual] != -1) {
+                        queue[tail++] = owner[actual];
+                        continue;
+                    }
+                    for (int at = actual; at != -1;) {
+                        int nextExpected = via[at];
+                        int previous = matched[nextExpected];
+                        matched[nextExpected] = at;
+                        owner[at] = nextExpected;
+                        at = previous;
+                    }
+                    return true;
+                }
+            }
+            return false;
         }
 
         @Override

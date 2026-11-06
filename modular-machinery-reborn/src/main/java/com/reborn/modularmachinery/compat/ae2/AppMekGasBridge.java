@@ -20,10 +20,24 @@ import javax.annotation.Nullable;
 /** Only loaded when AE2, Mekanism and Applied Mekanistics are installed. Gas quantities use native mB. */
 public final class AppMekGasBridge {
     private AppMekGasBridge() { }
+    /**
+     * Explicit legacy compatibility registration, including the otherwise unused direct-push callback.
+     * @deprecated Normal startup uses {@link #registerProviderBuffers()}; retained behavior for external callers.
+     */
+    @Deprecated(since = "0.121.79", forRemoval = false)
     public static void register() {
         PatternInputTransfer.setAdditionalInput(AppMekGasBridge::pushGas);
+        registerProviderBuffers();
+    }
+    /** Active provider/isolated-buffer gas support only. Does not touch any explicit legacy callback. */
+    public static void registerProviderBuffers() {
         ProviderBuffer.installGas(ProviderGasPort::isGas, ProviderGasPort::new);
     }
+    /**
+     * Explicit compatibility operation on the caller's planned ports, not a production dispatch route.
+     * @deprecated Retained for legacy callers; use the active provider-buffer path for normal dispatch.
+     */
+    @Deprecated(since = "0.121.79", forRemoval = false)
     public static boolean pushGas(HatchCollection planned, AEKey key, long amount) {
         if (!(key instanceof MekanismKey chemical) || chemical.getForm() != MekanismKey.GAS
                 || !(chemical.getStack() instanceof GasStack gas) || gas.isEmpty() || amount < 0) return false;

@@ -94,6 +94,16 @@ public final class MachineRegistry {
     /** 只写服务端权威表并保留同步所需的源 JSON；客户端使用 replaceClient。 */
     public static void replace(Map<ResourceLocation, MachineDefinition> loaded,
                                Map<ResourceLocation, com.google.gson.JsonElement> loadedSources) {
+        publish(prepare(loaded, loadedSources));
+    }
+
+    /** A complete candidate, including all rotations, is built before any live field changes. */
+    public record Prepared(Map<ResourceLocation, MachineDefinition> machines,
+                           Map<ResourceLocation, MachinePattern[]> rotations,
+                           Map<ResourceLocation, com.google.gson.JsonElement> sources) {}
+
+    public static Prepared prepare(Map<ResourceLocation, MachineDefinition> loaded,
+                                   Map<ResourceLocation, com.google.gson.JsonElement> loadedSources) {
         // Insertion order is preserved so that, when two definitions could match the same structure, the
         // outcome does not depend on hash iteration order. Map.copyOf would not guarantee that.
         Map<ResourceLocation, MachineDefinition> copy = Collections.unmodifiableMap(new LinkedHashMap<>(loaded));
@@ -107,18 +117,23 @@ public final class MachineRegistry {
             }
             rotated.put(entry.getKey(), variants);
         }
-        rotations = Collections.unmodifiableMap(rotated);
-        machines = copy;
         // 只保留仍然存在的定义的源 JSON：一次 reload 可能删掉了某些机器，而留着它们的 JSON
         // 会让下一次同步把已经删掉的机器又发给客户端。
         Map<ResourceLocation, com.google.gson.JsonElement> kept = new LinkedHashMap<>();
         for (ResourceLocation id : copy.keySet()) {
             com.google.gson.JsonElement source = loadedSources.get(id);
             if (source != null) {
-                kept.put(id, source);
+                kept.put(id, source.deepCopy());
             }
         }
-        sources = Collections.unmodifiableMap(kept);
+        return new Prepared(copy, Collections.unmodifiableMap(rotated), Collections.unmodifiableMap(kept));
+    }
+
+    /** ReloadCycle calls this on the apply executor only after every listener succeeded. */
+    public static void publish(Prepared prepared) {
+        rotations = prepared.rotations();
+        sources = prepared.sources();
+        machines = prepared.machines();
     }
 
     /**
@@ -193,13 +208,25 @@ public final class MachineRegistry {
     public static Match findMatch(Level level, BlockPos controller, Direction facing,
                                   @Nullable ResourceLocation blueprintMachine,
                                   @Nullable ResourceLocation boundMachine) {
+        return inspectMatch(level, controller, facing, blueprintMachine, boundMachine).match();
+    }
+
+    public record Inspection(@Nullable Match match, boolean unloaded) {
+        private static final Inspection NO_MATCH = new Inspection(null, false);
+    }
+
+    /** A failure reason belongs to this actual attempt, never a second unrotated or maximum-size scan. */
+    public static Inspection inspectMatch(Level level, BlockPos controller, Direction facing,
+                                          @Nullable ResourceLocation blueprintMachine,
+                                          @Nullable ResourceLocation boundMachine) {
         int steps = rotationStepsFor(facing);
         Map<ResourceLocation, MachineDefinition> definitions = level.isClientSide ? client.machines() : machines;
         Map<ResourceLocation, MachinePattern[]> oriented = level.isClientSide ? client.rotations() : rotations;
 
+        Inspection fromBlueprint = Inspection.NO_MATCH;
         if (blueprintMachine != null) {
-            Match fromBlueprint = tryMachine(level, controller, steps, blueprintMachine);
-            if (fromBlueprint != null) {
+            fromBlueprint = tryMachine(level, controller, steps, blueprintMachine);
+            if (fromBlueprint.match() != null) {
                 return fromBlueprint;
             }
         }
@@ -207,7 +234,7 @@ public final class MachineRegistry {
         if (boundMachine != null) {
             MachineDefinition bound = definitions.get(boundMachine);
             if (bound != null && bound.requiresBlueprint() && !boundMachine.equals(blueprintMachine)) {
-                return null;
+                return Inspection.NO_MATCH;
             }
             return tryMachine(level, controller, steps, boundMachine);
         }
@@ -217,20 +244,21 @@ public final class MachineRegistry {
             if (machine == null || machine.requiresBlueprint()) {
                 continue;
             }
-            Match match = matchMachine(machine, entry.getValue()[steps], level, controller, steps);
-            if (match != null) {
+            Inspection match = matchMachine(machine, entry.getValue()[steps], level, controller, steps);
+            if (match.match() != null) {
                 return match;
             }
         }
-        return null;
+        // A generic all-pattern search has no single required layout to diagnose. An explicit blueprint does.
+        return fromBlueprint;
     }
 
     @Nullable
-    private static Match tryMachine(Level level, BlockPos controller, int steps, ResourceLocation id) {
+    private static Inspection tryMachine(Level level, BlockPos controller, int steps, ResourceLocation id) {
         MachinePattern[] variants = (level.isClientSide ? client.rotations() : rotations).get(id);
         MachineDefinition machine = byId(id, level.isClientSide).orElse(null);
         if (variants == null || machine == null) {
-            return null;
+            return Inspection.NO_MATCH;
         }
         return matchMachine(machine, variants[steps], level, controller, steps);
     }
@@ -249,23 +277,27 @@ public final class MachineRegistry {
      * @param basePattern 已经按控制器朝向旋转过的基座结构
      */
     @Nullable
-    private static Match matchMachine(MachineDefinition machine, MachinePattern basePattern,
+    private static Inspection matchMachine(MachineDefinition machine, MachinePattern basePattern,
                                       Level level, BlockPos controller, int steps) {
-        if (!basePattern.matches(level, controller)) {
-            return null;
+        // Keep the same alternatives in the initial gate, final dynamic check and returned port structure.
+        basePattern = basePattern.withModifierAlternatives(machine.modifiers(), steps);
+        MachinePattern.Inspection base = basePattern.inspect(level, controller);
+        if (!base.matched()) {
+            return new Inspection(null, base.unloaded());
         }
         if (!machine.hasDynamicPatterns()) {
             // 绝大多数机器走这条路：结构固定，有效结构**就是**基座，不做任何合并。
-            return new Match(machine, steps, basePattern, List.of());
+            return new Inspection(new Match(machine, steps, basePattern, List.of()), false);
         }
 
         MachinePattern effective = basePattern;
         List<DynamicPattern.Status> statuses = new ArrayList<>(machine.dynamicPatterns().size());
         for (DynamicPattern dynamic : machine.dynamicPatterns()) {
-            DynamicPattern.MatchResult result = dynamic.match(level, controller, steps);
+            DynamicPattern.Inspection inspected = dynamic.inspect(level, controller, steps);
+            DynamicPattern.MatchResult result = inspected.match();
             if (!result.isMatched()) {
                 // 一个动态段不成立，整台机器就不成型——旧版在这里直接 return false。
-                return null;
+                return new Inspection(null, inspected.unloaded());
             }
             statuses.add(new DynamicPattern.Status(dynamic.name(), result.size(), result.face()));
             effective = effective.withMerged(dynamic.expand(result.size(), steps));
@@ -273,10 +305,11 @@ public final class MachineRegistry {
         // 合并之后再整体核对一次。基座与每个动态段各自都验过了，所以这一步在正常情况下必定通过；
         // 它的价值在于覆盖「两个部分在同一格上要求不同方块」这种只在合并后才看得出的冲突——
         // 那正是取并集语义存在的理由，而这里是把「合起来到底成不成」这件事真正问一次。
-        if (!effective.matches(level, controller)) {
-            return null;
+        MachinePattern.Inspection merged = effective.inspect(level, controller);
+        if (!merged.matched()) {
+            return new Inspection(null, merged.unloaded());
         }
-        return new Match(machine, steps, effective, List.copyOf(statuses));
+        return new Inspection(new Match(machine, steps, effective, List.copyOf(statuses)), false);
     }
 
     /**

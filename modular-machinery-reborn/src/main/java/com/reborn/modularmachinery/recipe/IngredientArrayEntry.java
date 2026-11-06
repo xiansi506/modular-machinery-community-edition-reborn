@@ -61,6 +61,15 @@ final class IngredientArrayEntry {
         return new IngredientArrayEntry(ingredient, itemId, true, amount, chance);
     }
 
+    /** The wire format freezes all concrete tag members; none may be discarded during decoding. */
+    static IngredientArrayEntry ofAlternatives(List<ItemStack> stacks, int amount, float chance) {
+        Ingredient ingredient = Ingredient.of(stacks.stream().map(stack -> stack.copyWithCount(1)));
+        String label = stacks.isEmpty() ? "?"
+                : stacks.stream().map(IngredientArrayEntry::idOf).distinct()
+                        .collect(java.util.stream.Collectors.joining(" | "));
+        return new IngredientArrayEntry(ingredient, label, stacks.size() > 1, amount, chance);
+    }
+
     /** The same entry with another chance — the reader's one value applied to every entry. */
     IngredientArrayEntry withChance(float newChance) {
         return new IngredientArrayEntry(this.ingredient, this.itemId, this.tagged, this.amount, newChance);
@@ -103,7 +112,11 @@ final class IngredientArrayEntry {
      * on the entry.
      */
     int availableIn(List<IItemHandler> handlers, @Nullable NbtPredicate nbt) {
-        return IngredientIo.count(handlers, stack -> matches(stack, nbt));
+        return (int) Math.min(Integer.MAX_VALUE, availableInLong(handlers, nbt));
+    }
+
+    long availableInLong(List<IItemHandler> handlers, @Nullable NbtPredicate nbt) {
+        return IngredientIo.countLong(handlers, stack -> matches(stack, nbt));
     }
 
     /** Whether {@code stack} satisfies both this entry and the requirement-level NBT template. */

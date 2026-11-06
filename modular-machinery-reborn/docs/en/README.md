@@ -1,18 +1,18 @@
 # English documentation
 
-For **Reborn 0.121.0 / Minecraft 1.20.1 / Forge / Java 17**, protocol **12**. Update both client and server. Machine definitions and processing recipes are supplied by authors; the JAR does not bundle them.
+**MMCER 0.123.1 · Minecraft 1.20.1 / Forge / Java 17 · protocol 13**
 
 | Guide | Topic |
 |---|---|
-| [Introduction](Introduction.md) | Features, integrations and scope |
-| [Structure authoring tool](Construct-tool.md) | Selection, history, filters and machine exports |
-| [Visual recipe editor](Visual-recipe-editor.md) | Resource forms, JEI drops, NBT, validation and recipe exports |
-| [Energy and special rendering](Energy-and-special-rendering.md) | Long energy, Flux Networks/Draconic Evolution and model materials |
-| [Magic resources](Magic-resources.md) | Mana, Aura, LP and Will |
+| [Introduction](Introduction.md) | Features, integrations and boundaries |
+| [Structure tool](Construct-tool.md) | Existing selection controls and simplified exports |
+| [Recipe Editor](Visual-recipe-editor.md) | Standalone item, simple canvas, JEI and advanced forms |
+| [Energy and rendering](Energy-and-special-rendering.md) | Direct Flux wireless hatches, long energy and materials |
+| [Magic](Magic-resources.md) | Mana, Aura, LP and Will |
 | [PneumaticCraft and Embers](PneumaticCraft-and-Embers.md) | Air, pressure/vacuum and Ember |
 
-Full installation, first-machine and recipe tutorials are currently in Chinese: [installation](../安装与重载.md), [getting started](../使用说明.md), [recipes](../KJS-配方指南.md), [usage notes and limitations](../已知限制.md).
+The complete [installation](../安装与重载.md), [first-machine](../使用说明.md), [recipe](../KJS-配方指南.md) and **[usage-notes](../已知限制.md)** references are in Chinese.
 
-Creator tools require creative mode and permission level 2. Exports are server files that must be installed manually. Offline validation and production builds passed; real GUI, drag/drop and multiplayer acceptance remain pending. See each guide for limits and installation paths.
+Creator tools need creative mode and permission level 2. Exported files require manual installation. Offline checks/builds passed; actual GUI, JEI, optional-mod combinations and multiplayer still need game acceptance.
 
-[All tutorials](../README.md) · [Project home](../../../README.md).
+[All tutorials](../README.md) · [Project home](../../../README.md) · [Maintenance](../开发/README.md).

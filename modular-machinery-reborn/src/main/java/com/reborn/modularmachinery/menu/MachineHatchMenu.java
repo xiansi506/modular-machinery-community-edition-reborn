@@ -84,7 +84,8 @@ public final class MachineHatchMenu extends AbstractContainerMenu {
         if (hatch.kind().family() == com.reborn.modularmachinery.block.HatchKind.Family.ITEM) {
             addItemBusSlots(hatch.itemHandler(), hatch.tier());
         }
-        addDataSlots(data);
+        addDataSlots(new IntContainerData(data, 0, 1, DATA_FLUID_AMOUNT, DATA_FLUID_CAPACITY,
+                DATA_GAS_AMOUNT, DATA_GAS_CAPACITY));
     }
 
     public MachineHatchMenu(int id, Inventory inv, FriendlyByteBuf buf) {
@@ -146,7 +147,7 @@ public final class MachineHatchMenu extends AbstractContainerMenu {
 
     @Override
     public boolean clickMenuButton(Player player, int id) {
-        if (id != BUTTON_INTERACT_TANK || hatch.kind().family() != com.reborn.modularmachinery.block.HatchKind.Family.FLUID) {
+        if (!stillValid(player) || id != BUTTON_INTERACT_TANK || hatch.kind().family() != com.reborn.modularmachinery.block.HatchKind.Family.FLUID) {
             return false;
         }
         // The original sent a packet so the server would run the held container against the tank. A menu button
@@ -156,6 +157,7 @@ public final class MachineHatchMenu extends AbstractContainerMenu {
 
     @Override
     public ItemStack quickMoveStack(Player player, int index) {
+        if (!stillValid(player)) return ItemStack.EMPTY;
         Slot slot = this.slots.get(index);
         if (!slot.hasItem()) {
             return ItemStack.EMPTY;
@@ -192,6 +194,6 @@ public final class MachineHatchMenu extends AbstractContainerMenu {
 
     @Override
     public boolean stillValid(Player player) {
-        return hatch.getBlockPos().closerToCenterThan(player.position(), 8.0);
+        return BlockEntityMenuAccess.stillValid(player, hatch);
     }
 }

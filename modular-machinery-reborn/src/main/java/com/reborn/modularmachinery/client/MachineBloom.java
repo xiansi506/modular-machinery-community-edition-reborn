@@ -51,6 +51,29 @@ public final class MachineBloom {
                 new com.reborn.modularmachinery.client.geo.BoneRenderStyle(true, true)));
     }
 
+    /** Keep the first failure and attach later cleanup errors; never replace the first cause. */
+    private static Throwable accumulate(Throwable primary, Throwable next) {
+        if (primary == null) return next;
+        if (primary != next) primary.addSuppressed(next);
+        return primary;
+    }
+
+    /** Each recovery step is protected separately so one failure cannot skip the remaining ones. */
+    private static Throwable attempt(Throwable primary, Runnable step) {
+        try {
+            step.run();
+        } catch (Exception | LinkageError error) {
+            return accumulate(primary, error);
+        }
+        return primary;
+    }
+
+    private static void rethrow(Throwable primary) {
+        if (primary instanceof RuntimeException runtime) throw runtime;
+        if (primary instanceof Error error) throw error;
+        throw new IllegalStateException("Machine bloom cleanup failed", primary);
+    }
+
     public static void onRenderLevelStage(RenderLevelStageEvent event) {
         if (event.getStage() != RenderLevelStageEvent.Stage.AFTER_LEVEL || !pending) return;
         Minecraft minecraft = Minecraft.getInstance();
@@ -58,12 +81,20 @@ public final class MachineBloom {
         Matrix4f oldProjection = new Matrix4f(RenderSystem.getProjectionMatrix());
         VertexSorting oldSorting = RenderSystem.getVertexSorting();
         var stack = RenderSystem.getModelViewStack();
-        stack.pushPose();
         RenderTarget mask = null;
         boolean depthCopied = false;
+        boolean pushed = false;
+        Throwable primary = null;
+        boolean bodyDegraded = false;
         try {
+            stack.pushPose();
+            pushed = true;
             if (chain == null || main != target) {
-                if (chain != null) chain.close();
+                if (chain != null) {
+                    PostChain previous = chain;
+                    chain = null;
+                    previous.close();
+                }
                 chain = new PostChain(minecraft.getTextureManager(), minecraft.getResourceManager(), target, CHAIN);
                 main = target; width = height = 0;
             }
@@ -82,29 +113,72 @@ public final class MachineBloom {
             BUFFERS.values().forEach(MultiBufferSource.BufferSource::endBatch);
             chain.process(event.getPartialTick());
         } catch (Exception | LinkageError error) {
-            failed = true;
-            ModularMachineryReborn.LOGGER.warn("Machine bloom disabled until resource reload; emissive lighting remains available", error);
+            primary = error;
+            if (pushed) {
+                // A failure in the actual render body keeps the existing degraded behaviour.
+                failed = true;
+                bodyDegraded = true;
+                ModularMachineryReborn.LOGGER.warn("Machine bloom disabled until resource reload; emissive lighting remains available", error);
+            }
         } finally {
-            // PostPass clears output depth. Restore it for later renderers and shader pipelines.
-            if (depthCopied) target.copyDepthFrom(mask);
-            target.bindWrite(true);
-            RenderSystem.setProjectionMatrix(oldProjection, oldSorting);
-            stack.popPose();
-            RenderSystem.applyModelViewMatrix();
+            // Final snapshots for the protected steps; mutable bookkeeping stays outside lambdas.
+            final RenderTarget cleanupMask = mask;
+            final boolean cleanupDepthCopied = depthCopied;
+            final boolean cleanupPushed = pushed;
+            final var cleanupStack = stack;
+            // Plain flag assignments cannot fail, so do them before any cleanup step that can.
             pending = false;
-            discard();
-            if (failed) { if (chain != null) chain.close(); chain = null; main = null; }
+            primary = attempt(primary, () -> {
+                if (cleanupDepthCopied && cleanupMask != null) target.copyDepthFrom(cleanupMask);
+            });
+            primary = attempt(primary, () -> target.bindWrite(true));
+            primary = attempt(primary, () -> RenderSystem.setProjectionMatrix(oldProjection, oldSorting));
+            primary = attempt(primary, () -> { if (cleanupPushed) cleanupStack.popPose(); });
+            primary = attempt(primary, RenderSystem::applyModelViewMatrix);
+            primary = attempt(primary, MachineBloom::discard);
+            if (primary != null) {
+                failed = true;
+                // Drop the references first: a failed chain must never be used or closed twice.
+                PostChain toClose = chain;
+                chain = null;
+                main = null;
+                if (toClose != null) primary = attempt(primary, toClose::close);
+                ModularMachineryReborn.LOGGER.warn("Machine bloom cleanup completed with a retained first failure", primary);
+                if (!bodyDegraded) rethrow(primary);
+            }
         }
     }
+
     private static void discard() {
         // Retain bounded native buffers across reloads; release unfinished batches without drawing them.
-        for (BufferBuilder builder : POOL) if (builder.building()) builder.end().release();
+        // A single failing buffer must not prevent the remaining buffers or the map from being cleared.
+        Throwable primary = null;
+        for (BufferBuilder builder : POOL) {
+            try {
+                if (builder.building()) builder.end().release();
+            } catch (Exception | LinkageError error) {
+                primary = accumulate(primary, error);
+            }
+        }
         BUFFERS.clear();
+        if (primary != null) rethrow(primary);
     }
+
     public static void reset() {
         RenderSystem.recordRenderCall(() -> {
-            if (chain != null) chain.close();
-            chain = null; main = null; discard(); pending = failed = false;
+            // Clear references before close so a failing close cannot be repeated by a later reset.
+            PostChain toClose = chain;
+            chain = null;
+            main = null;
+            Throwable primary = null;
+            if (toClose != null) primary = attempt(primary, toClose::close);
+            primary = attempt(primary, MachineBloom::discard);
+            pending = false;
+            failed = false;
+            if (primary != null) {
+                ModularMachineryReborn.LOGGER.warn("Machine bloom reset completed with a retained first failure", primary);
+                rethrow(primary);
+            }
         });
     }
     public static void onLoggingOut(ClientPlayerNetworkEvent.LoggingOut event) { reset(); }

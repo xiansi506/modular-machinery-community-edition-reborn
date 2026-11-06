@@ -27,6 +27,8 @@ import java.util.function.Predicate;
 public final class UpgradeRegistry {
 
     private static volatile Map<ResourceLocation, UpgradeType> types = Map.of();
+    private static volatile long revision;
+    public static long revision() { return revision; }
     private static volatile Map<Item, UpgradeTarget.Targets> itemTargets = Map.of();
 
     private UpgradeRegistry() {
@@ -88,10 +90,22 @@ public final class UpgradeRegistry {
      * rather than at parse time: a data pack may declare upgrades before or after the machines they name, and
      * definitions themselves may be missing because the pack that holds them is not installed.
      */
-    public static void replace(Map<ResourceLocation, UpgradeType> loadedTypes,
-                               Map<Item, UpgradeTarget.Targets> loadedTargets) {
-        types = Map.copyOf(loadedTypes);
-        itemTargets = Map.copyOf(loadedTargets);
+    public static synchronized void replace(Map<ResourceLocation, UpgradeType> loadedTypes,
+                                Map<Item, UpgradeTarget.Targets> loadedTargets) {
+        publish(prepare(loadedTypes, loadedTargets));
+    }
+
+    public record Prepared(Map<ResourceLocation, UpgradeType> types, Map<Item, UpgradeTarget.Targets> targets) {}
+
+    public static Prepared prepare(Map<ResourceLocation, UpgradeType> loadedTypes,
+                                   Map<Item, UpgradeTarget.Targets> loadedTargets) {
+        return new Prepared(Map.copyOf(loadedTypes), Map.copyOf(loadedTargets));
+    }
+
+    public static synchronized void publish(Prepared prepared) {
+        types = prepared.types();
+        itemTargets = prepared.targets();
+        revision++;
     }
 
     /**

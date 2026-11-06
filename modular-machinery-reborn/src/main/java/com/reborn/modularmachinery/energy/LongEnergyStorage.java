@@ -6,10 +6,13 @@ import net.minecraft.nbt.Tag;
 import net.minecraftforge.energy.EnergyStorage;
 
 /** Long-backed storage with a clamped FE view and an exact long view of the same energy. */
-public final class LongEnergyStorage extends EnergyStorage implements LongEnergyAccess {
+public final class LongEnergyStorage extends EnergyStorage implements LongEnergyAccess, EnergyAccess.TransferAccounting {
     private final long capacityL, receiveL, extractL;
     private final Runnable changed;
     private long stored;
+    private long received;
+    @Override public Object transferSnapshot() { return received; }
+    @Override public long receivedSince(Object snapshot) { return received - (Long) snapshot; }
     public LongEnergyStorage(long capacity, long receive, long extract, Runnable changed) {
         super(0, 0, 0, 0);
         capacityL = Math.max(1, capacity); receiveL = Math.max(0, receive); extractL = Math.max(0, extract);
@@ -17,7 +20,7 @@ public final class LongEnergyStorage extends EnergyStorage implements LongEnergy
     }
     @Override public long receiveEnergyL(long amount, boolean simulate) {
         long moved = Math.max(0, Math.min(amount, Math.min(receiveL, capacityL - stored)));
-        if (!simulate && moved > 0) { stored += moved; changed.run(); }
+        if (!simulate && moved > 0) { stored += moved; received += moved; changed.run(); }
         return moved;
     }
     @Override public long extractEnergyL(long amount, boolean simulate) {

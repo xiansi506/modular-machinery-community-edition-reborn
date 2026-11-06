@@ -1,0 +1,11 @@
+# 0.121.1：能力注册事件修复（2026-11-02）
+
+修复P12-01：ModCompat.onRegisterCapabilities改接模组事件总线，接收原生RegisterCapabilitiesEvent。协议12，其他行为及已登记问题未修。
+
+修复前先在独立目录重跑基线；修改后实际构造器字节码接线核对、原生ModLoader/ModList/FMLModContainer/模组总线分发通过，回调由0变1，自有能力注册/清单封口/晚注册拒绝通过，去除可选API的新JVM对照通过。5组检查包括1组P12-02未修反例，不是5项bug已修。Unsafe准备加载状态/容器，未执行完整构造器/FML或实际游戏。
+
+Java17 `clean build --offline --no-daemon -Puse_local_deps=true`（Gradle缓存C:/mmwork/.gradle-home）48s成功，含reobfJar，8 tasks。Gradle test为NO-SOURCE，专项用独立Java夹具。旧0.122构建残留已先复制至审计stale-build-before，再clean重建；保留全部历史版本归档。
+
+正式归档 `modular-machinery-reborn-0.121.1.jar`，1612891字节，SHA-256 `3FAA0BB492EB4058B26289BED605BBAD036E34B256C3198D2477BFFC401326EB`。build/libs原文件名使用下划线，归档沿用项目连字符命名，两者字节一致。
+
+工件：`_audit/code-survey-0.121.0/fix-0.121.1/`；before保存修前日志/夹具/指纹，checks.log/absence.log为修后结果，build.log为完整构建输出；原勘测证据未覆盖。未启动或部署游戏、专服、完整Mekanism/AE2组合、网络/GPU；未暂存/提交/推送/创建Release。不能据此宣称全部bug已修或已实机通过。

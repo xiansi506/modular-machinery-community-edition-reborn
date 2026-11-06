@@ -1,7 +1,12 @@
 package com.reborn.modularmachinery.common.assembly;
 
+import com.reborn.modularmachinery.block.MachineControllerBlock;
+import com.reborn.modularmachinery.block.MachineControllerBlockEntity;
+import com.reborn.modularmachinery.machine.MachineDefinition;
+import com.reborn.modularmachinery.machine.MachineRegistry;
 import net.minecraft.ChatFormatting;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
@@ -9,6 +14,8 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraftforge.common.util.BlockSnapshot;
 import net.minecraftforge.common.util.LazyOptional;
@@ -33,8 +40,8 @@ import java.util.UUID;
  *
  * <ul>
  *   <li><b>启动时模拟扣减</b>（旧版 {@code checkAllItems :167-192} + {@code buildIngredients(false)
- *       :353-365}）：背包副本上逐格选候选，模拟通过（或 {@code needAllBlocks=false} 允许部分）才注册；
- *       副本扣减确定了每格用哪个候选，之后逐 tick 真实扣。</li>
+ *       :353-365}）：只读容量匹配/有界容器状态规划，完整求解后（或 {@code needAllBlocks=false}
+ *       允许已证明可行的部分）才注册；预算不足单独报告，不伪称缺料。之后逐 tick 重查并真实扣。</li>
  *   <li><b>每 tick 放一个方块</b>（旧版 {@code assembly(true) :376-385} → {@code assemblyItemBlocks
  *       :410-465}）：不可替换跳过、缺料报告跳过、{@code setBlock}、放置事件取消回滚、
  *       音效、液体格消耗背包流体容器并保留返回容器。</li>
@@ -51,12 +58,46 @@ public final class MachineAssembly {
     private final BlockPos ctrlPos;
     private final UUID playerId;
     private final List<AssemblyIngredient> remaining;
+    private Map<BlockPos, ItemStack> fluidInputs = Map.of();
+
+    /**
+     * P07-18: a plan belongs to the controller instance, the resolved machine ids, the exact
+     * definition object and the orientation that produced it. These are small scalar fields,
+     * never a serialized copy of the structure's block list; no new production class is needed.
+     */
+    private final MachineControllerBlockEntity controller;
+    private final ResourceLocation previewMachineId;
+    private final ResourceLocation blueprintMachineId;
+    private final ResourceLocation machineId;
+    private final MachineDefinition definition;
+    private final Direction facing;
+    private final int rotationSteps;
+    /** Snapshotted at start so a creative plan stays creative even if the player switches modes mid-resume. */
+    private final boolean creative;
+    private boolean cancelled;
     private net.minecraft.resources.ResourceKey<net.minecraft.world.level.Level> dimension;
 
-    private MachineAssembly(BlockPos ctrlPos, UUID playerId, List<AssemblyIngredient> remaining) {
+    /** PAUSED means the target chunk is temporarily unavailable, not that the plan may be migrated. */
+    public static final int TARGET_VALID = 0;
+    public static final int TARGET_PAUSED = 1;
+    public static final int TARGET_INVALID = 2;
+
+    private MachineAssembly(BlockPos ctrlPos, UUID playerId, List<AssemblyIngredient> remaining,
+                            MachineControllerBlockEntity controller, MachineDefinition definition,
+                            boolean creative) {
         this.ctrlPos = ctrlPos;
         this.playerId = playerId;
         this.remaining = new ArrayList<>(remaining);
+        this.controller = controller;
+        this.previewMachineId = controller == null ? null : controller.previewMachineId();
+        this.blueprintMachineId = controller == null ? null : controller.blueprintMachineId();
+        this.machineId = controller == null ? null : controller.machineId();
+        this.definition = definition;
+        BlockState state = controller == null ? null : controller.getBlockState();
+        this.facing = state != null && state.hasProperty(MachineControllerBlock.FACING)
+                ? state.getValue(MachineControllerBlock.FACING) : null;
+        this.rotationSteps = controller == null ? 0 : controller.rotationSteps();
+        this.creative = creative;
     }
 
     public BlockPos ctrlPos() {
@@ -73,19 +114,73 @@ public final class MachineAssembly {
         return this.remaining.isEmpty();
     }
 
+    public boolean isCancelled() {
+        return this.cancelled;
+    }
+
+    /**
+     * Compare the live controller with the start-time identity. The chunk availability check comes
+     * first so a temporarily unloaded target pauses without a loading block-entity query.
+     */
+    public int checkTarget(Level level) {
+        if (!level.isLoaded(ctrlPos)) return TARGET_PAUSED;
+        BlockEntity current = level.getBlockEntity(ctrlPos);
+        if (!(current instanceof MachineControllerBlockEntity live)) return TARGET_INVALID;
+        if (controller == null || current != controller) return TARGET_INVALID;
+        if (!java.util.Objects.equals(live.previewMachineId(), previewMachineId)
+                || !java.util.Objects.equals(live.blueprintMachineId(), blueprintMachineId)
+                || !java.util.Objects.equals(live.machineId(), machineId)) {
+            return TARGET_INVALID;
+        }
+        // A reload may replace the definition object under the same id: identity, not just the id.
+        if (MachineRegistry.byId(previewMachineId).orElse(null) != definition) {
+            return TARGET_INVALID;
+        }
+        BlockState state = live.getBlockState();
+        Direction nowFacing = state != null && state.hasProperty(MachineControllerBlock.FACING)
+                ? state.getValue(MachineControllerBlock.FACING) : null;
+        if (nowFacing != facing || live.rotationSteps() != rotationSteps) {
+            return TARGET_INVALID;
+        }
+        return TARGET_VALID;
+    }
+
+    /** Cancelling drops every remaining step so no later charge or placement can continue the old plan. */
+    private void cancel() {
+        this.cancelled = true;
+        this.remaining.clear();
+    }
+
     /**
      * 启动一次自动搭建：模拟扣减选出每格候选，全有 → 注册逐 tick 执行；不全有时按
      * {@code needAllBlocks} 决定部分开始还是报缺料（旧版 {@code assemblyBefore :53-101} 的骨架）。
      * 创造模式直接一次放完（旧版 {@code assemblyCreative}），不进队列。
      */
     public static void start(ServerPlayer player, BlockPos ctrlPos, List<AssemblyIngredient> scanned) {
+        Level level = player.level();
+        MachineControllerBlockEntity controller = null;
+        if (level != null && level.isLoaded(ctrlPos)
+                && level.getBlockEntity(ctrlPos) instanceof MachineControllerBlockEntity be) {
+            controller = be;
+        }
+        start(player, ctrlPos, scanned, controller, null);
+    }
+
+    /** The normal event path passes the controller and definition it just resolved. */
+    public static void start(ServerPlayer player, BlockPos ctrlPos, List<AssemblyIngredient> scanned,
+                             MachineControllerBlockEntity controller, MachineDefinition definition) {
         List<AssemblyIngredient> working = new ArrayList<>(scanned);
         boolean creative = player.getAbilities().instabuild;
 
-        // 旧版 checkAllItems + buildIngredients(false)：副本上逐格选候选并扣减。
-        // 选不出候选的格子就是缺料清单。
-        List<AssemblyIngredient> unresolved = creative ? List.of()
-                : bindCandidates(player.getInventory(), working);
+        AssemblyPlanner.Plan plan = creative ? null : AssemblyPlanner.plan(player.getInventory(), working);
+        if (plan != null && !plan.complete()) {
+            player.displayClientMessage(Component.translatable(
+                    "message.modular_machinery_reborn.assembly.planning_incomplete")
+                    .withStyle(ChatFormatting.YELLOW), false);
+            return;
+        }
+        List<AssemblyIngredient> unresolved = plan == null ? List.of() : plan.missing();
+        if (plan != null) working = new ArrayList<>(plan.resolved());
 
         if (!unresolved.isEmpty()) {
             reportMissing(player, unresolved);
@@ -98,7 +193,13 @@ public final class MachineAssembly {
             working.removeIf(unresolved::contains);
         }
 
-        MachineAssembly assembly = new MachineAssembly(ctrlPos, player.getUUID(), List.copyOf(working));
+        MachineDefinition resolved = definition;
+        if (resolved == null && controller != null) {
+            resolved = MachineRegistry.byId(controller.previewMachineId()).orElse(null);
+        }
+        MachineAssembly assembly = new MachineAssembly(ctrlPos, player.getUUID(),
+                List.copyOf(working), controller, resolved, creative);
+        if (plan != null) assembly.fluidInputs = plan.fluidInputs();
         assembly.dimension = player.level().dimension();
         if (creative) {
             placeAllCreative(assembly, player);
@@ -109,11 +210,19 @@ public final class MachineAssembly {
 
     /**
      * 每 {@code tickBlock} tick 调一次：放一个方块。返回 {@code true} 表示全部放完。
-     * 控制器失效由消费方检查（旧版 {@code isControllerInvalid}）。
+     * 目标校验在方法内完成，直接调用此入口也不能绕过（旧版 {@code isControllerInvalid}）。
      */
     public boolean tickPlace(ServerLevel level, ServerPlayer player) {
         if (this.remaining.isEmpty()) {
             return true;
+        }
+        int targetState = checkTarget(level);
+        if (targetState == TARGET_INVALID) {
+            cancel();
+            return true;
+        }
+        if (targetState == TARGET_PAUSED) {
+            return false;
         }
         Iterator<AssemblyIngredient> iterator = this.remaining.iterator();
         AssemblyIngredient ingredient = iterator.next();
@@ -126,8 +235,8 @@ public final class MachineAssembly {
         }
 
         BlockState state = ingredient.candidates().get(0);
-        boolean creative = player.getAbilities().instabuild;
-        if (!creative && !canConsume(player, ingredient)) {
+        boolean creative = this.creative;
+        if (!creative && !canConsume(player, ingredient, fluidInputs.get(ingredient.relPos()))) {
             player.displayClientMessage(Component.translatable(
                     "message.modular_machinery_reborn.assembly.missing", describePos(realPos))
                     .withStyle(ChatFormatting.RED), false);
@@ -143,7 +252,7 @@ public final class MachineAssembly {
         boolean cancelled = ForgeEventFactory.onBlockPlace(player,
                 original,
                 net.minecraft.core.Direction.UP);
-        if (cancelled || (!creative && !consumeFor(player, ingredient))) {
+        if (cancelled || (!creative && !consumeFor(player, ingredient, fluidInputs.get(ingredient.relPos())))) {
             original.restore(true, false);
         } else {
             level.playSound(null, realPos,
@@ -155,10 +264,31 @@ public final class MachineAssembly {
         return this.remaining.isEmpty();
     }
 
-    /** 创造模式：全部格子一次放下（旧版 {@code assemblyCreative}），不消耗、逐格跳过不可替换。 */
+    /**
+     * 创造模式：尽量一次放下（旧版 {@code assemblyCreative}），不消耗、逐格跳过不可替换。
+     * 与常规模式共用 Manager 调度：开始即登记一次，遇到 {@code TARGET_PAUSED}（目标区块暂未加载）
+     * 有界返回——保留剩余步骤，不取消、不清空、不忙循环等待加载；之后由玩家 tick 在区块就绪
+     * 且身份仍匹配时继续。目标失效（实例/蓝图/定义/朝向变化或同 id 重载）则取消。
+     */
     private static void placeAllCreative(MachineAssembly assembly, ServerPlayer player) {
         ServerLevel level = player.serverLevel();
-        while (!assembly.isCompleted()) assembly.tickPlace(level, player);
+        MachineAssemblyManager.add(assembly);
+        while (!assembly.isCompleted() && !assembly.isCancelled()) {
+            boolean finished = assembly.tickPlace(level, player);
+            if (finished) break;
+            if (assembly.isCancelled()) break;
+            // A non-finished, non-cancelled tickPlace means either a cell was placed (loop continues)
+            // or the target chunk became unavailable. Only a PAUSED target is a bounded return; the
+            // task stays registered so onPlayerTick can resume it once the chunk is back and the
+            // controller identity still matches.
+            if (assembly.checkTarget(level) == TARGET_PAUSED) return;
+        }
+        MachineAssemblyManager.remove(level.dimension(), assembly.ctrlPos());
+        if (assembly.isCancelled()) {
+            player.displayClientMessage(Component.translatable(
+                    "message.modular_machinery_reborn.assembly.cancelled").withStyle(ChatFormatting.RED), false);
+            return;
+        }
         level.playSound(null, assembly.ctrlPos, SoundEvents.STONE_PLACE, SoundSource.BLOCKS, 1.0F, 1.0F);
         player.displayClientMessage(Component.translatable(
                 "message.modular_machinery_reborn.assembly.success").withStyle(ChatFormatting.GREEN), false);
@@ -188,34 +318,15 @@ public final class MachineAssembly {
     }
 
     /**
-     * 背包副本上逐格选候选并扣减（旧版 {@code buildItemIngredients/buildFluidIngredients} 的合并）。
-     * 返回选不出候选的格子（缺料清单）；选出的格子保留在 {@code working} 里等逐 tick 真扣。
+     * Compatibility bridge for local planning checks. Start uses the structured plan so exhaustion is not missing.
+     * A complete result binds working candidates without changing real inventory; incomplete leaves working untouched.
      */
     private static List<AssemblyIngredient> bindCandidates(net.minecraft.world.entity.player.Inventory inventory,
-                                                           List<AssemblyIngredient> working) {
-        List<AssemblyIngredient> unresolved = new ArrayList<>();
-        List<ItemStack> inventoryCopy = new ArrayList<>();
-        for (int i = 0; i < inventory.getContainerSize(); i++) {
-            ItemStack stack = inventory.getItem(i);
-            if (!stack.isEmpty()) {
-                inventoryCopy.add(stack.copy());
-            }
-        }
-        for (int index = 0; index < working.size(); index++) {
-            AssemblyIngredient ingredient = working.get(index);
-            AssemblyIngredient selected = null;
-            for (BlockState state : ingredient.candidates()) {
-                AssemblyIngredient candidate = new AssemblyIngredient(ingredient.relPos(), List.of(state),
-                        state.getBlock() instanceof net.minecraft.world.level.block.LiquidBlock);
-                boolean available = candidate.fluidBlock()
-                        ? consumeFluid(inventoryCopy, fluidOf(candidate), IFluidHandler.FluidAction.EXECUTE)
-                        : consumeItem(inventoryCopy, candidate);
-                if (available) { selected = candidate; break; }
-            }
-            if (selected == null) unresolved.add(ingredient);
-            else working.set(index, selected);
-        }
-        return unresolved;
+                                                            List<AssemblyIngredient> working) {
+        AssemblyPlanner.Plan plan = AssemblyPlanner.plan(inventory, working);
+        if (!plan.complete()) throw new IllegalStateException("Assembly planning incomplete: work limit reached");
+        for (int i = 0; i < working.size(); i++) working.set(i, plan.resolved().get(i));
+        return plan.missing();
     }
 
     /** 旧版 {@code consumeInventoryItem :279-287}：匹配即扣（作用于传入列表）。 */
@@ -242,40 +353,56 @@ public final class MachineAssembly {
      * 候选规划传入背包副本；真实结算也先改副本，整份成功才写回玩家背包。
      */
     private static boolean consumeFluid(List<ItemStack> inventory, FluidStack required,
-                                        IFluidHandler.FluidAction action) {
+                                         IFluidHandler.FluidAction action) {
+        return consumeFluid(inventory, required, action, null);
+    }
+
+    private static boolean consumeFluid(List<ItemStack> inventory, FluidStack required,
+                                         IFluidHandler.FluidAction action, ItemStack preferredInput) {
         for (int i = 0; i < inventory.size(); i++) {
-            ItemStack inv = inventory.get(i);
-            // 操作单个容器的副本，先模拟整份；成功后写回 getContainer（桶会变成空桶）。
-            LazyOptional<IFluidHandlerItem> capability = FluidUtil.getFluidHandler(inv.copyWithCount(1));
-            IFluidHandlerItem handler = capability.resolve().orElse(null);
-            if (handler == null) {
-                continue;
+            if (preferredInput != null && !ItemStack.isSameItemSameTags(inventory.get(i), preferredInput)) continue;
+            if (consumeFluidAt(inventory, required, i, action)) return true;
+        }
+        return false;
+    }
+
+    /** The planner may choose a specific copied container, not just whichever fluid happens to be first. */
+    static boolean consumeFluidAt(List<ItemStack> inventory, FluidStack required, int i,
+                                  IFluidHandler.FluidAction action) {
+        ItemStack inv = inventory.get(i);
+        if (inv.isEmpty() || required.isEmpty()) return false;
+        // 操作单个容器的副本，先模拟整份；成功后写回 getContainer（桶会变成空桶）。
+        LazyOptional<IFluidHandlerItem> capability = FluidUtil.getFluidHandler(inv.copyWithCount(1));
+        IFluidHandlerItem handler = capability.resolve().orElse(null);
+        if (handler == null) return false;
+        FluidStack drained = handler.drain(required.copy(), IFluidHandler.FluidAction.SIMULATE);
+        if (drained != null && drained.getAmount() >= required.getAmount()
+                && drained.getFluid() == required.getFluid()) {
+            if (action.execute()) {
+                if (!required.isFluidStackIdentical(handler.drain(required.copy(), action))) return false;
+                ItemStack rest = inv.copy();
+                rest.shrink(1);
+                ItemStack container = handler.getContainer();
+                inventory.set(i, rest.isEmpty() ? container : rest);
+                if (!rest.isEmpty() && !container.isEmpty()) inventory.add(container);
             }
-            FluidStack drained = handler.drain(required.copy(), IFluidHandler.FluidAction.SIMULATE);
-            if (drained != null && drained.getAmount() >= required.getAmount()
-                    && drained.getFluid() == required.getFluid()) {
-                if (action.execute()) {
-                    if (!required.isFluidStackIdentical(handler.drain(required.copy(), action))) return false;
-                    ItemStack rest = inv.copy();
-                    rest.shrink(1);
-                    ItemStack container = handler.getContainer();
-                    inventory.set(i, rest.isEmpty() ? container : rest);
-                    if (!rest.isEmpty() && !container.isEmpty()) inventory.add(container);
-                }
-                return true;
-            }
+            return true;
         }
         return false;
     }
 
     /** 逐 tick 的真实消耗（旧版 {@code assemblyItemBlocks :424} / 流体分支 {@code :481}）。 */
     private static boolean consumeFor(ServerPlayer player, AssemblyIngredient ingredient) {
+        return consumeFor(player, ingredient, null);
+    }
+
+    private static boolean consumeFor(ServerPlayer player, AssemblyIngredient ingredient, ItemStack preferredInput) {
         if (ingredient.fluidBlock()) {
             List<ItemStack> live = new ArrayList<>();
             for (int i = 0; i < player.getInventory().getContainerSize(); i++) {
                 live.add(player.getInventory().getItem(i).copy());
             }
-            if (!consumeFluid(live, fluidOf(ingredient), IFluidHandler.FluidAction.EXECUTE)) return false;
+            if (!consumeFluid(live, fluidOf(ingredient), IFluidHandler.FluidAction.EXECUTE, preferredInput)) return false;
             int slots = player.getInventory().getContainerSize();
             for (int i = 0; i < slots; i++) player.getInventory().setItem(i, live.get(i));
             for (int i = slots; i < live.size(); i++) player.getInventory().placeItemBackInInventory(live.get(i));
@@ -287,9 +414,13 @@ public final class MachineAssembly {
     }
 
     private static boolean canConsume(ServerPlayer player, AssemblyIngredient ingredient) {
+        return canConsume(player, ingredient, null);
+    }
+
+    private static boolean canConsume(ServerPlayer player, AssemblyIngredient ingredient, ItemStack preferredInput) {
         List<ItemStack> copy = new ArrayList<>();
         for (int i = 0; i < player.getInventory().getContainerSize(); i++) copy.add(player.getInventory().getItem(i).copy());
-        return ingredient.fluidBlock() ? consumeFluid(copy, fluidOf(ingredient), IFluidHandler.FluidAction.SIMULATE)
+        return ingredient.fluidBlock() ? consumeFluid(copy, fluidOf(ingredient), IFluidHandler.FluidAction.SIMULATE, preferredInput)
                 : consumeItem(copy, ingredient);
     }
 
@@ -308,7 +439,7 @@ public final class MachineAssembly {
                 fluidCounts.merge(fluid == null ? "unknown" : fluid.toString(), 1, Integer::sum);
             } else {
                 ResourceLocation item = net.minecraftforge.registries.ForgeRegistries.ITEMS
-                        .getKey(state.getBlock().asItem());
+                        .getKey(asItemStack(state).getItem());
                 itemCounts.merge(item == null ? state.getBlock().toString() : item.toString(),
                         1, Integer::sum);
             }
@@ -325,10 +456,7 @@ public final class MachineAssembly {
     }
 
     private static ItemStack asItemStack(BlockState state) {
-        if (state.getBlock().asItem() == net.minecraft.world.item.Items.AIR) {
-            return ItemStack.EMPTY;
-        }
-        return new ItemStack(state.getBlock());
+        return com.reborn.modularmachinery.item.PropertyBlockItem.stackForState(state);
     }
 
     private static String describePos(BlockPos pos) {

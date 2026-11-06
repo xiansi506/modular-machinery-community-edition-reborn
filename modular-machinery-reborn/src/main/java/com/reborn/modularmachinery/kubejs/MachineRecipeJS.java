@@ -37,6 +37,26 @@ public final class MachineRecipeJS extends RecipeJS {
 
     private static final String RECIPE_TYPE = ModularMachineryReborn.MOD_ID + ":machine";
 
+    /** Same canonical WILL variants as the JSON reader and the requirement constructor. */
+    private static final java.util.Set<String> WILL_VARIANTS = java.util.Set.of(
+            "default", "corrosive", "destructive", "vengeful", "steadfast");
+
+    /**
+     * Normalize and validate a WILL variant at the typed boundary. The single returned value is used
+     * both for the pre-validation requirement and for the generated JSON, so the two entrances agree.
+     * Null, blank, unknown and padded values are rejected explicitly: no silent default, no trim and
+     * no dependency on the process default locale.
+     */
+    private static String willVariant(String raw) {
+        if (raw == null) throw new IllegalArgumentException("will-type must be a non-null string");
+        String canonical = raw.toLowerCase(java.util.Locale.ROOT);
+        if (!WILL_VARIANTS.contains(canonical)) {
+            throw new IllegalArgumentException("Unknown will-type: " + raw
+                    + "; expected one of default, corrosive, destructive, vengeful, steadfast");
+        }
+        return canonical;
+    }
+
     private final MachineRecipeJsonBuilder builder = new MachineRecipeJsonBuilder();
     private final ScriptCallbacksJS callbacks = new ScriptCallbacksJS();
     private final java.util.Map<Integer, com.reborn.modularmachinery.script.ScriptHooks.ItemChecker> checkers = new java.util.LinkedHashMap<>();
@@ -117,7 +137,7 @@ public final class MachineRecipeJS extends RecipeJS {
     public MachineRecipeJS willPerTick(String type, double amount, String io, double minimum, double maximum) { return magic("WILL",io,amount,type,minimum,maximum,true); }
     private MachineRecipeJS magic(String family, String io, double amount, String variant, double min, double max, boolean perTick) {
         var kind = com.reborn.modularmachinery.magic.MagicFamily.valueOf(family);
-        if (kind == com.reborn.modularmachinery.magic.MagicFamily.WILL) variant = variant.toLowerCase(java.util.Locale.ROOT);
+        if (kind == com.reborn.modularmachinery.magic.MagicFamily.WILL) variant = willVariant(variant);
         new com.reborn.modularmachinery.magic.MagicRequirement(com.reborn.modularmachinery.recipe.IOType.valueOf(io.toUpperCase(java.util.Locale.ROOT)),kind,amount,variant,min,max,perTick);
         JsonObject req = new JsonObject(); req.addProperty("type",kind.path()); req.addProperty("io-type",io); req.addProperty("amount",amount); req.addProperty("perTick",perTick);
         if (kind == com.reborn.modularmachinery.magic.MagicFamily.AURA) { req.addProperty("aura-type",variant); req.addProperty("min-aura",min); req.addProperty("max-aura",max); }

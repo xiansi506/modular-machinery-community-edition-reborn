@@ -52,17 +52,30 @@ public final class MePatternProviderScreen extends AbstractContainerScreen<MePat
     }
 
     @Override protected void init() {
-        String draft = groupBox == null ? Integer.toString(serverGroup()) : groupBox.getValue();
+        // P10-06 (0.121.37): distinguish a *clean* old value from a real draft on rebuild. The old code
+        // always carried the box text as a draft and then advanced lastServerGroup to the fresh summary,
+        // so a summary arriving around a rebuild kept the stale unedited value forever. Carry the old
+        // text only when groupDirty (a real user edit); a clean rebuild adopts the latest server summary,
+        // and programmatic fill is wrapped in settingGroup so it never trips the responder into dirty.
+        boolean carryDraft = groupBox != null && groupDirty;
+        String carryText = carryDraft ? groupBox.getValue() : null;
         boolean focused = groupBox != null && groupBox.isFocused();
         super.init();
-        lastServerGroup = serverGroup();
         groupBox = new EditBox(font, leftPos + CONTROLS_X, topPos + 66, 45, 14, text("group"));
         groupBox.setMaxLength(6);
         groupBox.setFilter(value -> value.matches("-?[0-9]{0,5}"));
-        groupBox.setValue(draft);
         groupBox.setResponder(value -> { if (!settingGroup) groupDirty = true; });
+        if (carryDraft) {
+            groupBox.setValue(carryText);
+        } else {
+            settingGroup = true;
+            groupBox.setValue(Integer.toString(serverGroup()));
+            settingGroup = false;
+            groupDirty = false;
+        }
         addRenderableWidget(groupBox);
         if (focused) setFocused(groupBox);
+        lastServerGroup = serverGroup();
         applyButton = addButton("apply", 227, 65, 21, 16, () -> applyGroup());
         returnButton = addButton("return", CONTROLS_X, 85, CONTROLS_WIDTH, 17, () -> action(1, 0));
         viewButton = addButton("buffer", CONTROLS_X, 107, CONTROLS_WIDTH, 17, () -> {

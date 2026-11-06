@@ -10,10 +10,9 @@ import javax.annotation.Nullable;
  * C2b（0.88.0）：一条**运行中的配方**放弃时发出——旧版 {@code RecipeFailureEvent}
  * （{@code TileMachineController.java:282-294} 的 {@code onFailure}）的对应物。
  *
- * <p>{@link #cause()} 是这次的失败原因：本版是控制器的失败键（{@code craftcheck.failure.*}），
+ * <p>{@link #cause()} 是这次的逐 tick 失败原因（{@code craftcheck.failure.*}），
  * 旧版是 {@code thread.getStatus().getUnlocMessage()}——同样的位置，同样的「可直接展示的键/文案」角色。
- * 它会经方块实体同步到客户端，与固定键行并排显示，所以第三方监听器改写 {@code destructRecipe}
- * 之外还能从 {@code cause} 看到玩家将看到的东西。
+ * 原生事件载荷供监听器读取，不等同于控制器的开工失败界面字段；诊断无法确认具体资源时使用通用结算失败键。
  *
  * <p>{@link #destructRecipe()} 的默认值是配方的 {@code cancelIfPerTickFails}（旧版
  * {@code recipe.doesCancelRecipeOnPerTickFailure()}），监听器可以改写：{@code true} =

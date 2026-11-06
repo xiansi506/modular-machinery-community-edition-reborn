@@ -38,8 +38,8 @@ import net.minecraft.world.entity.player.Inventory;
  * <h2>与旧版的两处取舍</h2>
  *
  * <p>① 旧版点「启用组」时只发包告诉服务端「启用」，组号用服务端记着的旧值，并把输入框重置成旧值
- * （{@code :102-115}）——也就是刚敲进去的数字会被丢掉。这里保留这个语义：启用/禁用只切开关，
- * 不会顺手提交输入框里的数字。② 旧版没有回车提交，只有「点别处」才提交（{@code :73-89}）；这里
+ * （{@code :102-115}）——也就是刚敲进去的数字会被丢掉。本版单项开关操作不改组号，
+ * 已开启时输入框失焦先单独提交数字，不再把旧组号跟随开关写回。② 旧版没有回车提交，只有「点别处」才提交（{@code :73-89}）；这里
  * 补了回车，因为 1.20.1 的输入框本来就该能这么用，且两种提交走同一个方法。
  */
 public final class HatchGroupScreen extends AbstractContainerScreen<HatchGroupMenu> {
@@ -74,6 +74,20 @@ public final class HatchGroupScreen extends AbstractContainerScreen<HatchGroupMe
     private Button closeButton;
     /** 本地认为的开关状态：按下按钮立刻翻转，服务端下一次同步会把它纠正成真相。 */
     private boolean groupInput;
+    /**
+     * P10-08（0.121.40）：显式本地切换意图。点按钮后置位——这段时间里 containerTick 不用
+     * 尚未确认的旧菜单值覆盖镜像（旧协议无法区分拒绝与延迟，意图在确认前如实保持）；
+     * 菜单值追上镜像（服务器确认到达）后清除。
+     *
+     * <p>0.121.41 返工：{@link #init()} 重建时不再无条件回到菜单快照。等候确认期间重建
+     * （窗口缩放等）保留仍待确认的同一意图与镜像，否则会留下「旧镜像 + 旧意图」的组合，
+     * 确认到达后 containerTick 永远等不到 menu==mirror，按钮也停在旧状态。没有待确认
+     * 意图时，重建照旧采用菜单快照。
+     */
+    private boolean localIntent;
+    private boolean draftDirty;
+    private boolean updatingValue;
+    @javax.annotation.Nullable private Integer pendingValue;
 
     public HatchGroupScreen(HatchGroupMenu menu, Inventory inventory, Component title) {
         super(menu, inventory, title);
@@ -88,12 +102,23 @@ public final class HatchGroupScreen extends AbstractContainerScreen<HatchGroupMe
         int centreX = this.width / 2;
         int centreY = this.height / 2;
 
-        this.groupInput = this.menu.groupInput();
+        // P10-08（0.121.41 返工）：重建策略与未确认意图保持一致——有意图时保留本地镜像
+        // （containerTick 会在菜单追上后清除意图），没有意图时才采用菜单快照。
+        if (!this.localIntent) {
+            this.groupInput = this.menu.groupInput();
+        }
 
+        boolean focused = this.valueField != null && this.valueField.isFocused();
+        String retained = this.valueField != null && (focused || this.draftDirty || this.pendingValue != null)
+                ? this.valueField.getValue() : null;
         this.valueField = new EditBox(this.font, centreX + FIELD_OFFSET_X, centreY + FIELD_OFFSET_Y,
                 FIELD_WIDTH, FIELD_HEIGHT, Component.empty());
         this.valueField.setMaxLength(FIELD_MAX_LENGTH);
-        this.valueField.setValue(Integer.toString(this.menu.groupId()));
+        this.valueField.setValue(retained != null ? retained : Integer.toString(this.menu.groupId()));
+        this.valueField.setFocused(focused);
+        this.valueField.setResponder(value -> {
+            if (!this.updatingValue) this.draftDirty = true;
+        });
 
         this.enableButton = Button.builder(
                 Component.translatable("gui.modular_machinery_reborn.groupinputconfig.enable"),
@@ -139,6 +164,28 @@ public final class HatchGroupScreen extends AbstractContainerScreen<HatchGroupMe
     public void containerTick() {
         super.containerTick();
         this.valueField.tick();
+        // P10-08（0.121.40）：消费已到达的开关同步。镜像此前只在 init 读过一次菜单值，之后
+        // 菜单数据经 ContainerData 持续到达而本类从不回读——服务器把 enabled 改 0 后屏幕仍
+        // 显示启用，回车提交组号时把旧开关一并重放。现在：没有本地切换意图时，菜单值与本
+        // 镜像不同就采纳菜单值（按钮可见性随之刷新；正在编辑的数字不受影响，程序化刷新也
+        // 不发任何包）；有本地意图时等菜单值追上镜像再清除意图。
+        if (this.localIntent) {
+            if (this.menu.groupInput() == this.groupInput) {
+                this.localIntent = false;
+            }
+        } else if (this.menu.groupInput() != this.groupInput) {
+            this.groupInput = this.menu.groupInput();
+            this.enableButton.visible = !this.groupInput;
+            this.closeButton.visible = this.groupInput;
+        }
+        if (this.pendingValue != null && this.menu.groupId() == this.pendingValue) {
+            this.pendingValue = null;
+        }
+        // Value equality acknowledges only the submitted value, never subsequent unsubmitted edits.
+        // Protocol13 has no request generation: a rejected write and a delayed one remain indistinguishable.
+        if (!this.valueField.isFocused() && !this.draftDirty && this.pendingValue == null) {
+            updateValueField(Integer.toString(this.menu.groupId()));
+        }
     }
 
     // ------------------------------------------------------------------ input
@@ -195,7 +242,7 @@ public final class HatchGroupScreen extends AbstractContainerScreen<HatchGroupMe
     // ------------------------------------------------------------------ writes
 
     /**
-     * 提交输入框：解析成组号后连当前的开关状态一起发。
+     * 提交输入框：只设置组号，保留服务端当前开关。
      *
      * <p>旧版用 {@code Long.parseLong} 再夹到 {@code Integer.MAX_VALUE}（{@code :79-84}），
      * 超过 int 的数不会报错而是被夹住；这里保持同一口径，解析失败就什么都不发。
@@ -204,23 +251,35 @@ public final class HatchGroupScreen extends AbstractContainerScreen<HatchGroupMe
         int value;
         try {
             long parsed = Long.parseLong(this.valueField.getValue());
+            if (parsed < 0) return;
             value = (int) Math.min(Integer.MAX_VALUE, parsed);
         } catch (NumberFormatException ignored) {
             return;
         }
-        send(value, this.groupInput);
+        this.draftDirty = false;
+        updateValueField(Integer.toString(value));
+        if (this.pendingValue != null && this.pendingValue == value) return;
+        if (this.pendingValue == null && this.menu.groupId() == value) return;
+        this.pendingValue = value;
+        ModNetwork.CHANNEL.sendToServer(HatchGroupUpdatePacket.setGroupId(value));
     }
 
     /** 切换开关：只切开关，不提交输入框里的数字——旧版就是这样（{@code :102-115}）。 */
     private void setGroupInput(boolean enabled) {
         this.groupInput = enabled;
+        this.localIntent = true;
         this.enableButton.visible = !enabled;
         this.closeButton.visible = enabled;
-        this.valueField.setValue(Integer.toString(this.menu.groupId()));
-        send(this.menu.groupId(), enabled);
+        ModNetwork.CHANNEL.sendToServer(HatchGroupUpdatePacket.setEnabled(enabled));
     }
 
-    private void send(int groupId, boolean enabled) {
-        ModNetwork.CHANNEL.sendToServer(new HatchGroupUpdatePacket(groupId, enabled));
+    private void updateValueField(String value) {
+        if (this.valueField.getValue().equals(value)) return;
+        this.updatingValue = true;
+        try {
+            this.valueField.setValue(value);
+        } finally {
+            this.updatingValue = false;
+        }
     }
 }

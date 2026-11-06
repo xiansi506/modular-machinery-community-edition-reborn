@@ -53,19 +53,50 @@ public final class MachineRequirementParser {
         if (type == null) {
             throw unknownType(rawType, where);
         }
-        MachineRequirement requirement = type.read(requirementJson, ioType, where);
-        // `selector-tag`（旧版的同一字段，`MachineRecipe.java:474`）：把这条需求绑定到结构里某个打了标签的
-        // 部件，于是它只看得到那个部件上的端口。解析放在这里而不是各类型的 read 里，是因为它对每种需求类型
-        // 含义完全相同——把同一条规则写进十来个 parse 分支，就会有一份迟早分叉的副本。
-        requirement.setSelectorTag(readSelectorTag(requirementJson, recipeId));
-        readParallelizeUnaffected(requirementJson, requirement, recipeId);
-        JsonObject options = new JsonObject();
-        for (String key : java.util.List.of("script-checker", "script-modifiers", "consume-durability", "fuel-time",
-                "ignore-output-check", "trigger-time", "trigger-repeatable", "script-tooltip")) {
-            if (requirementJson.has(key)) options.add(key, requirementJson.get(key));
+        MachineRequirement requirement;
+        try {
+            requirement = type.read(requirementJson, ioType, where);
+            // Definition metadata has the same meaning for every registered requirement type.
+            requirement.setSelectorTag(readSelectorTag(requirementJson, recipeId));
+            readParallelizeUnaffected(requirementJson, requirement, recipeId);
+            JsonObject options = new JsonObject();
+            for (String key : java.util.List.of("script-checker", "script-modifiers", "consume-durability", "fuel-time",
+                    "ignore-output-check", "trigger-time", "trigger-repeatable", "script-tooltip")) {
+                if (requirementJson.has(key)) options.add(key, requirementJson.get(key));
+            }
+            requirement.setScriptOptions(options);
+        } catch (JsonParseException invalid) {
+            throw new JsonParseException(where + ": " + invalid.getMessage(), invalid);
         }
-        requirement.setScriptOptions(options);
+        validateWire(requirement, where);
         return requirement;
+    }
+
+    /** Existing default writeUtf/readUtf contract; includes the serialized aggregate, not only its keys. */
+    public static void validateText(String text, String path, Object where) {
+        if (text != null && text.length() > 32767) {
+            throw new JsonParseException(where + " '" + path + "' exceeds the 32767-character wire limit");
+        }
+    }
+
+    public static void validateWire(MachineRequirement requirement, Object where) {
+        validateText(requirement.selectorTag(), "selector-tag", where);
+        validateText(requirement.scriptOptions().toString(), "options", where);
+        if (requirement instanceof ItemRequirement item && item.ioType() == IOType.INPUT && item.nbt() != null)
+            validateText(item.nbt().source(), "nbt", where);
+        if (requirement instanceof IngredientArrayRequirement array && array.nbt() != null)
+            validateText(array.nbt().source(), "nbt", where);
+        if (requirement instanceof CatalystRequirement catalyst) {
+            if (catalyst.nbt() != null) validateText(catalyst.nbt().source(), "nbt", where);
+            for (int i = 0; i < catalyst.tooltips().size(); i++)
+                validateText(catalyst.tooltips().get(i), "tooltip[" + i + "]", where);
+        }
+        FriendlyByteBuf probe = new FriendlyByteBuf(io.netty.buffer.Unpooled.buffer());
+        try { write(probe, requirement); }
+        catch (RuntimeException invalid) {
+            throw new JsonParseException(where + " 'type-specific wire text' cannot be encoded: "
+                    + invalid.getMessage(), invalid);
+        } finally { probe.release(); }
     }
 
     /**
@@ -157,7 +188,7 @@ public final class MachineRequirementParser {
      * 这复刻旧版 {@code RequirementItem#startCrafting} 等处的门控，而不是把它当成开工条件。
      */
     public static float chance(JsonObject json) {
-        return json.has("chance") ? json.get("chance").getAsFloat() : 1.0F;
+        return json.has("chance") ? com.reborn.modularmachinery.util.JsonNumbers.finiteFloat(json.get("chance"), "requirement chance") : 1.0F;
     }
 
     // --------------------------------------------------------------- network
@@ -224,8 +255,25 @@ public final class MachineRequirementParser {
         return requirement;
     }
 
-    /** 与网络完全同源的深拷贝，包括基类标签和并行标志。 */
+    /** Fresh execution state; item definitions retain full server stacks rather than client share tags. */
     public static MachineRequirement copy(MachineRequirement requirement) {
+        if (requirement instanceof ItemRequirement item) {
+            ItemRequirement copy = item.definitionCopy();
+            copy.setSelectorTag(item.selectorTag());
+            copy.setParallelizeUnaffected(item.isParallelizeUnaffected());
+            copy.setScriptOptions(item.scriptOptions());
+            return copy;
+        }
+        if (requirement instanceof InterfaceNumberInputRequirement interfaceRequirement) {
+            // Same definition-copy family as items: preserve the server-side nullable failure message that the
+            // wire body intentionally omits. Parallel/trigger state starts fresh; shared definition properties
+            // are copied explicitly below.
+            InterfaceNumberInputRequirement copy = interfaceRequirement.definitionCopy();
+            copy.setSelectorTag(interfaceRequirement.selectorTag());
+            copy.setParallelizeUnaffected(interfaceRequirement.isParallelizeUnaffected());
+            copy.setScriptOptions(interfaceRequirement.scriptOptions());
+            return copy;
+        }
         FriendlyByteBuf buffer = new FriendlyByteBuf(io.netty.buffer.Unpooled.buffer());
         try {
             write(buffer, requirement);

@@ -168,7 +168,7 @@ public final class ModCompat {
         sealModules();
         register(modules(), ModList.get()::isLoaded);
         if (ModList.get().isLoaded("ae2") && ModList.get().isLoaded("mekanism") && ModList.get().isLoaded("appmek")) {
-            event.enqueueWork(com.reborn.modularmachinery.compat.ae2.AppMekGasBridge::register);
+            event.enqueueWork(com.reborn.modularmachinery.compat.ae2.AppMekGasBridge::registerProviderBuffers);
         }
     }
 
@@ -183,7 +183,7 @@ public final class ModCompat {
      * @param isLoaded 某个 modid 装了没
      * @return 这次真的被调用过 {@code register} 的模块，按清单顺序
      */
-    public static List<CompatModule> register(List<CompatModule> modules, Predicate<String> isLoaded) {
+    public static synchronized List<CompatModule> register(List<CompatModule> modules, Predicate<String> isLoaded) {
         List<CompatModule> registered = new ArrayList<>();
         for (CompatModule module : modules) {
             ResourceLocation id = module.id();
@@ -199,13 +199,15 @@ public final class ModCompat {
                 continue;
             }
             CompatRegistry registry = new CompatRegistry();
-            // register 与 ports 分开调，是因为它们失败的后果不同：register 失败会让这个模块的种类缺失，
-            // ports 失败只会让它少一种端口。**一个模块抛异常不能带走整个兼容层**——所以每个模块各包一层，
+            // Type changes are staged across both callbacks; a failed port must not leave an unusable kind.
+            // One failed module must not disable the rest of the compatibility layer.
             // 而且这一层必须 catch Throwable：没装依赖的模块在这里最典型的失败是
             // NoClassDefFoundError（它的字段类型来自那个模组），那是 Error 不是 Exception。
             try {
-                module.register(registry);
-                module.ports(registry);
+                RequirementTypes.registerAtomically(() -> {
+                    module.register(registry);
+                    module.ports(registry);
+                });
             } catch (Throwable failure) {
                 ModularMachineryReborn.LOGGER.error("[{}] Compat module {} failed to register; it is skipped. "
                         + "If its required mod is installed, this is a defect in the module.",

@@ -1,5 +1,6 @@
 package com.reborn.modularmachinery.compat.magic;
 
+import com.reborn.modularmachinery.ModularMachineryReborn;
 import com.reborn.modularmachinery.magic.*;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.item.ItemStack;
@@ -50,9 +51,40 @@ public final class BloodMagicBackend implements MagicBackend {
             if (moved < 0 || moved > Integer.MAX_VALUE-hatch.stored()) { call(networkApi,network,"setCurrentEssence",new Class<?>[]{int.class},before); return; }
             hatch.stored(hatch.stored()+moved);
         } else if (hatch.stored() > 0) {
-            int moved = ((Number)call(networkApi,network,"add",new Class<?>[]{ticketType,int.class},ticket(hatch.stored()),capacity)).intValue();
-            if (moved < 0 || moved > hatch.stored()) { call(networkApi,network,"setCurrentEssence",new Class<?>[]{int.class},before); return; }
-            hatch.stored(hatch.stored()-moved);
+            // Native SoulNetwork.add computes int (before + ticket.amount) before min(maximum, ...)
+            // and returns an int (after - before). Both wrap for an extreme cached balance.
+            // Work out a long-safe request bounded by the current orb's headroom and by int range;
+            // anything beyond that stays in the cache for a later refill instead of being dropped.
+            long balance = before;
+            long request = Math.min((long) hatch.stored(),
+                    Math.min((long) capacity - balance, (long) Integer.MAX_VALUE - balance));
+            if (request <= 0) return;
+            int moved, after;
+            try {
+                moved = ((Number)call(networkApi,network,"add",new Class<?>[]{ticketType,int.class},
+                        ticket((int) request),capacity)).intValue();
+                after = ((Number)call(networkApi,network,"getCurrentEssence",new Class<?>[0])).intValue();
+            } catch (RuntimeException | LinkageError error) {
+                // No blind refund and no balance rewrite: a Fill event may already have side effects.
+                ModularMachineryReborn.LOGGER.warn("Blood Magic LP fill failed; hatch cache retained", error);
+                return;
+            }
+            long credited = (long) after - balance;
+            if (moved != credited || credited < 0 || credited > request) {
+                // The observed network delta is authoritative. Settle by it only when it is in range;
+                // otherwise keep the cache and make the inconsistency observable. Neither branch
+                // claims to roll back the whole event or silently repair a negative balance.
+                if (credited >= 0 && credited <= request) {
+                    ModularMachineryReborn.LOGGER.warn("Blood Magic LP fill returned " + moved
+                            + " but the network changed by " + credited + "; settling by the observed balance");
+                    hatch.stored(hatch.stored() - (int) credited);
+                } else {
+                    ModularMachineryReborn.LOGGER.warn("Blood Magic LP fill inconsistency (moved=" + moved
+                            + ", credited=" + credited + ", request=" + request + "); hatch cache retained");
+                }
+                return;
+            }
+            hatch.stored(hatch.stored() - (int) credited);
         }
     }
     public String[] variants() { return family() == MagicFamily.WILL ? new String[]{"default","corrosive","destructive","vengeful","steadfast"} : new String[]{""}; }
@@ -85,6 +117,10 @@ public final class BloodMagicBackend implements MagicBackend {
             public double amount() { return ((Number)call(willApi,null,"getCurrentWill",new Class<?>[]{Level.class,BlockPos.class,willType},level,pos,type)).doubleValue(); }
             public double minimum() { return 0; }
             public double maximum() { return Double.MAX_VALUE; }
+            public boolean linearParallelPlanning() { return true; }
+            public double parallelQuantum(double lower, double upper) {
+                return lower > 0 && Double.isFinite(upper) ? Math.ulp(lower) : Double.NaN;
+            }
             public double move(double delta, boolean simulate) {
                 if (!valid() || !Double.isFinite(delta)) return 0;
                 double n = delta >= 0 ? delta : -Math.min(-delta,amount());

@@ -2,9 +2,9 @@ package com.reborn.modularmachinery.machine;
 
 import com.reborn.modularmachinery.recipe.RecipeModifier;
 import net.minecraft.core.BlockPos;
-import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.state.BlockState;
 
+import java.util.LinkedHashMap;
 import java.util.List;
 
 /**
@@ -31,14 +31,15 @@ public record MachineModifier(BlockPos offset, List<BlockMatcher> accepted, List
                               String description) {
 
     /**
-     * Whether the block actually placed at this modifier's position is one the definition accepts.
+     * Whether the block actually placed at this modifier's position is one the definition accepts, after the
+     * controller's rotation has been applied to the accepted descriptors as well as to the offset.
      *
      * <p>The original rotated both the offset and each accepted block descriptor counter-clockwise once per
      * quarter turn of the controller ({@code TileMultiblockMachineController#updateModifiers}), so a definition
      * is written once, for the north-facing controller, and works in all four orientations.
      */
-    public boolean matches(Level level, BlockPos rotatedOffset, BlockState state) {
-        for (BlockMatcher matcher : this.accepted) {
+    public boolean matches(BlockState state, int rotationSteps) {
+        for (BlockMatcher matcher : acceptedAt(rotationSteps)) {
             if (matcher.matches(state)) {
                 return true;
             }
@@ -46,10 +47,35 @@ public record MachineModifier(BlockPos offset, List<BlockMatcher> accepted, List
         return false;
     }
 
+    /**
+     * The accepted candidates turned by {@code rotationSteps} counter-clockwise quarter turns.
+     *
+     * <p>Public because the controller and any offline reproduction must be able to assert the same candidate
+     * set the runtime uses; it is a pure function of this immutable definition entry. The per-matcher rotation
+     * result is cached on {@link BlockMatcher} itself, so repeated structure checks only re-walk a short list.
+     *
+     * <p>候选列表<strong>不能只取第一个</strong>：一个部分状态描述符（例如耦合属性）旋转后可能拆成多个精确
+     * 候选，所以这里把每个 matcher 的返回列表全部展开，并按描述符去重（同一描述符语义相同）。
+     */
+    public List<BlockMatcher> acceptedAt(int rotationSteps) {
+        int turns = Math.floorMod(rotationSteps, 4);
+        List<BlockMatcher> result = List.copyOf(this.accepted);
+        for (int step = 0; step < turns; step++) {
+            LinkedHashMap<String, BlockMatcher> deduplicated = new LinkedHashMap<>();
+            for (BlockMatcher matcher : result) {
+                for (BlockMatcher rotated : matcher.rotateYCounterClockwise()) {
+                    deduplicated.putIfAbsent(rotated.descriptor(), rotated);
+                }
+            }
+            result = List.copyOf(deduplicated.values());
+        }
+        return result;
+    }
+
     /** The offset, rotated one quarter turn counter-clockwise per step — the original's {@code (z, y, -x)}. */
     public BlockPos rotatedOffset(int steps) {
         BlockPos pos = this.offset;
-        for (int i = 0; i < steps; i++) {
+        for (int i = 0; i < Math.floorMod(steps, 4); i++) {
             pos = new BlockPos(pos.getZ(), pos.getY(), -pos.getX());
         }
         return pos;

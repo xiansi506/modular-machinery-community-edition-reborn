@@ -39,9 +39,12 @@ public final class RecipeEditorService {
         if (!allowed(player)) { player.displayClientMessage(net.minecraft.network.chat.Component.translatable("editor.modular_machinery_reborn.permission"), false); return; }
         Session session = new Session(); SESSIONS.put(player.getUUID(),session);
         JsonObject state = state(session, "", "");
+        state.addProperty("suggestedId", RecipeQuickEdit.suggestedId());
         JsonArray machines = new JsonArray(); MachineRegistry.all().stream().map(m->m.id().toString()).sorted().limit(512).forEach(machines::add); state.add("machines", machines);
         JsonArray absent = new JsonArray(); MODS.forEach((kind,mod)-> { if (!ModList.get().isLoaded(mod)) absent.add(kind); }); state.add("absent", absent);
-        state.addProperty("source", RecipeDocument.create(machine.isBlank() ? (machines.isEmpty() ? "custom:machine" : machines.get(0).getAsString()) : machine).toString());
+        JsonObject initial=RecipeDocument.create(machine.isBlank() ? (machines.isEmpty() ? "custom:machine" : machines.get(0).getAsString()) : machine);
+        initial.add("requirements",new JsonArray());
+        state.addProperty("source", initial.toString());
         state.addProperty("dimension", player.level().dimension().location().toString());
         RecipeEditorStatePacket.sendTo(player,state,true);
     }

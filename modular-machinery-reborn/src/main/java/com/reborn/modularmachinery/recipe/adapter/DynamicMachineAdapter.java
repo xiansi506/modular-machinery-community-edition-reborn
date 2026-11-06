@@ -10,8 +10,6 @@ import com.reborn.modularmachinery.recipe.MachineRequirementParser;
 import com.reborn.modularmachinery.recipe.ModRecipeTypes;
 import com.reborn.modularmachinery.recipe.RecipeModifier;
 import com.reborn.modularmachinery.recipe.RecipeModifiers;
-import io.netty.buffer.Unpooled;
-import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.crafting.RecipeManager;
 
@@ -28,10 +26,9 @@ import java.util.List;
  * 本版逐条对应，adapter key 就是父机器的 id。
  *
  * <p><b>深拷贝的通道</b>：需求的 parallelism 是可变的结算状态（{@code setParallelism}），
- * 两条配方共享同一条需求实例会互相污染——所以每条需求必须深拷贝。这里用现成的网络往返
- * （{@link MachineRequirementParser#write} + {@link MachineRequirementParser#read}）：
- * 它就是客户端同步走的同一条编解码链，任何需求类型（含兼容模块新增的）都自动被覆盖，
- * 不需要每加一种需求就多写一个 copy 方法。
+ * 两条配方共享同一条需求实例会互相污染——所以每条需求必须深拷贝。这里使用
+ * {@link MachineRequirementParser#copy} 的服务端定义复制入口，保留完整物品栈和服务端文案，
+ * 同时重置执行状态。客户端网络同步的可见数据不等于完整服务端定义。
  *
  * <p><b>修饰符烘入的覆盖范围（第一纵切）</b>：item / fluid / energy 三类值承载型需求逐字段重建
  * （数量、机会、能耗都过 {@link RecipeModifiers#apply}）；catalyst / ingredient_array /
@@ -61,7 +58,7 @@ final class DynamicMachineAdapter {
     /** 旧版 {@code MachineRecipe.copy}（1.12.2 :244-265）的对应物，见类注释的三件事。 */
     private static MachineRecipe copyOf(MachineRecipe original, ResourceLocation owning, RecipeModifiers mods,
                                         ResourceLocation newId) {
-        int duration = Math.max(1, (int) Math.round(mods.applyDuration(original.recipeTime())));
+        int duration = bakedInt(mods.applyDuration(original.recipeTime()), 1, original.getId() + " duration");
         List<MachineRequirement> requirements = new ArrayList<>(original.requirements().size());
         for (MachineRequirement requirement : original.requirements()) {
             requirements.add(copyModified(requirement, mods));
@@ -72,57 +69,52 @@ final class DynamicMachineAdapter {
                 original.priority(), original.tooltips());
     }
 
-    /** 网络往返深拷贝 + 三类值承载型需求的修饰符烘入；其余类型原样透传（类注释的覆盖范围说明）。 */
+    /** 服务端定义深拷贝 + 三类值承载型需求的修饰符烘入；其余类型不烘入数值。 */
     private static MachineRequirement copyModified(MachineRequirement requirement, RecipeModifiers mods) {
-        MachineRequirement copy = roundTrip(requirement);
+        MachineRequirement copy = MachineRequirementParser.copy(requirement);
         MachineRequirement result = copy;
         if (copy instanceof ItemRequirement item) {
             result = copyItem(item, mods);
         } else if (copy instanceof FluidRequirement fluid) {
             result = copyFluid(fluid, mods);
         } else if (copy instanceof EnergyRequirement energy) {
-            long perTick = Math.max(0, Math.round(mods.apply(RecipeModifier.Target.ENERGY, energy.ioType(),
-                    energy.energyPerTick(), false)));
+            long perTick = energy.bakedEnergyPerTick(mods);
             result = new EnergyRequirement(energy.ioType(), perTick);
         }
         result.setSelectorTag(copy.selectorTag());
         result.setParallelizeUnaffected(copy.isParallelizeUnaffected());
+        result.setScriptOptions(copy.scriptOptions());
         return result;
     }
 
     private static ItemRequirement copyItem(ItemRequirement item, RecipeModifiers mods) {
         if (item.ioType() == IOType.INPUT) {
-            int amount = Math.max(1, (int) Math.round(mods.apply(RecipeModifier.Target.ITEM, IOType.INPUT,
-                    item.amount(), false)));
+            int amount = bakedInt(mods.apply(RecipeModifier.Target.ITEM, IOType.INPUT,
+                    item.amount(), false), 1, "item input amount");
             float chance = (float) mods.apply(RecipeModifier.Target.ITEM, IOType.INPUT, item.chance(), true);
             return ItemRequirement.input(item.ingredient(), amount, item.nbt(), item.displayTag(), chance);
         }
-        int min = Math.max(1, (int) Math.round(mods.apply(RecipeModifier.Target.ITEM, IOType.OUTPUT,
-                item.minAmount(), false)));
-        int max = Math.max(min, (int) Math.round(mods.apply(RecipeModifier.Target.ITEM, IOType.OUTPUT,
-                item.maxAmount(), false)));
+        int min = bakedInt(mods.apply(RecipeModifier.Target.ITEM, IOType.OUTPUT,
+                item.minAmount(), false), 1, "item output minAmount");
+        int max = Math.max(min, bakedInt(mods.apply(RecipeModifier.Target.ITEM, IOType.OUTPUT,
+                item.maxAmount(), false), 1, "item output maxAmount"));
         float chance = (float) mods.apply(RecipeModifier.Target.ITEM, IOType.OUTPUT, item.chance(), true);
         return ItemRequirement.output(item.outputStack().copyWithCount(min), min, max, chance, item.displayTag());
     }
 
     private static FluidRequirement copyFluid(FluidRequirement fluid, RecipeModifiers mods) {
-        int amount = Math.max(1, (int) Math.round(mods.apply(RecipeModifier.Target.FLUID, fluid.ioType(),
-                fluid.amount(), false)));
+        int amount = bakedInt(mods.apply(RecipeModifier.Target.FLUID, fluid.ioType(),
+                fluid.amount(), false), 1, "fluid amount");
         float chance = (float) mods.apply(RecipeModifier.Target.FLUID, fluid.ioType(), fluid.chance(), true);
         return new FluidRequirement(fluid.ioType(), fluid.fluidType(), amount, chance, fluid.isTickPhase());
     }
 
-    /**
-     * 经网络编解码链深拷贝一条需求——与客户端同步同一条 {@code write/read} 链，
-     * 所以任何需求类型的往返保真度与同步一致。
-     */
-    private static MachineRequirement roundTrip(MachineRequirement requirement) {
-        FriendlyByteBuf buf = new FriendlyByteBuf(Unpooled.buffer());
-        try {
-            MachineRequirementParser.write(buf, requirement);
-            return MachineRequirementParser.read(buf);
-        } finally {
-            buf.release();
-        }
+    /** Round in the original long domain, check before narrowing, retain each adapter's lower floor. */
+    static int bakedInt(double value, int minimum, String field) {
+        if (!Double.isFinite(value)) throw new IllegalArgumentException("Adapter " + field + " is not finite");
+        long rounded = Math.round(value);
+        if (rounded > Integer.MAX_VALUE)
+            throw new IllegalArgumentException("Adapter " + field + " exceeds the int range: " + rounded);
+        return (int) Math.max(minimum, rounded);
     }
 }

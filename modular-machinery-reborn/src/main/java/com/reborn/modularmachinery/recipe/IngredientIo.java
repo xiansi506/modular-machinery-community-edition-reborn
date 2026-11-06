@@ -38,16 +38,29 @@ public final class IngredientIo {
      * this count, {@link #extract} and the machine's parallel limit all use exactly the same rule.
      */
     public static int count(List<IItemHandler> handlers, Predicate<ItemStack> filter) {
-        int total = 0;
+        return (int) Math.min(Integer.MAX_VALUE, countLong(handlers, filter));
+    }
+
+    public static long countLong(List<IItemHandler> handlers, Ingredient ingredient) {
+        return countLong(handlers, ingredient::test);
+    }
+
+    /** Positive matching inventory only; legacy int callers saturate rather than wrapping. */
+    public static long countLong(List<IItemHandler> handlers, Predicate<ItemStack> filter) {
+        long total = 0;
         for (IItemHandler handler : handlers) {
             for (int slot = 0; slot < handler.getSlots(); slot++) {
                 ItemStack stack = handler.getStackInSlot(slot);
                 if (!stack.isEmpty() && filter.test(stack)) {
-                    total += stack.getCount();
+                    total = addPositive(total, stack.getCount());
                 }
             }
         }
         return total;
+    }
+
+    private static long addPositive(long total, int amount) {
+        return amount <= 0 ? total : total > Long.MAX_VALUE - amount ? Long.MAX_VALUE : total + amount;
     }
 
     /** Removes exactly {@code amount} matching items, or nothing at all when they do not all fit. */
@@ -184,12 +197,16 @@ public final class IngredientIo {
     // ---------------------------------------------------------------- fluids
 
     public static int countFluid(List<IFluidHandler> handlers, FluidStack fluid) {
-        int total = 0;
+        return (int) Math.min(Integer.MAX_VALUE, countFluidLong(handlers, fluid));
+    }
+
+    public static long countFluidLong(List<IFluidHandler> handlers, FluidStack fluid) {
+        long total = 0;
         for (IFluidHandler handler : handlers) {
             for (int tank = 0; tank < handler.getTanks(); tank++) {
                 FluidStack stored = handler.getFluidInTank(tank);
                 if (!stored.isEmpty() && stored.isFluidEqual(fluid)) {
-                    total += stored.getAmount();
+                    total = addPositive(total, stored.getAmount());
                 }
             }
         }

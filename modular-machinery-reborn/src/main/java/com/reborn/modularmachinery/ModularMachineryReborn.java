@@ -73,10 +73,9 @@ public final class ModularMachineryReborn {
         // ModList.setLoadedMods 是包内方法），而猜错的后果是兼容类型静默地永不注册。
         // 需求类型不是 Forge 注册表内容，所以这个时机不违 D8。理由详见 ModCompat 的类注释。
         bus.addListener(com.reborn.modularmachinery.compat.ModCompat::onCommonSetup);
-        // 波 5.3：模块自己声明的 Forge 能力（例如 Mekanism 的化学能力）必须在**构造期**注册——
-        // 能力注册表在构造期冻结，之后 {@code getCapability()} 就拿不到那个能力对象了。
-        // 与上面那条是两个不同的时机，各有各的理由：需求类型只是数据，能力不是。
-        MinecraftForge.EVENT_BUS.addListener(
+        // RegisterCapabilitiesEvent is an IModBusEvent, dispatched by ModLoader to each mod's bus.
+        // The gameplay bus never receives it; compat modules also seal their list at this stage.
+        bus.addListener(
                 com.reborn.modularmachinery.compat.ModCompat::onRegisterCapabilities);
         // Exposes config/modular_machinery_reborn/recipes/ as a data pack, since 1.20.1 recipes can only come
         // from a RecipeManager reload.

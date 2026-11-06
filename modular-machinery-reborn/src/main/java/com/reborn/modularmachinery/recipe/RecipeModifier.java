@@ -129,7 +129,8 @@ public record RecipeModifier(@Nullable Target target, @Nullable IOType ioTarget,
         IOType ioTarget = parseIo(requireString(json, "io", where), where);
         Operation operation = Operation.byId(requireInt(json, "operation", where), where);
         float multiplier = requireFloat(json, "multiplier", where);
-        boolean affectsChance = json.has("affectChance") && json.get("affectChance").getAsBoolean();
+        boolean affectsChance = json.has("affectChance") && com.reborn.modularmachinery.util.JsonNumbers.bool(
+                json.get("affectChance"), where + " affectChance");
         return new RecipeModifier(target, ioTarget, multiplier, operation, affectsChance);
     }
 
@@ -227,7 +228,7 @@ public record RecipeModifier(@Nullable Target target, @Nullable IOType ioTarget,
         if (element == null || !element.isJsonPrimitive() || !element.getAsJsonPrimitive().isNumber()) {
             throw new JsonParseException("A modifier of " + where + " is missing the number '" + key + "'");
         }
-        return element.getAsInt();
+        return com.reborn.modularmachinery.util.JsonNumbers.integer(element, Integer.MIN_VALUE, Integer.MAX_VALUE, where + " '" + key + "'");
     }
 
     private static float requireFloat(JsonObject json, String key, Object where) {
@@ -235,7 +236,14 @@ public record RecipeModifier(@Nullable Target target, @Nullable IOType ioTarget,
         if (element == null || !element.isJsonPrimitive() || !element.getAsJsonPrimitive().isNumber()) {
             throw new JsonParseException("A modifier of " + where + " is missing the number '" + key + "'");
         }
-        return element.getAsFloat();
+        float value = element.getAsFloat();
+        // A legal JSON number like -1e1000 converts to an infinite float here; it must not enter the
+        // modifier arithmetic, so the conversion result is checked with the field and source named.
+        if (!Float.isFinite(value)) {
+            throw new JsonParseException("'" + key + "' of " + where + " is " + element + ", which does not fit a "
+                    + "finite float. Write the coefficient as a finite number.");
+        }
+        return value;
     }
 
     /**
