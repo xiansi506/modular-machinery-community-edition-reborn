@@ -633,5 +633,15 @@
   "tool.modular_machinery_reborn.showCode": "查看代码",
   "editor.modular_machinery_reborn.toolItemHelp": "右键打开；对机器控制器使用可自动选择机器。",
   "editor.modular_machinery_reborn.invalidQuick": "请检查数值：时长须按 0.05 秒递增，能耗须为 long 范围内的非负整数。",
-  "editor.modular_machinery_reborn.tooManyRequirements": "最多 64 条需求；请先删除一条材料，再添加能耗。"
+  "editor.modular_machinery_reborn.tooManyRequirements": "最多 64 条需求；请先删除一条材料，再添加能耗。",
+  "gui.modular_machinery_reborn.recipe_lock.title": "控制器配方锁定",
+  "gui.modular_machinery_reborn.recipe_lock.button": "配方",
+  "gui.modular_machinery_reborn.recipe_lock.button_locked": "锁定",
+  "gui.modular_machinery_reborn.recipe_lock.auto": "自动选择配方",
+  "gui.modular_machinery_reborn.recipe_lock.selected": "已锁定：%s",
+  "gui.modular_machinery_reborn.recipe_lock.unavailable": "锁定的配方已移除或不属于当前机器",
+  "gui.modular_machinery_reborn.recipe_lock.waiting": "正在等待锁定配方的开工条件",
+  "gui.modular_machinery_reborn.recipe_lock.form_first": "机器成型后可选择配方",
+  "gui.modular_machinery_reborn.recipe_lock.denied": "你没有权限更改这台控制器的配方",
+  "gui.modular_machinery_reborn.recipe_lock.rejected": "该配方当前不适用于这台控制器"
 }

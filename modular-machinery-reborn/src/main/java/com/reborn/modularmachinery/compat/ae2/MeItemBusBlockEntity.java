@@ -22,10 +22,16 @@ import com.reborn.modularmachinery.block.ModBlocks;
 import com.reborn.modularmachinery.menu.MeItemBusMenu;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.ListTag;
+import net.minecraft.nbt.Tag;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.material.Fluid;
+import net.minecraft.world.level.material.Fluids;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraftforge.fluids.FluidStack;
 import net.minecraftforge.items.ItemStackHandler;
 
 import javax.annotation.Nullable;
@@ -73,15 +79,13 @@ public final class MeItemBusBlockEntity extends MachineHatchBlockEntity
 
     /**
      * C4-II（0.94.0 重构，照高版 AE2 接口）：输入总线的**流体标记**——与 16 个配置格一一对应，
-     * 每条是（流体, 目标量 mB）。一格要么是物品 ghost（{@code config}），要么是流体标记
-     * （本数组 + {@code fluidMarkAmounts}），设置其一清另一。
+     * 每条保存完整流体身份（含 NBT）和目标量。物品、流体和气体标记互斥。
      *
      * <p>维持语义随接口模型改为**按目标量**（不再是 0.92.0 的逐槽维持到满）：网络里取到目标量为止，
      * 多了送回；9 罐是共享池。{@code null} = 该格未标记流体。
      */
     @Nullable
-    private final Fluid[] fluidMarks;
-    private final int[] fluidMarkAmounts;
+    private final FluidStack[] fluidMarks;
 
     private final int[] failures;
     /** C4-II：流体半边的失败退避（与物品半边各自独立计数）。 */
@@ -103,12 +107,10 @@ public final class MeItemBusBlockEntity extends MachineHatchBlockEntity
                     Arrays.fill(MeItemBusBlockEntity.this.failures, 0);
                 }
             };
-            this.fluidMarks = new Fluid[CONFIG_GRID];
-            this.fluidMarkAmounts = new int[CONFIG_GRID];
+            this.fluidMarks = new FluidStack[CONFIG_GRID];
         } else {
             this.config = null;
             this.fluidMarks = null;
-            this.fluidMarkAmounts = null;
         }
 
         this.mainNode = GridHelper.createManagedNode(this, new IGridNodeListener<MeItemBusBlockEntity>() {
@@ -174,18 +176,25 @@ public final class MeItemBusBlockEntity extends MachineHatchBlockEntity
     @Override
     @Nullable
     public Fluid fluidMarkAt(int slot) {
-        if (this.fluidMarks == null || slot < 0 || slot >= this.fluidMarks.length) {
-            return null;
-        }
-        return this.fluidMarks[slot];
+        FluidStack mark = fluidMark(slot);
+        return mark.isEmpty() ? null : mark.getFluid();
     }
 
     @Override
     public int fluidMarkAmount(int slot) {
-        if (this.fluidMarkAmounts == null || slot < 0 || slot >= this.fluidMarkAmounts.length) {
-            return 0;
+        return fluidMark(slot).getAmount();
+    }
+
+    @Override
+    public FluidStack fluidMarkStackAt(int slot) {
+        return fluidMark(slot).copy();
+    }
+
+    private FluidStack fluidMark(int slot) {
+        if (this.fluidMarks == null || slot < 0 || slot >= this.fluidMarks.length || this.fluidMarks[slot] == null) {
+            return FluidStack.EMPTY;
         }
-        return this.fluidMarkAmounts[slot];
+        return this.fluidMarks[slot];
     }
 
     /** C4-II（0.94.0）：配置格写入总入口——物品 ghost / 清除，互斥于流体标记（流体侧见 setConfigFluid）。 */
@@ -202,7 +211,6 @@ public final class MeItemBusBlockEntity extends MachineHatchBlockEntity
         }
         if (this.fluidMarks != null) {
             this.fluidMarks[slot] = null;
-            this.fluidMarkAmounts[slot] = 0;
         }
         if (this.gasTanks != null) this.gasTanks.setMark(slot, null, 0);
         this.afterConfigWrite(slot);
@@ -210,14 +218,19 @@ public final class MeItemBusBlockEntity extends MachineHatchBlockEntity
 
     @Override
     public void setConfigFluid(int slot, @Nullable Fluid fluid, int amount) {
+        setConfigFluidStack(slot, fluid == null ? FluidStack.EMPTY : new FluidStack(fluid, Math.max(1, amount)));
+    }
+
+    @Override
+    public void setConfigFluidStack(int slot, FluidStack stack) {
         if (this.level == null || this.level.isClientSide || this.fluidMarks == null
                 || slot < 0 || slot >= CONFIG_GRID) {
             return;
         }
-        this.fluidMarks[slot] = fluid;
-        this.fluidMarkAmounts[slot] = fluid == null ? 0 : Math.max(1, amount);
+        this.fluidMarks[slot] = stack.isEmpty() ? null
+                : new FluidStack(stack, Math.min(stack.getAmount(), this.fluidTanks.totalCapacity()));
         if (this.gasTanks != null) this.gasTanks.setMark(slot, null, 0);
-        if (fluid != null && this.config != null) {
+        if (!stack.isEmpty() && this.config != null) {
             this.config.setStackInSlot(slot, net.minecraft.world.item.ItemStack.EMPTY);
         }
         this.afterConfigWrite(slot);
@@ -230,7 +243,6 @@ public final class MeItemBusBlockEntity extends MachineHatchBlockEntity
                 || slot < 0 || slot >= CONFIG_GRID || !this.gasTanks.setMark(slot, gas, amount)) return;
         this.config.setStackInSlot(slot, ItemStack.EMPTY);
         this.fluidMarks[slot] = null;
-        this.fluidMarkAmounts[slot] = 0;
         this.afterConfigWrite(slot);
     }
     @Override public com.reborn.modularmachinery.block.MeGasStorage.Entry encodedGas(ItemStack stack) {
@@ -290,13 +302,14 @@ public final class MeItemBusBlockEntity extends MachineHatchBlockEntity
         tag.put(TAG_FLUID_TANKS, this.fluidTanks.serializeNBT());
         tag.put("meGas", this.gasTanks == null ? this.deferredGas.copy() : this.gasTanks.save());
         if (this.fluidMarks != null) {
-            net.minecraft.nbt.ListTag list = new net.minecraft.nbt.ListTag();
+            ListTag list = new ListTag();
             for (int i = 0; i < this.fluidMarks.length; i++) {
-                net.minecraft.nbt.CompoundTag entry = new net.minecraft.nbt.CompoundTag();
-                if (this.fluidMarks[i] != null) {
-                    entry.putString("fluid",
-                            net.minecraft.core.registries.BuiltInRegistries.FLUID.getKey(this.fluidMarks[i]).toString());
-                    entry.putInt("amount", this.fluidMarkAmounts[i]);
+                CompoundTag entry = new CompoundTag();
+                FluidStack mark = fluidMark(i);
+                if (!mark.isEmpty()) {
+                    entry.putString("fluid", BuiltInRegistries.FLUID.getKey(mark.getFluid()).toString());
+                    entry.putInt("amount", mark.getAmount());
+                    if (mark.hasTag()) entry.put("tag", mark.getTag().copy());
                 }
                 list.add(entry);
             }
@@ -331,15 +344,17 @@ public final class MeItemBusBlockEntity extends MachineHatchBlockEntity
         }
         this.deferredGas = tag.getCompound("meGas").copy();
         if (this.gasTanks != null) this.gasTanks.load(this.deferredGas);
-        if (this.fluidMarks != null && tag.contains(TAG_FLUID_CONFIG)) {
-            net.minecraft.nbt.ListTag list = tag.getList(TAG_FLUID_CONFIG, net.minecraft.nbt.Tag.TAG_COMPOUND);
+        if (this.fluidMarks != null) {
+            Arrays.fill(this.fluidMarks, null);
+            ListTag list = tag.getList(TAG_FLUID_CONFIG, Tag.TAG_COMPOUND);
             for (int i = 0; i < this.fluidMarks.length && i < list.size(); i++) {
-                String name = list.getCompound(i).getString("fluid");
-                this.fluidMarks[i] = name.isEmpty() ? null
-                        : net.minecraft.core.registries.BuiltInRegistries.FLUID.get(
-                                net.minecraft.resources.ResourceLocation.tryParse(name));
-                this.fluidMarkAmounts[i] = this.fluidMarks[i] == null ? 0
-                        : Math.max(1, list.getCompound(i).getInt("amount"));
+                CompoundTag entry = list.getCompound(i);
+                ResourceLocation id = ResourceLocation.tryParse(entry.getString("fluid"));
+                Fluid fluid = id == null ? Fluids.EMPTY : BuiltInRegistries.FLUID.get(id);
+                if (fluid == Fluids.EMPTY) continue;
+                int amount = Math.max(1, Math.min(entry.getInt("amount"), this.fluidTanks.totalCapacity()));
+                this.fluidMarks[i] = new FluidStack(fluid, amount,
+                        entry.contains("tag", Tag.TAG_COMPOUND) ? entry.getCompound("tag") : null);
             }
         }
         // 0.73.3: 客户端收到 chunk update tag 时，BlockEntity.onLoad 已经 create 了 node；
@@ -391,7 +406,7 @@ public final class MeItemBusBlockEntity extends MachineHatchBlockEntity
         boolean fluidMoved;
         if (input && this.fluidMarks != null) {
             fluidMoved = com.reborn.modularmachinery.block.MeFluidBusLogic.tickInput(
-                    this.fluidTanks, this.fluidMarks, this.fluidMarkAmounts, new FluidNetworkStorage(),
+                    this.fluidTanks, this.fluidMarks, new FluidNetworkStorage(),
                     this.fluidFailures, fullCheck);
         } else {
             fluidMoved = com.reborn.modularmachinery.block.MeFluidBusLogic.tickOutput(
@@ -498,15 +513,15 @@ public final class MeItemBusBlockEntity extends MachineHatchBlockEntity
         }
 
         @Override
-        public int extract(Fluid fluid, int amount) {
-            if (fluid == null || amount <= 0) {
+        public int extract(FluidStack prototype, int amount) {
+            if (prototype.isEmpty() || amount <= 0) {
                 return 0;
             }
             IGrid grid = mainNode.getGrid();
             if (grid == null) {
                 return 0;
             }
-            AEFluidKey key = AEFluidKey.of(fluid);
+            AEFluidKey key = AEFluidKey.of(prototype);
             if (key == null) {
                 return 0;
             }

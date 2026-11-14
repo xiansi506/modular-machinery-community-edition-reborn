@@ -148,7 +148,7 @@ public final class MeItemBusScreen extends AbstractContainerScreen<MeItemBusMenu
     private List<Component> configTooltip(MeBusAccess bus, int slot) {
         List<Component> lines = new ArrayList<>();
         ItemStack item = bus.configItemAt(slot);
-        Fluid fluid = bus.fluidMarkAt(slot);
+        FluidStack fluid = bus.fluidMarkStackAt(slot);
         var gas = bus.gasTanks() == null ? null : bus.gasTanks().mark(slot);
         if (item != null && !item.isEmpty()) {
             lines.add(item.getHoverName());
@@ -157,9 +157,9 @@ public final class MeItemBusScreen extends AbstractContainerScreen<MeItemBusMenu
             lines.add(gas.name());
             lines.add(Component.translatable("screen.modular_machinery_reborn.me_bus.gas.target", gas.amount()));
             if (!bus.gasNetworkAvailable()) lines.add(Component.translatable("screen.modular_machinery_reborn.me_bus.gas.requires_appmek"));
-        } else if (fluid != null) {
-            lines.add(new FluidStack(fluid, 1).getDisplayName());
-            lines.add(Component.literal(bus.fluidMarkAmount(slot) + " mB"));
+        } else if (!fluid.isEmpty()) {
+            lines.add(fluid.getDisplayName());
+            lines.add(Component.literal(fluid.getAmount() + " mB"));
         } else {
             lines.add(Component.translatable("screen.modular_machinery_reborn.me_bus.fluid.unfiltered"));
         }

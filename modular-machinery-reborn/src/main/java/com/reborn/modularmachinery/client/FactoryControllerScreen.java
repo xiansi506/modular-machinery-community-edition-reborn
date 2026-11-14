@@ -191,6 +191,21 @@ public final class FactoryControllerScreen extends AbstractContainerScreen<Facto
         // No inventoryLabelY: this screen draws no label and no title — see renderLabels below.
     }
 
+    private RecipeLockButton recipeLock;
+
+    @Override
+    protected void init() {
+        super.init();
+        recipeLock = addRenderableWidget(new RecipeLockButton(this, menu, menu.machine(),
+                leftPos + imageWidth - 27, topPos + 28));
+    }
+
+    @Override
+    protected void containerTick() {
+        super.containerTick();
+        if (recipeLock != null) recipeLock.refresh();
+    }
+
     /** The threads the queue shows, core ones first — the original's own list assembly ({@code :98-102}). */
     private List<FactoryThread> threads() {
         MachineControllerBlockEntity machine = this.menu.machine();

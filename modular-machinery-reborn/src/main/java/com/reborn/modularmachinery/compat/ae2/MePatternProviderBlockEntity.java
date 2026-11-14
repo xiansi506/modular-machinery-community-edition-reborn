@@ -83,9 +83,13 @@ public final class MePatternProviderBlockEntity extends BlockEntity
     @Override public boolean isBusy(){return storage.busy();}
     @Override public boolean pushPattern(IPatternDetails detail,KeyCounter[] inputs){
         if(!available()||!mainNode.isActive()||!(detail instanceof appeng.crafting.pattern.AEProcessingPattern))return false;
-        // Never accept an unadvertised pattern. Duplicate definitions select the first physical slot.
-        for(int i=0;i<PATTERNS;i++)if(detail.getDefinition().equals(AEItemKey.of(patterns.get(i)))){
-            boolean accepted=storage.accept(i,detail.getDefinition(),inputs);if(accepted&&storage.locked())ACTIVE_LOCKS.add(this);return accepted;
+        // Duplicate definitions use the first slot that can accept the whole batch.
+        AEItemKey definition = detail.getDefinition();
+        for (int i = 0; i < PATTERNS; i++) {
+            if (definition.equals(AEItemKey.of(patterns.get(i))) && storage.accept(i, definition, inputs)) {
+                if (storage.locked()) ACTIVE_LOCKS.add(this);
+                return true;
+            }
         }
         return false;
     }
@@ -172,7 +176,19 @@ public final class MePatternProviderBlockEntity extends BlockEntity
         }
         if(legacyLockHost!=null&&storage.locked())tag.putLong("lock_host",legacyLockHost.asLong());
     }
-    public CompoundTag dropContents(){CompoundTag tag=new CompoundTag();saveContents(tag);tag.remove("lock_host");tag.remove("lock_consumers");tag.remove("lock_consumption_cycle");tag.remove("lock_consumption_known");tag.getCompound("provider_storage").remove("input_incarnation");return tag;}
+    public CompoundTag dropContents() {
+        CompoundTag tag = new CompoundTag();
+        saveContents(tag);
+        tag.remove("lock_host");
+        tag.remove("lock_consumers");
+        tag.remove("lock_consumption_cycle");
+        tag.remove("lock_consumption_known");
+        CompoundTag stored = tag.getCompound("provider_storage");
+        stored.remove("input_incarnation");
+        // A portable provider has no old consumers. Keep the lock if materials still belong to its batch.
+        if (storage.shared.isEmpty()) stored.putBoolean("locked", false);
+        return tag;
+    }
     @Override public void load(CompoundTag tag){
         super.load(tag);ListTag list=tag.getList("patterns",Tag.TAG_COMPOUND);List<ItemStack> values=new ArrayList<>();for(int i=0;i<Math.min(PATTERNS,list.size());i++)values.add(ItemStack.of(list.getCompound(i)));readPatterns(values);
         int ordinal=tag.getInt("work_mode");clientMode=ordinal>=0&&ordinal<WorkMode.values().length?WorkMode.values()[ordinal]:WorkMode.DEFAULT;

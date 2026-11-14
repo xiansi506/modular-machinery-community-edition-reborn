@@ -7,13 +7,12 @@ import com.reborn.modularmachinery.machine.MachinePattern;
 import com.reborn.modularmachinery.machine.MachineRegistry;
 import com.reborn.modularmachinery.recipe.MachineRecipe;
 import com.reborn.modularmachinery.recipe.MachineRequirement;
-import com.reborn.modularmachinery.recipe.ModRecipeTypes;
-import com.reborn.modularmachinery.recipe.RecipeOrder;
 import com.mojang.brigadier.CommandDispatcher;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.entity.BlockEntity;
 
@@ -433,8 +432,15 @@ public final class DiagnoseCommand {
         int total = 0;
         int runnable = 0;
         // 和控制器同一顺序：诊断时列出的「第一条失败原因」必须就是控制器实际先试的那条。
-        for (MachineRecipe recipe : RecipeOrder.forMachine(
-                level.getRecipeManager().getAllRecipesFor(ModRecipeTypes.MACHINE.get()), machine.id())) {
+        ResourceLocation lockedRecipe = controller.lockedRecipe();
+        if (lockedRecipe != null) {
+            source.sendSuccess(() -> Component.translatable("gui.modular_machinery_reborn.recipe_lock.selected", lockedRecipe), false);
+        }
+        var candidates = controller.dispatchRecipes(level);
+        if (lockedRecipe != null && candidates.isEmpty()) {
+            source.sendSuccess(() -> Component.translatable("gui.modular_machinery_reborn.recipe_lock.unavailable"), false);
+        }
+        for (MachineRecipe recipe : candidates) {
             total++;
             // A2：与控制器同一规则——按组号升序，第一组能 canStart 的就是会被锁住的组。
             // 对整份混合端口问 canStart 会算上「A 组的料 + B 组的料」，那正是隔离要排除的假成功。

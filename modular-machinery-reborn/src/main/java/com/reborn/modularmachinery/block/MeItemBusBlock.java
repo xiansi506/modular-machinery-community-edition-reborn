@@ -2,7 +2,6 @@ package com.reborn.modularmachinery.block;
 
 import com.reborn.modularmachinery.compat.ae2.Ae2ItemBusEntityFactory;
 import net.minecraft.core.BlockPos;
-import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
@@ -56,20 +55,6 @@ public abstract class MeItemBusBlock extends MachineHatchBlock {
     @Override
     public BlockEntity newBlockEntity(BlockPos pos, BlockState state) {
         return Ae2ItemBusEntityFactory.create(pos, state);
-    }
-
-    /**
-     * 输入总线的配置槽也要掉落。父类只掉内部槽；旧版 {@code BlockMEItemBus} 在
-     * {@code breakBlock} 里把配置槽一并掉出，这里补上同一个行为。
-     */
-    @Override
-    public void onRemove(BlockState state, Level level, BlockPos pos, BlockState newState, boolean moving) {
-        if (!state.is(newState.getBlock())
-                && level.getBlockEntity(pos) instanceof MeBusAccess bus
-                && bus.configHandler() != null) {
-            ItemStackDrops.pop(level, pos, bus.configHandler());
-        }
-        super.onRemove(state, level, pos, newState, moving);
     }
 
     /** 16 个配置槽 + 16 个内部槽的输入总线。 */

@@ -1,6 +1,7 @@
 package com.reborn.modularmachinery.block;
 
 import net.minecraft.world.level.material.Fluid;
+import net.minecraftforge.fluids.FluidStack;
 import net.minecraftforge.items.ItemStackHandler;
 
 import javax.annotation.Nullable;
@@ -45,6 +46,11 @@ public interface MeBusAccess {
         return 0;
     }
 
+    default FluidStack fluidMarkStackAt(int slot) {
+        Fluid fluid = fluidMarkAt(slot);
+        return fluid == null ? FluidStack.EMPTY : new FluidStack(fluid, fluidMarkAmount(slot));
+    }
+
     /**
      * C4-II（0.94.0）：配置格写入三入口（服务端，互斥于同一格）：物品 ghost / 流体标记 / 清除。
      * 实现负责清退避、置脏、方块更新；默认无操作（安全空实现）。
@@ -53,6 +59,10 @@ public interface MeBusAccess {
     }
 
     default void setConfigFluid(int slot, @Nullable Fluid fluid, int amount) {
+    }
+
+    default void setConfigFluidStack(int slot, FluidStack stack) {
+        setConfigFluid(slot, stack.isEmpty() ? null : stack.getFluid(), stack.getAmount());
     }
 
     @Nullable default MeGasStorage gasTanks() { return null; }

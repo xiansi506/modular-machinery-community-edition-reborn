@@ -60,6 +60,16 @@ public interface FactoryHost {
      */
     List<MachineRecipe> availableRecipes();
 
+    @Nullable
+    default ResourceLocation lockedRecipe() {
+        return null;
+    }
+
+    default boolean allowsNewRecipe(ResourceLocation id) {
+        ResourceLocation locked = lockedRecipe();
+        return locked == null || locked.equals(id);
+    }
+
     /** Current definition for a new batch, or null if removed. An already paid craft owns its execution copy.
      * Hosts that prefilter candidates should override this lookup to include definitions currently in progress. */
     @Nullable

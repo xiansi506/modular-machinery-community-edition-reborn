@@ -1,6 +1,6 @@
 # Modular Machinery: Community Edition Reborn（MMCER）
 
-为 **Minecraft 1.20.1 / Forge / Java 17** 提供自定义多方块机械框架。当前源码 **0.123.1**，通信协议 **13**。
+为 **Minecraft 1.20.1 / Forge / Java 17** 提供自定义多方块机械框架。当前源码 **0.124.0**，通信协议 **14**。
 
 用 JSON 或 KubeJS 定义机器结构与加工配方，组合仓口、并行、工厂线程和升级系统，构建自己的工业流程。模组不内置机器和机器加工配方，仓库提供可选示例。
 
@@ -8,12 +8,13 @@
 
 | 功能 | 用法与入口 |
 |---|---|
+| **控制器配方锁定** | 普通和工厂控制器都可选定下一批要加工的配方，或切回自动选择。[使用说明](modular-machinery-reborn/docs/使用说明.md#六并行工厂与配方锁定) |
 | **独立配方编辑器物品** | 创造栏取得，右键打开；对控制器使用可带入机器。简易面板支持输入／输出材料格、名称搜索、JEI 拖入、数量滚轮、秒数和 FE/t；高级表单、NBT、原文与 JSON／KubeJS 导出保留。[中文](modular-machinery-reborn/docs/可视化配方编辑器.md) · [English](modular-machinery-reborn/docs/en/Visual-recipe-editor.md) |
 | **结构构造工具** | 逐块／两点框选、撤销恢复、材料和 NBT 筛选，导出完整机器定义。选块操作保持原样，仅简化导出面板。[中文](modular-machinery-reborn/docs/建造选择工具.md) · [English](modular-machinery-reborn/docs/en/Construct-tool.md) |
 | **无线能源输入／输出仓** | 各八级，直接加入 Flux Networks；右键原生选网，使用 long 缓冲、权限、优先级与限额。[使用说明](modular-machinery-reborn/docs/联动/能源与特殊渲染.md) |
 | **ME 自动化** | 统一 ME 总线、**ME机械样板供应器（ME Machinery Pattern Provider）**、**ME机械样板镜像（ME Machinery Pattern Mirror Image）**，支持物品、流体与可选气体。[指南](modular-machinery-reborn/docs/联动/ME自动化指南.md) |
 
-0.123.1 为配方编辑器右侧 JEI 预留空间，适配简易／高级模式和窗口缩放。创作工具需要创造模式和权限等级 2；保存只导出服务端文件，需手动安装并重载。
+0.123.2 修复 ME 输入总线的标记掉落与带 NBT 流体退回，以及供应器的重复样板派单和拆放锁定问题。0.123.1 为配方编辑器右侧 JEI 预留空间，适配简易／高级模式和窗口缩放。创作工具需要创造模式和权限等级 2；保存只导出服务端文件，需手动安装并重载。
 
 ## 教程与注意事项
 

@@ -89,6 +89,7 @@ public final class MachineControllerScreen extends AbstractContainerScreen<Machi
     private static final int FIELD_MAX_LENGTH = 16;
 
     private EditBox valueField;
+    private RecipeLockButton recipeLock;
 
     public MachineControllerScreen(MachineControllerMenu menu, Inventory inventory, Component title) {
         super(menu, inventory, title);
@@ -102,6 +103,8 @@ public final class MachineControllerScreen extends AbstractContainerScreen<Machi
     @Override
     protected void init() {
         super.init();
+        recipeLock = addRenderableWidget(new RecipeLockButton(this, menu, menu.machine(),
+                leftPos + imageWidth - 27, topPos + 28));
         // The field lives in panel coordinates, so it has to be placed through the same 0.72 scale the text
         // block uses — and it is only offered when the machine really declares a smart interface type.
         // FIELD_X/FIELD_Y are measured from the block's own origin (see TEXT_X/TEXT_Y), so the field moves with
@@ -130,6 +133,7 @@ public final class MachineControllerScreen extends AbstractContainerScreen<Machi
     @Override
     public void containerTick() {
         super.containerTick();
+        if (recipeLock != null) recipeLock.refresh();
         if (this.valueField != null) {
             this.valueField.tick();
         }

@@ -38,7 +38,6 @@ import com.reborn.modularmachinery.menu.FactoryControllerMenu;
 import com.reborn.modularmachinery.menu.MachineControllerMenu;
 import com.reborn.modularmachinery.recipe.EnergyUsage;
 import com.reborn.modularmachinery.recipe.MachineRecipe;
-import com.reborn.modularmachinery.recipe.ModRecipeTypes;
 import com.reborn.modularmachinery.recipe.RecipeCommands;
 import com.reborn.modularmachinery.recipe.RecipeModifiers;
 import com.reborn.modularmachinery.recipe.MachineRecipeIndex;
@@ -275,6 +274,8 @@ public final class MachineControllerBlockEntity extends BlockEntity implements M
     /** The recipe currently being crafted, kept so a running craft is not re-matched away from it. */
     @Nullable
     private ResourceLocation activeRecipeId;
+    /** Player selection for future batches, persisted separately from paid work. */
+    @Nullable private ResourceLocation lockedRecipe;
 
     /** The ports gathered from the formed structure. */
     private HatchCollection hatches = HatchCollection.EMPTY;
@@ -822,7 +823,18 @@ public final class MachineControllerBlockEntity extends BlockEntity implements M
                 be.loadFactoryThreads(pending);
             }
             be.factoryEngine.tick();
-            be.status = be.factoryEngine.isWorking() ? ControllerStatus.CRAFTING : ControllerStatus.IDLE;
+            boolean working = be.factoryEngine.isWorking();
+            be.status = working ? ControllerStatus.CRAFTING : ControllerStatus.IDLE;
+            if (be.lockedRecipe != null) {
+                String failure = null;
+                if (!working) {
+                    failure = be.recipeForMachine(level, be.lockedRecipe) == null
+                            ? LOCKED_RECIPE_UNAVAILABLE : be.factoryEngine.startFailure();
+                    if (failure == null) failure = LOCKED_RECIPE_WAITING;
+                }
+                be.recordStartFailureKey(failure);
+                be.recordStartFailureCause(working ? null : be.factoryEngine.startFailureCause());
+            }
             be.parallelCeiling = be.factoryEngine.availableParallelism(null);
             be.setChanged();
             be.recordTiming(tickStart, searchNanos);
@@ -865,6 +877,7 @@ public final class MachineControllerBlockEntity extends BlockEntity implements M
             // 第一版这里直接写 `be.startFailureKey = ...`，于是状态确实变成了 IDLE，
             // 但文案从来没离开服务端：实机看到的就是「闲置」而没有任何原因。
             be.recordStartFailureKey(blockedReason);
+            if (be.lockedRecipe != null) be.recordStartFailureCause(null);
             be.abortCraft();
             be.maxProgress = 1;
             be.parallelCeiling = be.machineCeiling();
@@ -948,10 +961,16 @@ public final class MachineControllerBlockEntity extends BlockEntity implements M
             be.maxProgress = recipe.duration(effective);
             prepared = recipe.prepareStart(scope, be.scriptBaseModifiers());
             effective = prepared.modifiers();
-            if (!recipe.canStart(scope, prepared) || !recipe.canTick(scope, effective)) {
+            boolean startReady = recipe.canStart(scope, prepared);
+            if (!startReady || !recipe.canTick(scope, effective)) {
                 // M6d-b: say *which* start-phase requirement refused, so an interface_number_input mismatch is
                 // reported as the original's own message rather than as a bare "idle".
-                be.recordStartFailure(recipe, scope);
+                if (startReady && be.lockedRecipe != null) {
+                    String failure = recipe.tickFailure(scope, effective);
+                    be.recordStartFailureKey(failure == null ? LOCKED_RECIPE_WAITING : failure);
+                } else {
+                    be.recordStartFailure(recipe, scope);
+                }
                 be.status = ControllerStatus.IDLE;
                 be.recordTiming(tickStart, searchNanos);
                 return;
@@ -985,7 +1004,7 @@ public final class MachineControllerBlockEntity extends BlockEntity implements M
                 be.recordTiming(tickStart, searchNanos);
                 return;
             }
-            if (!recipe.start(scope, level.random, prepared)) {
+            if (!recipe.start(scope, level.random, prepared, () -> be.allowsNewRecipe(recipe.getId()))) {
                 be.recordStartFailure(recipe, scope);
                 be.status = ControllerStatus.IDLE;
                 be.recordTiming(tickStart, searchNanos);
@@ -1296,23 +1315,19 @@ public final class MachineControllerBlockEntity extends BlockEntity implements M
 
         @Override
         public List<MachineRecipe> availableRecipes() {
-            ResourceLocation formed = MachineControllerBlockEntity.this.machineId;
             Level level = MachineControllerBlockEntity.this.level;
-            if (formed == null || level == null) {
-                return List.of();
-            }
-            // 工厂线程拿到的候选表必须和单配方控制器同序：否则同一台机器在并行与串行下会选到不同配方。
-            return MachineRecipeIndex.forMachine(level.getRecipeManager(), formed);
+            return level == null ? List.of() : dispatchRecipes(level);
+        }
+
+        @Override
+        public ResourceLocation lockedRecipe() {
+            return MachineControllerBlockEntity.this.lockedRecipe;
         }
 
         @Override
         public MachineRecipe currentRecipe(ResourceLocation id) {
             Level world = MachineControllerBlockEntity.this.level;
-            ResourceLocation formed = MachineControllerBlockEntity.this.machineId;
-            if (world == null || formed == null) return null;
-            return world.getRecipeManager().byKey(id)
-                    .filter(MachineRecipe.class::isInstance).map(MachineRecipe.class::cast)
-                    .filter(recipe -> recipe.belongsTo(formed)).orElse(null);
+            return world != null && allowsNewRecipe(id) ? recipeForMachine(world, id) : null;
         }
 
         @Override
@@ -1845,7 +1860,9 @@ public final class MachineControllerBlockEntity extends BlockEntity implements M
         if (this.machineId == null) {
             return null;
         }
-        for (MachineRecipe recipe : MachineRecipeIndex.forMachine(level.getRecipeManager(), this.machineId)) {
+        List<MachineRecipe> candidates = dispatchRecipes(level);
+        if (lockedRecipe != null && candidates.isEmpty()) return LOCKED_RECIPE_UNAVAILABLE;
+        for (MachineRecipe recipe : candidates) {
             // **条件必须是「开不了工」，不能写成「开得了工」。** 这个方法只在 `findRecipe` 找不到配方时
             // 才被调用，所以走到这里就说明「有配方认这台机器、但它此刻过不了」。第一版把条件写反了
             // （`canStart && canTick` 时 return null），于是**能开工时给出原因、开不了工时什么都不给**——
@@ -1859,7 +1876,8 @@ public final class MachineControllerBlockEntity extends BlockEntity implements M
             if (this.startableGroup(recipe) != null) {
                 continue;
             }
-            return recipe.startFailure(this.lastGroupScope(), modifiersFor(recipe));
+            String failure = recipe.startFailure(this.lastGroupScope(), modifiersFor(recipe));
+            return failure == null && lockedRecipe != null ? LOCKED_RECIPE_WAITING : failure;
         }
         return null;
     }
@@ -1877,7 +1895,7 @@ public final class MachineControllerBlockEntity extends BlockEntity implements M
         if (this.machineId == null) {
             return null;
         }
-        for (MachineRecipe recipe : MachineRecipeIndex.forMachine(level.getRecipeManager(), this.machineId)) {
+        for (MachineRecipe recipe : dispatchRecipes(level)) {
             // A2：能开工 = 至少有一组能开工。锁定哪一组由 tick 里那次 startableGroup 决定，两步必须
             // 问同一个问题，否则会出现「选出了配方、开工时却找不到组」。
             if (this.startableGroup(recipe) != null) {
@@ -2215,6 +2233,48 @@ public final class MachineControllerBlockEntity extends BlockEntity implements M
 
     @Nullable
     public ResourceLocation machineId() { return machineId; }
+
+    private static final String LOCKED_RECIPE_UNAVAILABLE = "gui.modular_machinery_reborn.recipe_lock.unavailable";
+    private static final String LOCKED_RECIPE_WAITING = "gui.modular_machinery_reborn.recipe_lock.waiting";
+
+    @Nullable
+    public ResourceLocation lockedRecipe() {
+        return lockedRecipe;
+    }
+
+    /** Changes which future batches may start. A missing saved target continues to block dispatch. */
+    public boolean setLockedRecipe(@Nullable ResourceLocation recipe) {
+        if (!isServerSide() || (recipe != null && (!formed || recipeForMachine(level, recipe) == null))) {
+            return false;
+        }
+        if (!java.util.Objects.equals(lockedRecipe, recipe)) {
+            lockedRecipe = recipe;
+            startFailureKey = null;
+            clientStartFailure = NO_START_FAILURE;
+            startFailureCause = null;
+            setChanged();
+            level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), Block.UPDATE_CLIENTS);
+        }
+        return true;
+    }
+
+    private boolean allowsNewRecipe(ResourceLocation id) {
+        return lockedRecipe == null || lockedRecipe.equals(id);
+    }
+
+    @Nullable
+    private MachineRecipe recipeForMachine(Level world, ResourceLocation id) {
+        if (machineId == null) return null;
+        return world.getRecipeManager().byKey(id).filter(MachineRecipe.class::isInstance)
+                .map(MachineRecipe.class::cast).filter(recipe -> recipe.belongsTo(machineId)).orElse(null);
+    }
+
+    public List<MachineRecipe> dispatchRecipes(Level world) {
+        if (machineId == null) return List.of();
+        if (lockedRecipe == null) return MachineRecipeIndex.forMachine(world.getRecipeManager(), machineId);
+        MachineRecipe recipe = recipeForMachine(world, lockedRecipe);
+        return recipe == null ? List.of() : List.of(recipe);
+    }
 
     /** Display name of the formed machine, or {@code null} when the structure does not match anything. */
     @Nullable
@@ -2761,6 +2821,7 @@ public final class MachineControllerBlockEntity extends BlockEntity implements M
         if (activeRecipeId != null) {
             tag.putString("activeRecipe", activeRecipeId.toString());
         }
+        if (lockedRecipe != null) tag.putString("lockedRecipe", lockedRecipe.toString());
         // M6e: the factory's threads, under the original's own keys.
         saveFactoryThreads(tag);
         // 波 3b：动态结构定格下来的节数与方向。配方的 selector-tag 带着段号，所以长度一旦确定就必须活过存档。
@@ -2783,6 +2844,8 @@ public final class MachineControllerBlockEntity extends BlockEntity implements M
     @Override
     public void load(CompoundTag tag) {
         super.load(tag);
+        lockedRecipe = tag.contains("lockedRecipe", Tag.TAG_STRING)
+                ? ResourceLocation.tryParse(tag.getString("lockedRecipe")) : null;
         if (tag.hasUUID("paidInputIdentity")) paidInputIdentity = tag.getUUID("paidInputIdentity");
         scriptState.load(tag.getCompound("scriptState"));
         pendingExecutionState = tag.contains("scriptExecution") ? tag.getCompound("scriptExecution").copy() : null;

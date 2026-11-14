@@ -699,7 +699,7 @@ public final class ModConfig {
      *
      * <p>Enforced at the two places the original enforced it: {@code EventHandler#onBlockBroken} cancels a
      * non-owner breaking a formed controller, and {@code EventHandler#onBlockPlaced} cancels placing an item whose
-     * owner tag names someone else. The controller screen and the machine itself are not gated.
+     * owner tag names someone else. Changing the recipe lock uses the controller's owner check too.
      */
     public static boolean enableSecuritySystem() {
         if (ENABLE_SECURITY_SYSTEM_VALUE == null || !SPEC.isLoaded()) {

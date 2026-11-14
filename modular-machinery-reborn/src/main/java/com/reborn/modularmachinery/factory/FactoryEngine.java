@@ -108,6 +108,18 @@ public final class FactoryEngine {
 
     /** Set by any transition that changes what the controller should persist or show. */
     private boolean dirty;
+    @Nullable private String startFailure;
+    @Nullable private String startFailureCause;
+
+    @Nullable
+    public String startFailure() {
+        return startFailure;
+    }
+
+    @Nullable
+    public String startFailureCause() {
+        return startFailureCause;
+    }
 
     public FactoryEngine(FactoryHost host) {
         this.host = host;
@@ -211,6 +223,8 @@ public final class FactoryEngine {
      */
     public void tick() {
         this.ticks++;
+        startFailure = null;
+        startFailureCause = null;
         syncCoreThreads();
         if (canAccept()) {
             searchAndStart();
@@ -329,7 +343,8 @@ public final class FactoryEngine {
         List<Candidate> out = new ArrayList<>();
         boolean threadRules = allThreads().stream().anyMatch(t -> !t.scriptState().modifiers().isEmpty());
         for (MachineRecipe recipe : this.host.availableRecipes()) {
-            if (blocked.contains(recipe.getId()) || unavailable.contains(recipe.getId())) {
+            if (!host.allowsNewRecipe(recipe.getId()) || blocked.contains(recipe.getId())
+                    || unavailable.contains(recipe.getId())) {
                 continue;
             }
             // Every candidate group is tried separately, in ascending order, the way the original's
@@ -345,6 +360,8 @@ public final class FactoryEngine {
                 MachineRecipe.StartPlan plan = candidate.prepareParallelStart(groupPorts, modifiers, availableParallelism(null));
                 if (candidate.canStart(groupPorts, plan) || threadRules) {
                     out.add(new Candidate(recipe, group));
+                } else if (host.lockedRecipe() != null) {
+                    startFailure = candidate.startFailure(groupPorts, plan.modifiers());
                 }
             }
         }
@@ -412,10 +429,10 @@ public final class FactoryEngine {
 
     /** Runs the start phase of {@code craft} on {@code thread} and announces it when it took. */
     private boolean begin(FactoryThread thread, ActiveCraft craft) {
-        if (!thread.accepts(craft.recipe()) || !admits(thread)) return false;
+        if (!host.allowsNewRecipe(craft.recipeId()) || !thread.accepts(craft.recipe()) || !admits(thread)) return false;
         if (craft.inputBinding().group(this.host.ports(), craft.group()) == null) return false;
         if (!thread.begin(craft, craft.inputBinding().scope(this.host.ports(), craft.group()), this.host.random(),
-                () -> admits(thread))) {
+                () -> admits(thread) && host.allowsNewRecipe(craft.recipeId()))) {
             return false;
         }
         this.dirty = true;
@@ -432,6 +449,7 @@ public final class FactoryEngine {
     }
 
     private ActiveCraft prepareCraft(MachineRecipe definition, int group, FactoryThread thread) {
+        if (!host.allowsNewRecipe(definition.getId())) return null;
         com.reborn.modularmachinery.machine.InputGroupBinding binding = com.reborn.modularmachinery.machine.InputGroupBinding.capture(host.ports(), group);
         HatchCollection ports = host.ports().withGroup(group);
         RecipeModifiers base = host.modifiers().andThen(thread.scriptState().modifiers());
@@ -439,23 +457,42 @@ public final class FactoryEngine {
         recipe.setExecutionTick(0);
         recipe.setParallelism(1);
         MachineRecipe.StartPlan plan = recipe.prepareParallelStart(ports, base, availableParallelism(thread));
-        if (!recipe.canStart(ports, plan)) return null;
+        if (!recipe.canStart(ports, plan)) {
+            if (host.lockedRecipe() != null) startFailure = recipe.startFailure(ports, plan.modifiers());
+            return null;
+        }
         recipe.applyDurationMultiplier(plan.modifiers());
         int computedParallelism = recipe.parallelism(ports, plan, availableParallelism(thread));
-        if (recipe.parallelSearchIncomplete()) return null;
+        if (recipe.parallelSearchIncomplete()) {
+            if (host.lockedRecipe() != null) startFailure = "craftcheck.failure.parallel.search_incomplete";
+            return null;
+        }
         int parallelism = Math.max(1, computedParallelism);
         var checkStart = MachineEvents.post(new com.reborn.modularmachinery.api.event.RecipeCheckEvent(
                 host.controller(), host.controller().machineId(), Phase.START, recipe, 0, recipe.duration(plan.modifiers()), parallelism).forThread(thread.ordinal()));
-        if (checkStart.isCanceled()) return null;
+        if (checkStart.isCanceled()) {
+            if (host.lockedRecipe() != null) startFailureCause = checkStart.failureReason();
+            return null;
+        }
         parallelism = checkStart.resolvedParallelism(parallelism);
         recipe.setParallelism(parallelism);
         base = host.modifiers().andThen(thread.scriptState().modifiers());
         plan = recipe.prepareStart(ports, base);
         recipe.applyDurationMultiplier(plan.modifiers());
-        if (!recipe.canStart(ports, plan) || !recipe.canTick(ports, plan.modifiers())) return null;
+        if (!recipe.canStart(ports, plan)) {
+            if (host.lockedRecipe() != null) startFailure = recipe.startFailure(ports, plan.modifiers());
+            return null;
+        }
+        if (!recipe.canTick(ports, plan.modifiers())) {
+            if (host.lockedRecipe() != null) startFailure = recipe.tickFailure(ports, plan.modifiers());
+            return null;
+        }
         var checkEnd = MachineEvents.post(new com.reborn.modularmachinery.api.event.RecipeCheckEvent(
                 host.controller(), host.controller().machineId(), Phase.END, recipe, 0, recipe.duration(plan.modifiers()), parallelism).forThread(thread.ordinal()));
-        if (checkEnd.isCanceled()) return null;
+        if (checkEnd.isCanceled()) {
+            if (host.lockedRecipe() != null) startFailureCause = checkEnd.failureReason();
+            return null;
+        }
         parallelism = checkEnd.resolvedParallelism(parallelism);
         recipe.setParallelism(parallelism);
         base = host.modifiers().andThen(thread.scriptState().modifiers());

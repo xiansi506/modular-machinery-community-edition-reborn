@@ -633,5 +633,15 @@
   "tool.modular_machinery_reborn.showCode": "View code",
   "editor.modular_machinery_reborn.toolItemHelp": "Right-click to open; use on a controller to select its machine.",
   "editor.modular_machinery_reborn.invalidQuick": "Check values: duration must use 0.05-second steps; energy must be a non-negative long integer.",
-  "editor.modular_machinery_reborn.tooManyRequirements": "At most 64 requirements. Remove an entry before adding an energy cost."
+  "editor.modular_machinery_reborn.tooManyRequirements": "At most 64 requirements. Remove an entry before adding an energy cost.",
+  "gui.modular_machinery_reborn.recipe_lock.title": "Controller Recipe Lock",
+  "gui.modular_machinery_reborn.recipe_lock.button": "R",
+  "gui.modular_machinery_reborn.recipe_lock.button_locked": "R*",
+  "gui.modular_machinery_reborn.recipe_lock.auto": "Select recipes automatically",
+  "gui.modular_machinery_reborn.recipe_lock.selected": "Locked to %s",
+  "gui.modular_machinery_reborn.recipe_lock.unavailable": "The locked recipe was removed or does not belong to this machine",
+  "gui.modular_machinery_reborn.recipe_lock.waiting": "Waiting for the locked recipe to become runnable",
+  "gui.modular_machinery_reborn.recipe_lock.form_first": "Form the machine to select a recipe",
+  "gui.modular_machinery_reborn.recipe_lock.denied": "You do not have permission to change this controller's recipe",
+  "gui.modular_machinery_reborn.recipe_lock.rejected": "That recipe is currently unavailable for this controller"
 }

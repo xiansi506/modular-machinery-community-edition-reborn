@@ -4,6 +4,7 @@ import com.reborn.modularmachinery.block.MeBusAccess;
 import com.reborn.modularmachinery.block.MeFluidTanks;
 import com.reborn.modularmachinery.block.MeGasStorage;
 import net.minecraft.world.item.ItemStack;
+import net.minecraftforge.fluids.FluidStack;
 
 /** Relative ghost-target edits, calculated from the server's current mark rather than a client snapshot. */
 public final class MeConfigAmount {
@@ -48,12 +49,12 @@ public final class MeConfigAmount {
             bus.setConfigGas(slot, gas.id(), next);
             return true;
         }
-        var fluid = bus.fluidMarkAt(slot);
-        if (fluid != null) {
-            int current = bus.fluidMarkAmount(slot);
+        FluidStack fluid = bus.fluidMarkStackAt(slot);
+        if (!fluid.isEmpty()) {
+            int current = fluid.getAmount();
             int next = adjusted(current, up, shift, control, MeFluidTanks.SLOTS * MeFluidTanks.CAPACITY);
             if (next == current) return false;
-            bus.setConfigFluid(slot, fluid, next);
+            bus.setConfigFluidStack(slot, new FluidStack(fluid, next));
             return true;
         }
         return false;

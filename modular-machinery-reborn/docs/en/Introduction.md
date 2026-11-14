@@ -1,6 +1,6 @@
 # MMCER introduction
 
-**Modular Machinery: Community Edition Reborn · 0.123.1 · Minecraft 1.20.1 / Forge / Java 17 · protocol 13**
+**Modular Machinery: Community Edition Reborn · 0.124.0 · Minecraft 1.20.1 / Forge / Java 17 · protocol 14**
 
 Turn your own structures into processing machines. Define machines and recipes with JSON or KubeJS, then add resource ports, parallel processing, factory threads and upgrades. The mod does not bundle machine definitions or processing recipes; optional examples are provided separately.
 
@@ -9,12 +9,15 @@ Turn your own structures into processing machines. Define machines and recipes w
 - **Structure authoring:** block states, NBT, alternative materials, component tags, dynamic sections and dedicated machine/factory controllers. The structure tool exports complete JSON/KubeJS definitions. Selection gestures remain unchanged; export settings are simpler.
 - **Standalone Recipe Editor item:** right-click to open, or use on a controller to select its machine. The simple canvas supports input/output slots, localized-name search, JEI drops, amount scrolling, seconds and FE/t. Advanced forms, NBT, parallel limits, source editing and KubeJS exports remain available. Version 0.123.1 reserves room for the right-side JEI list.
 - **Resources and processing:** items, fluids, long energy, Mekanism gases, Botania mana, Nature’s Aura, Blood Magic 3 LP/Will, PneumaticCraft air and Embers Rekindled Ember; probabilities, output ranges, catalysts and modifiers.
+- **Controller recipe lock.** Set a regular or factory controller to run one recipe and save the selection with the controller. Paid batches finish as usual. Hover over the lock to see why the next batch is waiting.
 - **Automation and scripting:** unified ME buses, the **ME Machinery Pattern Provider** and **ME Machinery Pattern Mirror Image**, factory/core threads, upgrades, input groups, lifecycle callbacks, persistent script state and client GUI/model/animation hooks. ME gas requires AE2, Mekanism and Applied Mekanistics.
 - **Energy and visuals:** eight tiers of wireless input/output hatches join Flux Networks directly, using its native network selection and permissions. Draconic Evolution OP/long interfaces, Jade energy views, JEI multiblock previews, blueprints, world ghosts and GeckoLib material effects are supported.
 
 Install integrations and their own dependencies as needed; see the [project integration list](../../../README.md). Other recipe adapters, energy backends and magic systems were not added in this update. New wireless textures remain a design only.
 
 ## Usage and validation
+
+After forming the machine, click **R** below the blueprint slot. Search by recipe name, result item or ID. **R\*** indicates a saved lock. Choose **Select recipes automatically** to restore automatic dispatch. A removed recipe ID stays locked until restored or changed. Factory core threads still follow their configured recipe filters.
 
 Creator tools require creative mode and permission level 2. They export server files; install them manually and reload. New registered controllers require a restart. Update both client and server, back up worlds and finish in-flight crafts before upgrading.
 

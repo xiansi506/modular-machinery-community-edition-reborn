@@ -44,7 +44,8 @@ public final class ModNetwork {
     // 0.120.0: server-authoritative authoring actions and paged export previews.
     // 0.121.0: recipe editor validation tickets and bounded draft/export packets.
     // 0.121.59: lossless int menu slots and field-specific hatch group operations require both peers.
-    private static final String PROTOCOL_VERSION = "13";
+    // 0.124.0: controller recipe lock settings.
+    private static final String PROTOCOL_VERSION = "14";
     private static final int ID_PARALLEL_CONTROLLER_UPDATE = 0;
     private static final int ID_SMART_INTERFACE_UPDATE = 1;
     private static final int ID_SELECTION_SYNC = 2;
@@ -61,6 +62,7 @@ public final class ModNetwork {
     private static final int ID_CONSTRUCT_STATE = 13;
     private static final int ID_RECIPE_EDITOR_ACTION = 14;
     private static final int ID_RECIPE_EDITOR_STATE = 15;
+    private static final int ID_CONTROLLER_RECIPE_LOCK = 16;
 
     public static final SimpleChannel CHANNEL = NetworkRegistry.newSimpleChannel(
             new ResourceLocation(ModularMachineryReborn.MOD_ID, "main"),
@@ -121,6 +123,9 @@ public final class ModNetwork {
         CHANNEL.registerMessage(ID_CONSTRUCT_STATE, ConstructToolStatePacket.class, ConstructToolStatePacket::encode, ConstructToolStatePacket::new, ConstructToolStatePacket::handle, Optional.of(NetworkDirection.PLAY_TO_CLIENT));
         CHANNEL.registerMessage(ID_RECIPE_EDITOR_ACTION, RecipeEditorActionPacket.class, RecipeEditorActionPacket::encode, RecipeEditorActionPacket::new, RecipeEditorActionPacket::handle, Optional.of(NetworkDirection.PLAY_TO_SERVER));
         CHANNEL.registerMessage(ID_RECIPE_EDITOR_STATE, RecipeEditorStatePacket.class, RecipeEditorStatePacket::encode, RecipeEditorStatePacket::new, RecipeEditorStatePacket::handle, Optional.of(NetworkDirection.PLAY_TO_CLIENT));
+        CHANNEL.registerMessage(ID_CONTROLLER_RECIPE_LOCK, ControllerRecipeLockPacket.class,
+                ControllerRecipeLockPacket::encode, ControllerRecipeLockPacket::new,
+                ControllerRecipeLockPacket::handle, Optional.of(NetworkDirection.PLAY_TO_SERVER));
     }
 
     private ModNetwork() {

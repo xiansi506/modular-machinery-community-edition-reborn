@@ -1,9 +1,11 @@
 # 构建归档索引
 
-当前源码 **0.123.1／协议 13**。这里只记录本地构建的说明与 SHA-256；JAR 不提交 Git，二进制下载以 [GitHub Releases](https://github.com/xiansi506/modular-machinery-community-edition-reborn/releases) 实际发布内容为准。源码推送不自动创建 Release。
+当前源码 **0.124.0／协议 14**。这里只记录本地构建的说明与 SHA-256；JAR 不提交 Git，二进制下载以 [GitHub Releases](https://github.com/xiansi506/modular-machinery-community-edition-reborn/releases) 实际发布内容为准。源码推送不自动创建 Release。
 
 | 版本 | 说明与校验 |
 |---|---|
+| 0.124.0 | [构建记录](v0.124.0/README.md) |
+| 0.123.2 | [构建记录](v0.123.2/README.md) |
 | 0.123.1 | [构建记录](v0.123.1/README.md) |
 | 0.123.0 | [构建记录](v0.123.0/README.md) |
 | 0.122.0 | [构建记录](v0.122.0/README.md) |

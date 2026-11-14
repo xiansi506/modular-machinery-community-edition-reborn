@@ -11,6 +11,8 @@ import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.material.Fluid;
 import net.minecraft.world.level.material.Fluids;
+import net.minecraftforge.fluids.FluidStack;
+import net.minecraftforge.fluids.FluidUtil;
 import net.minecraftforge.network.NetworkEvent;
 
 import javax.annotation.Nullable;
@@ -112,7 +114,10 @@ public final class MeFluidConfigPacket {
                     int amount = Math.max(1, Math.min(message.amount,
                             com.reborn.modularmachinery.block.MeFluidTanks.SLOTS
                                     * com.reborn.modularmachinery.block.MeFluidTanks.CAPACITY));
-                    bus.setConfigFluid(message.slot, fluid, amount);
+                    FluidStack prototype = FluidUtil.getFluidContained(busMenu.getCarried())
+                            .filter(stack -> stack.getFluid() == fluid)
+                            .orElseGet(() -> new FluidStack(fluid, 1));
+                    bus.setConfigFluidStack(message.slot, new FluidStack(prototype, amount));
                 }
                 case GAS -> {
                     if (message.id == null || bus.gasTanks() == null) return;
